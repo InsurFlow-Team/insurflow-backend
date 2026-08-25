@@ -2,17 +2,22 @@ const app = require('./app');
 const config = require('./config/env');
 const connectDB = require('./config/database');
 
-// Connect to MongoDB
-connectDB();
+let server;
 
-// Start the server
-const server = app.listen(config.port, () => {
-  console.log(`Server running in ${config.nodeEnv} mode on port ${config.port}`);
+// Connect to MongoDB, then start the server
+connectDB().then(() => {
+  server = app.listen(config.port, () => {
+    console.log(`Server running in ${config.nodeEnv} mode on port ${config.port}`);
+  });
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.error(`Error: ${err.message}`);
   // Close server & exit process
-  server.close(() => process.exit(1));
+  if (server) {
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
+  }
 });
