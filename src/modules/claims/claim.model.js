@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const Counter = require('../../utils/counter.model');
 
 // ─── Timeline Sub-document Schema ────────────────────────────────────────────
 const timelineEventSchema = new mongoose.Schema(
@@ -72,7 +73,7 @@ const claimSchema = new mongoose.Schema(
       enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER'],
       required: true,
     },
-    accidentLocation: {
+    incidentLocation: {
       type: String,
       required: true,
       trim: true,
@@ -95,7 +96,8 @@ const claimSchema = new mongoose.Schema(
         default: null,
       },
       customerId: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Customer',
         default: null,
       },
     },
@@ -113,6 +115,15 @@ const claimSchema = new mongoose.Schema(
     },
     assignedAt: {
       type: Date,
+      default: null,
+    },
+    priority: {
+      type: String,
+      enum: ['LOW', 'MEDIUM', 'HIGH'],
+      default: 'MEDIUM',
+    },
+    assignmentNotes: {
+      type: String,
       default: null,
     },
 
@@ -142,6 +153,7 @@ const claimSchema = new mongoose.Schema(
     },
 
     // ── Location (populated during inspection) ───────────────────────
+    // This is the accident location — GPS coordinates captured by the field adjuster via PUT /claims/:claimId/location. Sprint 1 uses this single location object; there is no separate inspectionLocation.
     location: {
       latitude: { type: Number, default: null },
       longitude: { type: Number, default: null },
@@ -176,16 +188,16 @@ const claimSchema = new mongoose.Schema(
 // ─── Indexes ──────────────────────────────────────────────────────────────────
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
 
-claimSchema.pre('save', function () {
+claimSchema.pre('save', async function () {
   if (this.claimNumber) return;
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const suffix = crypto.randomBytes(2).toString('hex').toUpperCase();
+  const counter = await Counter.findOneAndUpdate(
+    { _id: 'claimNumber' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
 
-  this.claimNumber = `CLM-${year}${month}${day}-${suffix}`;
+  this.claimNumber = `CLM-${String(counter.seq).padStart(4, '0')}`;
 });
 
 module.exports = mongoose.model('Claim', claimSchema);

@@ -17,8 +17,6 @@ const seedMockData = async () => {
       organization = await Organization.create({
         name: 'Demo Insurance Co',
         code: 'DEMO-INS',
-        domain: 'demo-insurance.com',
-        status: 'ACTIVE',
       });
       console.log('Created Demo Organization');
     }

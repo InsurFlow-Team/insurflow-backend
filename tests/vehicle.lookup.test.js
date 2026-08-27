@@ -29,6 +29,10 @@ describe('Vehicle Lookup API', () => {
   let policy1;
   let vehicle1;
   let vehicleOrg2;
+  let claimsOfficer;
+  let officerToken;
+  let expiredPolicy;
+  let expiredVehicle;
 
   beforeAll(async () => {
     // Set up test database
@@ -50,6 +54,17 @@ describe('Vehicle Lookup API', () => {
       status: 'ACTIVE',
     });
     token = generateToken(fieldAdjuster);
+
+    // Create Claims Officer in Org 1
+    claimsOfficer = await User.create({
+      name: 'Test Officer',
+      employeeCode: 'CO-100',
+      password: 'password123',
+      role: 'CLAIMS_OFFICER',
+      organizationId: org1._id,
+      status: 'ACTIVE',
+    });
+    officerToken = generateToken(claimsOfficer);
 
     // Create Mock Data in Org 1
     customer1 = await Customer.create({
@@ -77,6 +92,25 @@ describe('Vehicle Lookup API', () => {
       organizationId: org1._id,
     });
 
+    expiredPolicy = await Policy.create({
+      policyNumber: 'POL-EXPIRED-1',
+      status: 'EXPIRED',
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2025-12-31T00:00:00Z'),
+      organizationId: org1._id,
+    });
+
+    expiredVehicle = await Vehicle.create({
+      plateNumber: 'XYZ-9876',
+      make: 'Honda',
+      model: 'Civic',
+      year: 2019,
+      color: 'Silver',
+      customerId: customer1._id,
+      policyId: expiredPolicy._id,
+      organizationId: org1._id,
+    });
+
     // Create Mock Data in Org 2
     vehicleOrg2 = await Vehicle.create({
       plateNumber: 'ORG2-999',
@@ -100,11 +134,18 @@ describe('Vehicle Lookup API', () => {
   });
 
   it('should return 401 if not authenticated', async () => {
-    const res = await request(app).get('/api/v1/vehicles/lookup?plate_number=TST-1234');
+    const res = await request(app).get('/api/v1/vehicles/lookup?plateNumber=TST-1234');
     expect(res.statusCode).toBe(401);
   });
 
-  it('should return 400 if plate_number is missing', async () => {
+  it('should return 403 if user is a CLAIMS_OFFICER', async () => {
+    const res = await request(app)
+      .get('/api/v1/vehicles/lookup?plateNumber=TST-1234')
+      .set('Authorization', `Bearer ${officerToken}`);
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('should return 400 if plateNumber is missing', async () => {
     const res = await request(app)
       .get('/api/v1/vehicles/lookup')
       .set('Authorization', `Bearer ${token}`);
@@ -116,7 +157,7 @@ describe('Vehicle Lookup API', () => {
 
   it('should successfully look up a vehicle in the same organization', async () => {
     const res = await request(app)
-      .get('/api/v1/vehicles/lookup?plate_number=tst-1234 ') // testing lowercase and extra space (normalization)
+      .get('/api/v1/vehicles/lookup?plateNumber=tst-1234 ') // testing lowercase and extra space (normalization)
       .set('Authorization', `Bearer ${token}`);
     
     expect(res.statusCode).toBe(200);
@@ -124,22 +165,40 @@ describe('Vehicle Lookup API', () => {
     
     const { vehicle, customer, policy } = res.body.data;
     
-    expect(vehicle.plate_number).toBe('TST-1234');
+    expect(vehicle.plateNumber).toBe('TST-1234');
     expect(vehicle.make).toBe('Ford');
     expect(vehicle.year).toBe(2021);
     
-    expect(customer.full_name).toBe('Test Customer 1');
+    expect(customer.fullName).toBe('Test Customer 1');
     expect(customer.phone).toBe('+111111111');
     
-    expect(policy.policy_number).toBe('POL-TEST-1');
+    expect(policy.policyNumber).toBe('POL-TEST-1');
     expect(policy.status).toBe('ACTIVE');
-    expect(policy.start_date).toBe('2026-01-01');
-    expect(policy.expiry_date).toBe('2026-12-31');
+    expect(policy.startDate).toBe('2026-01-01');
+    expect(policy.expiryDate).toBe('2026-12-31');
+    
+    expect(res.body.data.warning).toBeUndefined();
+  });
+
+  it('should return warning object if policy is expired', async () => {
+    const res = await request(app)
+      .get('/api/v1/vehicles/lookup?plateNumber=XYZ-9876')
+      .set('Authorization', `Bearer ${token}`);
+    
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    
+    const { vehicle, policy, warning } = res.body.data;
+    expect(vehicle.plateNumber).toBe('XYZ-9876');
+    expect(policy.status).toBe('EXPIRED');
+    
+    expect(warning).toBeDefined();
+    expect(warning.code).toBe('POLICY_EXPIRED');
   });
 
   it('should return 404 for an unknown plate number', async () => {
     const res = await request(app)
-      .get('/api/v1/vehicles/lookup?plate_number=UNKNOWN')
+      .get('/api/v1/vehicles/lookup?plateNumber=UNKNOWN')
       .set('Authorization', `Bearer ${token}`);
     
     expect(res.statusCode).toBe(404);
@@ -149,7 +208,7 @@ describe('Vehicle Lookup API', () => {
 
   it('should return 404 for a plate number that exists but belongs to a different organization (Organization Isolation)', async () => {
     const res = await request(app)
-      .get('/api/v1/vehicles/lookup?plate_number=ORG2-999')
+      .get('/api/v1/vehicles/lookup?plateNumber=ORG2-999')
       .set('Authorization', `Bearer ${token}`);
     
     expect(res.statusCode).toBe(404);

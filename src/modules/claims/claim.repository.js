@@ -77,11 +77,11 @@ const countActiveClaimsByAssignee = async (userId) => {
  * @returns {Promise<Claim|null>}
  */
 const assignClaim = async (claimId, updateData) => {
-  const { assignedTo, assignedBy, assignedAt, status, timelineEvent } = updateData;
+  const { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes, timelineEvent } = updateData;
   return await Claim.findByIdAndUpdate(
     claimId,
     {
-      $set: { assignedTo, assignedBy, assignedAt, status },
+      $set: { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes },
       $push: { timeline: timelineEvent },
     },
     { new: true }

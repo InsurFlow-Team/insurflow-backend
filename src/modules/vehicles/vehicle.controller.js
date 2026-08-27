@@ -16,7 +16,7 @@ const lookupVehicle = async (req, res) => {
     return res.status(400).json(errorResponse('Validation Error', validationErrors));
   }
 
-  const result = await vehicleService.lookupVehicle(value.plate_number, req.user);
+  const result = await vehicleService.lookupVehicle(value.plateNumber, req.user);
   return res.status(200).json(successResponse('Vehicle found successfully', result));
 };
 
