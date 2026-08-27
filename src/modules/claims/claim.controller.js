@@ -1,5 +1,5 @@
 const claimService = require('./claim.service');
-const { createClaimSchema } = require('./claim.validation');
+const { createClaimSchema, assignClaimSchema } = require('./claim.validation');
 const { successResponse, errorResponse } = require('../../utils/apiResponse');
 
 /**
@@ -18,6 +18,25 @@ const createClaim = async (req, res) => {
 
   const result = await claimService.createClaim(value, req.user);
   return res.status(201).json(successResponse('Claim created successfully', result));
+};
+
+/**
+ * POST /api/v1/claims/:claimId/assign
+ * Assigns a claim to a Field Adjuster. Authorized: CLAIMS_OFFICER only.
+ */
+const assignClaim = async (req, res) => {
+  const { claimId } = req.params;
+  const { error, value } = assignClaimSchema.validate(req.body, { abortEarly: false });
+  if (error) {
+    const validationErrors = error.details.map((e) => ({
+      code: 'VALIDATION_ERROR',
+      details: e.message,
+    }));
+    return res.status(400).json(errorResponse('Validation Error', validationErrors));
+  }
+
+  const result = await claimService.assignClaim(claimId, value, req.user);
+  return res.status(200).json(successResponse('Claim assigned successfully', result));
 };
 
 /**
@@ -43,6 +62,7 @@ const getClaimById = async (req, res) => {
 
 module.exports = {
   createClaim,
+  assignClaim,
   getClaims,
   getClaimById,
 };

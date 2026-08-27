@@ -25,12 +25,23 @@ const createClaimSchema = Joi.object({
       'any.only': 'incidentType must be one of: COLLISION, REAR_END_COLLISION, SIDE_IMPACT, PARKING_DAMAGE, OTHER',
       'any.required': 'Incident type is required',
     }),
-  incidentLocation: Joi.string().trim().required().messages({
-    'string.empty': 'Incident location is required',
-    'any.required': 'Incident location is required',
+  accidentLocation: Joi.string().trim().required().messages({
+    'string.empty': 'Accident location is required',
+    'any.required': 'Accident location is required',
+  }),
+});
+
+/**
+ * Validation schema for POST /claims/:claimId/assign
+ */
+const assignClaimSchema = Joi.object({
+  adjusterId: Joi.string().trim().required().messages({
+    'string.empty': 'Adjuster ID is required',
+    'any.required': 'Adjuster ID is required',
   }),
 });
 
 module.exports = {
   createClaimSchema,
+  assignClaimSchema,
 };

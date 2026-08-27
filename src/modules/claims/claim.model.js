@@ -31,7 +31,6 @@ const claimSchema = new mongoose.Schema(
     // ── Identity & Tenancy ──────────────────────────────────────────
     claimNumber: {
       type: String,
-      unique: true,
     },
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -73,7 +72,7 @@ const claimSchema = new mongoose.Schema(
       enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER'],
       required: true,
     },
-    incidentLocation: {
+    accidentLocation: {
       type: String,
       required: true,
       trim: true,
@@ -174,9 +173,11 @@ const claimSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ─── Pre-save Hook: Auto-generate claimNumber ─────────────────────────────────
-claimSchema.pre('save', function (next) {
-  if (this.claimNumber) return next();
+// ─── Indexes ──────────────────────────────────────────────────────────────────
+claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
+
+claimSchema.pre('save', function () {
+  if (this.claimNumber) return;
 
   const now = new Date();
   const year = now.getFullYear();
@@ -185,7 +186,6 @@ claimSchema.pre('save', function (next) {
   const suffix = crypto.randomBytes(2).toString('hex').toUpperCase();
 
   this.claimNumber = `CLM-${year}${month}${day}-${suffix}`;
-  next();
 });
 
 module.exports = mongoose.model('Claim', claimSchema);

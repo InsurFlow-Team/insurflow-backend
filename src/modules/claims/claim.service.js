@@ -14,7 +14,7 @@ const AppError = require('../../utils/appError');
  * @returns {Promise<object>} The newly created claim (minimal response per API contract).
  */
 const createClaim = async (body, authUser) => {
-  const { customerName, customerPhone, initialPlateNumber, incidentType, incidentLocation } = body;
+  const { customerName, customerPhone, initialPlateNumber, incidentType, accidentLocation } = body;
 
   const claimData = {
     // ── Multi-tenancy & Ownership (from JWT — never from client) ──
@@ -33,7 +33,7 @@ const createClaim = async (body, authUser) => {
       plateNumber: initialPlateNumber,
     },
     incidentType,
-    incidentLocation,
+    accidentLocation,
 
     // ── Seed the timeline with the creation event ──
     timeline: [
@@ -104,8 +104,82 @@ const getClaimById = async (claimId, authUser) => {
   return claim;
 };
 
+/**
+ * Assign a claim to a Field Adjuster.
+ *
+ * @param {string} claimId
+ * @param {object} body - Validated request body (requires adjusterId).
+ * @param {object} authUser - The authenticated user context.
+ * @returns {Promise<object>}
+ */
+const assignClaim = async (claimId, body, authUser) => {
+  const { adjusterId } = body;
+  const { userId, role, organizationId } = authUser;
+
+  // 1. Find claim and verify it exists within this org
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // 2. Verify claim is in NEW state
+  if (claim.status !== 'NEW') {
+    throw new AppError('Claim is not in NEW state', 400, 'INVALID_CLAIM_STATE');
+  }
+
+  // 3. Find the adjuster and verify they belong to the same org
+  // Assuming a user service or user repository can fetch this
+  const userRepository = require('../users/user.repository');
+  const adjuster = await userRepository.findByIdAndOrganization(adjusterId, organizationId);
+  if (!adjuster) {
+    throw new AppError('Adjuster not found in your organization', 404, 'ADJUSTER_NOT_FOUND');
+  }
+
+  // 4. Verify adjuster role and status
+  if (adjuster.role !== 'FIELD_ADJUSTER') {
+    throw new AppError('User is not a Field Adjuster', 400, 'INVALID_ADJUSTER_ROLE');
+  }
+  if (adjuster.status !== 'ACTIVE') {
+    throw new AppError('Adjuster is not active', 400, 'ADJUSTER_NOT_ACTIVE');
+  }
+
+  // 5. Verify adjuster availability (no active claims)
+  const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
+  if (activeTasksCount > 0) {
+    throw new AppError('Adjuster is currently unavailable', 400, 'ADJUSTER_UNAVAILABLE');
+  }
+
+  // 6. Assign the claim
+  const timelineEvent = {
+    action: 'Claim Assigned',
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updateData = {
+    assignedTo: adjusterId,
+    assignedBy: userId,
+    assignedAt: new Date(),
+    status: 'ASSIGNED',
+    timelineEvent,
+  };
+
+  const updatedClaim = await claimRepository.assignClaim(claimId, updateData);
+
+  return {
+    id: updatedClaim._id,
+    claimNumber: updatedClaim.claimNumber,
+    status: updatedClaim.status,
+    assignedTo: updatedClaim.assignedTo,
+    assignedBy: updatedClaim.assignedBy,
+    assignedAt: updatedClaim.assignedAt,
+  };
+};
+
 module.exports = {
   createClaim,
   getClaims,
   getClaimById,
+  assignClaim,
 };

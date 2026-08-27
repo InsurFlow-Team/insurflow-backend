@@ -57,9 +57,42 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
     .lean();
 };
 
+/**
+ * Count the number of active claims assigned to a specific user.
+ * Active implies the claim is not CLOSED.
+ * @param {string} userId
+ * @returns {Promise<number>}
+ */
+const countActiveClaimsByAssignee = async (userId) => {
+  return await Claim.countDocuments({
+    assignedTo: userId,
+    status: 'ASSIGNED',
+  });
+};
+/**
+ * Assign a claim to an adjuster.
+ * Updates assignedTo, assignedBy, assignedAt, status, and timeline.
+ * @param {string} claimId
+ * @param {object} updateData - Object containing assignedTo, assignedBy, assignedAt, status, and timeline event.
+ * @returns {Promise<Claim|null>}
+ */
+const assignClaim = async (claimId, updateData) => {
+  const { assignedTo, assignedBy, assignedAt, status, timelineEvent } = updateData;
+  return await Claim.findByIdAndUpdate(
+    claimId,
+    {
+      $set: { assignedTo, assignedBy, assignedAt, status },
+      $push: { timeline: timelineEvent },
+    },
+    { new: true }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
   findByAssignee,
   findByIdAndOrganization,
+  countActiveClaimsByAssignee,
+  assignClaim,
 };

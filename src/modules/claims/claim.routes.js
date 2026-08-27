@@ -29,4 +29,11 @@ router.get(
   claimController.getClaimById
 );
 
+// POST /api/v1/claims/:claimId/assign — Assign claim to adjuster
+router.post(
+  '/:claimId/assign',
+  authorizeRole(['CLAIMS_OFFICER']),
+  claimController.assignClaim
+);
+
 module.exports = router;
