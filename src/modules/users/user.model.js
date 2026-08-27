@@ -10,12 +10,12 @@ const userSchema = new mongoose.Schema({
   employeeCode: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
   },
   password: {
     type: String,
     required: true,
+    select: false,
   },
   role: {
     type: String,
@@ -34,18 +34,15 @@ const userSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+userSchema.index({ organizationId: 1, employeeCode: 1 }, { unique: true });
+
 // Pre-save hook to hash password
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
-    return next();
+    return;
   }
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (err) {
-    next(err);
-  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Method to compare passwords
