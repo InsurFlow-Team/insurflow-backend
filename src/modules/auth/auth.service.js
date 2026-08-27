@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const Organization = require('../organizations/organization.model');
 const User = require('../users/user.model');
 const config = require('../../config/env');
+const AppError = require('../../utils/appError');
 
 /**
  * Authenticates a user and generates a JWT.
@@ -14,36 +15,28 @@ const login = async (organizationCode, employeeCode, password) => {
   // 1. Find organization by code
   const organization = await Organization.findOne({ code: organizationCode.toUpperCase() });
   if (!organization) {
-    const error = new Error('Invalid credentials');
-    error.statusCode = 401;
-    throw error;
+    throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }
 
   // 2. Find user by employee code and organization ID
   const user = await User.findOne({ 
     employeeCode, 
     organizationId: organization._id 
-  });
+  }).select('+password');
   
   if (!user) {
-    const error = new Error('Invalid credentials');
-    error.statusCode = 401;
-    throw error;
+    throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }
 
   // 3. Check user status
   if (user.status !== 'ACTIVE') {
-    const error = new Error('User is inactive');
-    error.statusCode = 401;
-    throw error;
+    throw new AppError('User is inactive', 401, 'UNAUTHORIZED');
   }
 
   // 4. Verify password
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
-    const error = new Error('Invalid credentials');
-    error.statusCode = 401;
-    throw error;
+    throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }
 
   // 5. Generate JWT

@@ -77,6 +77,7 @@ describe('POST /api/v1/auth/login', () => {
     expect(response.status).toBe(401);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toBe('Invalid credentials');
+    expect(response.body.errors[0].code).toBe('INVALID_CREDENTIALS');
   });
 
   it('should fail with invalid employee code', async () => {
@@ -91,6 +92,7 @@ describe('POST /api/v1/auth/login', () => {
     expect(response.status).toBe(401);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toBe('Invalid credentials');
+    expect(response.body.errors[0].code).toBe('INVALID_CREDENTIALS');
   });
 
   it('should fail with invalid password', async () => {
@@ -105,6 +107,7 @@ describe('POST /api/v1/auth/login', () => {
     expect(response.status).toBe(401);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toBe('Invalid credentials');
+    expect(response.body.errors[0].code).toBe('INVALID_CREDENTIALS');
   });
 
   it('should fail with missing fields', async () => {
@@ -120,5 +123,38 @@ describe('POST /api/v1/auth/login', () => {
     expect(response.body.success).toBe(false);
     expect(response.body.errors).toBeDefined();
     expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('should allow same employeeCode in different organizations', async () => {
+    const org2 = await Organization.create({
+      name: 'OtherOrg',
+      code: 'ORG-B',
+    });
+
+    await User.create({
+      name: 'Another Ahmed',
+      employeeCode: 'FA-001', // same code
+      password: 'password123',
+      role: 'FIELD_ADJUSTER',
+      organizationId: org2._id,
+      status: 'ACTIVE',
+    });
+    
+    // If it reaches here without throwing, the test passes
+    const users = await User.find({ employeeCode: 'FA-001' });
+    expect(users.length).toBe(2);
+  });
+
+  it('should prevent same employeeCode in same organization', async () => {
+    await expect(
+      User.create({
+        name: 'Clone Ahmed',
+        employeeCode: 'FA-001', // same code
+        password: 'password123',
+        role: 'FIELD_ADJUSTER',
+        organizationId: org._id, // same org
+        status: 'ACTIVE',
+      })
+    ).rejects.toThrow(/duplicate key error/);
   });
 });
