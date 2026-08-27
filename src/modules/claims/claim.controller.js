@@ -1,0 +1,48 @@
+const claimService = require('./claim.service');
+const { createClaimSchema } = require('./claim.validation');
+const { successResponse, errorResponse } = require('../../utils/apiResponse');
+
+/**
+ * POST /api/v1/claims
+ * Creates a new claim. Authorized: CLAIMS_OFFICER only.
+ */
+const createClaim = async (req, res) => {
+  const { error, value } = createClaimSchema.validate(req.body, { abortEarly: false });
+  if (error) {
+    const validationErrors = error.details.map((e) => ({
+      code: 'VALIDATION_ERROR',
+      details: e.message,
+    }));
+    return res.status(400).json(errorResponse('Validation Error', validationErrors));
+  }
+
+  const result = await claimService.createClaim(value, req.user);
+  return res.status(201).json(successResponse('Claim created successfully', result));
+};
+
+/**
+ * GET /api/v1/claims
+ * Returns claims visible to the authenticated user (role-filtered).
+ * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
+ */
+const getClaims = async (req, res) => {
+  const claims = await claimService.getClaims(req.user);
+  return res.status(200).json(successResponse('Claims retrieved successfully', claims));
+};
+
+/**
+ * GET /api/v1/claims/:claimId
+ * Returns the full details of a single claim.
+ * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
+ */
+const getClaimById = async (req, res) => {
+  const { claimId } = req.params;
+  const claim = await claimService.getClaimById(claimId, req.user);
+  return res.status(200).json(successResponse('Claim retrieved successfully', claim));
+};
+
+module.exports = {
+  createClaim,
+  getClaims,
+  getClaimById,
+};
