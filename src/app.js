@@ -35,9 +35,8 @@ app.get('/health', (req, res) => {
 });
 
 // Module Routes
-// TODO: Mount routes here as they are implemented, e.g.:
-// const authRoutes = require('./modules/auth/routes');
-// app.use('/api/v1/auth', authRoutes);
+const authRoutes = require('./modules/auth/auth.routes');
+app.use('/api/v1/auth', authRoutes);
 
 // 404 Handler for undefined routes
 app.use(notFoundHandler);
