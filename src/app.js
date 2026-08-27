@@ -38,10 +38,12 @@ app.get('/health', (req, res) => {
 const authRoutes = require('./modules/auth/auth.routes');
 const claimRoutes = require('./modules/claims/claim.routes');
 const userRoutes = require('./modules/users/user.routes');
+const vehicleRoutes = require('./modules/vehicles/vehicle.routes');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/claims', claimRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/vehicles', vehicleRoutes);
 
 // 404 Handler for undefined routes
 app.use(notFoundHandler);
