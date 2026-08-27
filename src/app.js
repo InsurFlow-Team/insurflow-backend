@@ -36,7 +36,10 @@ app.get('/health', (req, res) => {
 
 // Module Routes
 const authRoutes = require('./modules/auth/auth.routes');
+const claimRoutes = require('./modules/claims/claim.routes');
+
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/claims', claimRoutes);
 
 // 404 Handler for undefined routes
 app.use(notFoundHandler);
