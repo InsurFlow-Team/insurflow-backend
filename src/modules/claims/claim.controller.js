@@ -45,7 +45,8 @@ const assignClaim = async (req, res) => {
  * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
  */
 const getClaims = async (req, res) => {
-  const claims = await claimService.getClaims(req.user);
+  const { status } = req.query;
+  const claims = await claimService.getClaims(req.user, status);
   return res.status(200).json(successResponse('Claims retrieved successfully', claims));
 };
 

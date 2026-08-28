@@ -65,16 +65,26 @@ const createClaim = async (body, authUser) => {
  * @param {object} authUser - The authenticated user context from req.user.
  * @returns {Promise<object[]>}
  */
-const getClaims = async (authUser) => {
+const getClaims = async (authUser, status) => {
   const { userId, role, organizationId } = authUser;
+  let claims;
 
   // FIELD_ADJUSTER: sees only claims assigned to them
   if (role === 'FIELD_ADJUSTER') {
-    return await claimRepository.findByAssignee(organizationId, userId);
+    claims = await claimRepository.findByAssignee(organizationId, userId, status);
+  } else {
+    // CLAIMS_OFFICER & ADMIN: see all claims in their organization
+    claims = await claimRepository.findByOrganization(organizationId, status);
   }
 
-  // CLAIMS_OFFICER & ADMIN: see all claims in their organization
-  return await claimRepository.findByOrganization(organizationId);
+  return claims.map((claim) => ({
+    id: claim._id,
+    claimNumber: claim.claimNumber,
+    status: claim.status,
+    customerName: claim.customer.name,
+    initialPlateNumber: claim.vehicle.plateNumber,
+    createdAt: claim.createdAt,
+  }));
 };
 
 /**
@@ -102,7 +112,27 @@ const getClaimById = async (claimId, authUser) => {
     }
   }
 
-  return claim;
+  return {
+    id: claim._id,
+    claimNumber: claim.claimNumber,
+    status: claim.status,
+    customer: claim.customer,
+    vehicle: claim.vehicle,
+    incidentType: claim.incidentType,
+    incidentLocation: claim.incidentLocation,
+    assignment: {
+      assignedTo: claim.assignedTo,
+      assignedBy: claim.assignedBy,
+      assignedAt: claim.assignedAt,
+      priority: claim.priority,
+      assignmentNotes: claim.assignmentNotes,
+    },
+    accident: claim.accident,
+    location: claim.location,
+    timeline: claim.timeline,
+    createdAt: claim.createdAt,
+    updatedAt: claim.updatedAt,
+  };
 };
 
 /**
