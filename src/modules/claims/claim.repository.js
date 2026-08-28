@@ -90,6 +90,30 @@ const assignClaim = async (claimId, updateData) => {
   ).lean();
 };
 
+const updateVehicle = async (claimId, vehicleData, timelineEvent) => {
+  return await Claim.findByIdAndUpdate(
+    claimId,
+    { $set: { vehicle: vehicleData }, $push: { timeline: timelineEvent } },
+    { new: true }
+  ).lean();
+};
+
+const updateAccident = async (claimId, accidentData, timelineEvent) => {
+  return await Claim.findByIdAndUpdate(
+    claimId,
+    { $set: { accident: accidentData }, $push: { timeline: timelineEvent } },
+    { new: true }
+  ).lean();
+};
+
+const updateLocation = async (claimId, locationData, timelineEvent) => {
+  return await Claim.findByIdAndUpdate(
+    claimId,
+    { $set: { location: locationData }, $push: { timeline: timelineEvent } },
+    { new: true }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -97,4 +121,7 @@ module.exports = {
   findByIdAndOrganization,
   countActiveClaimsByAssignee,
   assignClaim,
+  updateVehicle,
+  updateAccident,
+  updateLocation,
 };

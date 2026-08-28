@@ -1,5 +1,8 @@
 const claimRepository = require('./claim.repository');
 const userRepository = require('../users/user.repository');
+const vehicleRepository = require('../vehicles/vehicle.repository');
+const policyRepository = require('../policies/policy.repository');
+const customerRepository = require('../customers/customer.repository');
 const AppError = require('../../utils/appError');
 
 /**
@@ -201,9 +204,86 @@ const assignClaim = async (claimId, body, authUser) => {
   };
 };
 
+const getOwnedAssignedClaim = async (claimId, authUser) => {
+  const claim = await claimRepository.findByIdAndOrganization(claimId, authUser.organizationId);
+
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  const assignedToId = claim.assignedTo?._id?.toString() ?? claim.assignedTo?.toString();
+  if (assignedToId !== authUser.userId.toString()) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  if (claim.status !== 'ASSIGNED') {
+    throw new AppError('Claim is not in ASSIGNED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return claim;
+};
+
+const updateVehicle = async (claimId, body, authUser) => {
+  await getOwnedAssignedClaim(claimId, authUser);
+
+  const vehicle = await vehicleRepository.findByIdAndOrganization(body.vehicleId, authUser.organizationId);
+  if (!vehicle) throw new AppError('Vehicle not found', 404, 'VEHICLE_NOT_FOUND');
+
+  const policy = await policyRepository.findByIdAndOrganization(body.policyId, authUser.organizationId);
+  if (!policy) throw new AppError('Policy not found', 404, 'POLICY_NOT_FOUND');
+
+  const customer = await customerRepository.findByIdAndOrganization(body.customerId, authUser.organizationId);
+  if (!customer) throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+
+  const vehicleData = {
+    plateNumber: vehicle.plateNumber,
+    vehicleId: vehicle._id,
+    policyId: policy._id,
+    customerId: customer._id,
+  };
+
+  const updatedClaim = await claimRepository.updateVehicle(claimId, vehicleData, {
+    action: 'Vehicle Confirmed',
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  });
+
+  return { status: updatedClaim.status, vehicle: updatedClaim.vehicle };
+};
+
+const updateAccident = async (claimId, body, authUser) => {
+  await getOwnedAssignedClaim(claimId, authUser);
+
+  const updatedClaim = await claimRepository.updateAccident(claimId, body, {
+    action: 'Accident Details Recorded',
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  });
+
+  return { status: updatedClaim.status, accident: updatedClaim.accident };
+};
+
+const updateLocation = async (claimId, body, authUser) => {
+  await getOwnedAssignedClaim(claimId, authUser);
+
+  const updatedClaim = await claimRepository.updateLocation(claimId, body, {
+    action: 'Location Captured',
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  });
+
+  return { status: updatedClaim.status, location: updatedClaim.location };
+};
+
 module.exports = {
   createClaim,
   getClaims,
   getClaimById,
   assignClaim,
+  updateVehicle,
+  updateAccident,
+  updateLocation,
 };
