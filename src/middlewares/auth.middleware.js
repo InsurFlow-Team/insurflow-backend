@@ -7,13 +7,18 @@ const { errorResponse } = require('../utils/apiResponse');
  * Validates the JWT and attaches user context to the request.
  */
 const authenticate = (req, res, next) => {
+  let token;
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json(errorResponse('Unauthorized: Missing or invalid token format'));
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
   }
 
-  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json(errorResponse('Unauthorized: Missing token'));
+  }
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret);

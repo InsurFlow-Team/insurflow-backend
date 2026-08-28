@@ -1,6 +1,7 @@
 const authService = require('./auth.service');
 const { loginSchema } = require('./auth.validation');
 const { successResponse, errorResponse } = require('../../utils/apiResponse');
+const config = require('../../config/env');
 
 /**
  * Handle POST /auth/login
@@ -21,7 +22,15 @@ const login = async (req, res, next) => {
   // 2. Call service to login
   const loginData = await authService.login(organizationCode, employeeCode, password);
 
-  // 3. Return success response
+  // 3. Set cookie
+  res.cookie('token', loginData.accessToken, {
+    httpOnly: config.nodeEnv === 'production' ? true : false,
+    secure: config.nodeEnv === 'production' ? true : false,
+    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
+    maxAge: 8 * 60 * 60 * 1000 // 8 hours
+  });
+
+  // 4. Return success response
   return res.status(200).json(successResponse('Login successful', loginData));
 };
 

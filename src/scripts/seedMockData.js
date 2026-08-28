@@ -1,4 +1,4 @@
-require('dotenv').config();
+const config = require('../config/env')
 const mongoose = require('mongoose');
 const Organization = require('../modules/organizations/organization.model');
 const Customer = require('../modules/customers/customer.model');
@@ -8,7 +8,7 @@ const User = require('../modules/users/user.model');
 
 const seedMockData = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/insurflow';
+    const mongoUri = config.databaseUrl;
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB');
 
@@ -57,7 +57,7 @@ const seedMockData = async () => {
       { fullName: 'John Doe', phone: '+1234567890', organizationId: organization._id },
       { fullName: 'Jane Smith', phone: '+1987654321', organizationId: organization._id },
     ];
-    
+
     // Clear existing mock customers for this org to prevent duplicates
     await Customer.deleteMany({ organizationId: organization._id });
     const customers = await Customer.insertMany(customersData);

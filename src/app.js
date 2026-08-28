@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 
 const config = require('./config/env');
 const errorHandler = require('./middlewares/errorHandler');
@@ -12,9 +13,11 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));//! this is for sending requests with files and images
+app.use(cookieParser());
 app.use(cors({
   origin: config.corsOrigin,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  credentials: true
 }));
 
 // Request Logging
