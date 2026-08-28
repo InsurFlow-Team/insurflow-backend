@@ -704,7 +704,3 @@ CLM-0001, CLM-0002, CLM-0003...
 
 ### رابع شيء: Repository Pattern
 لا تُكتب MongoDB queries مباشرة في الـ Service. كل التعامل مع قاعدة البيانات يمر عبر Repository. هذا يجعل الكود قابلًا للاختبار والتعديل.
-
----
-
-*وثّقه: Antigravity AI — Sprint 1 Documentation*

@@ -4,6 +4,7 @@ const Organization = require('../modules/organizations/organization.model');
 const Customer = require('../modules/customers/customer.model');
 const Policy = require('../modules/policies/policy.model');
 const Vehicle = require('../modules/vehicles/vehicle.model');
+const User = require('../modules/users/user.model');
 
 const seedMockData = async () => {
   try {
@@ -20,6 +21,36 @@ const seedMockData = async () => {
       });
       console.log('Created Demo Organization');
     }
+
+    // Create demo users
+    await User.deleteMany({ organizationId: organization._id });
+    await User.create([
+      {
+        name: 'Sara Officer',
+        employeeCode: 'CO-001',
+        password: 'Password123!',
+        role: 'CLAIMS_OFFICER',
+        organizationId: organization._id,
+        status: 'ACTIVE',
+      },
+      {
+        name: 'Ahmed Adjuster',
+        employeeCode: 'FA-001',
+        password: 'Password123!',
+        role: 'FIELD_ADJUSTER',
+        organizationId: organization._id,
+        status: 'ACTIVE',
+      },
+      {
+        name: 'Second Adjuster',
+        employeeCode: 'FA-002',
+        password: 'Password123!',
+        role: 'FIELD_ADJUSTER',
+        organizationId: organization._id,
+        status: 'ACTIVE',
+      },
+    ]);
+    console.log('Created Demo Users');
 
     // Create mock customers
     const customersData = [
