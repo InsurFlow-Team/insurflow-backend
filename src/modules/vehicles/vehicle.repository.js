@@ -24,7 +24,12 @@ const create = async (data) => {
   return await vehicle.save();
 };
 
+const findByIdAndOrganization = async (vehicleId, organizationId) => {
+  return await Vehicle.findOne({ _id: vehicleId, organizationId }).lean();
+};
+
 module.exports = {
   findByPlateAndOrganization,
+  findByIdAndOrganization,
   create,
 };
