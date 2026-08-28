@@ -278,6 +278,53 @@ const updateLocation = async (claimId, body, authUser) => {
   return { status: updatedClaim.status, location: updatedClaim.location };
 };
 
+const submitInspection = async (claimId, authUser) => {
+  const claim = await getOwnedAssignedClaim(claimId, authUser);
+
+  const missing = [];
+  if (claim.vehicle?.vehicleId == null) missing.push('vehicle');
+  if (claim.accident?.accidentType == null) missing.push('accident');
+  if (claim.location?.latitude == null || claim.location?.longitude == null) missing.push('location');
+
+  if (missing.length > 0) {
+    throw new AppError(
+      `Inspection incomplete. Missing: ${missing.join(', ')}`,
+      422,
+      'INSPECTION_INCOMPLETE'
+    );
+  }
+
+  const updatedClaim = await claimRepository.submitInspection(claimId, {
+    action: 'Inspection Submitted',
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  });
+
+  return { status: updatedClaim.status };
+};
+
+const startReview = async (claimId, authUser) => {
+  const claim = await claimRepository.findByIdAndOrganization(claimId, authUser.organizationId);
+
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  if (claim.status !== 'SUBMITTED') {
+    throw new AppError('Claim is not in SUBMITTED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const updatedClaim = await claimRepository.startReview(claimId, {
+    action: 'Review Started',
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  });
+
+  return { status: updatedClaim.status };
+};
+
 module.exports = {
   createClaim,
   getClaims,
@@ -286,4 +333,6 @@ module.exports = {
   updateVehicle,
   updateAccident,
   updateLocation,
+  submitInspection,
+  startReview,
 };
