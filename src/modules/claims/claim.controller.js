@@ -112,6 +112,18 @@ const updateLocation = async (req, res) => {
   return res.status(200).json(successResponse('Location updated successfully', result));
 };
 
+const submitInspection = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.submitInspection(claimId, req.user);
+  return res.status(200).json(successResponse('Inspection submitted successfully', result));
+};
+
+const startReview = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.startReview(claimId, req.user);
+  return res.status(200).json(successResponse('Review started successfully', result));
+};
+
 module.exports = {
   createClaim,
   assignClaim,
@@ -120,4 +132,6 @@ module.exports = {
   updateVehicle,
   updateAccident,
   updateLocation,
+  submitInspection,
+  startReview,
 };

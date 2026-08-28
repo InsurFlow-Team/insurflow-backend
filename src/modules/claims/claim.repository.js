@@ -114,6 +114,22 @@ const updateLocation = async (claimId, locationData, timelineEvent) => {
   ).lean();
 };
 
+const submitInspection = async (claimId, timelineEvent) => {
+  return await Claim.findByIdAndUpdate(
+    claimId,
+    { $set: { status: 'SUBMITTED' }, $push: { timeline: timelineEvent } },
+    { new: true }
+  ).lean();
+};
+
+const startReview = async (claimId, timelineEvent) => {
+  return await Claim.findByIdAndUpdate(
+    claimId,
+    { $set: { status: 'UNDER_REVIEW' }, $push: { timeline: timelineEvent } },
+    { new: true }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -124,4 +140,6 @@ module.exports = {
   updateVehicle,
   updateAccident,
   updateLocation,
+  submitInspection,
+  startReview,
 };

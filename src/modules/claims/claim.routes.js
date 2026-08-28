@@ -40,4 +40,7 @@ router.put('/:claimId/vehicle', authorizeRole(['FIELD_ADJUSTER']), claimControll
 router.put('/:claimId/accident', authorizeRole(['FIELD_ADJUSTER']), claimController.updateAccident);
 router.put('/:claimId/location', authorizeRole(['FIELD_ADJUSTER']), claimController.updateLocation);
 
+router.post('/:claimId/inspection/submit', authorizeRole(['FIELD_ADJUSTER']), claimController.submitInspection);
+router.post('/:claimId/review/start', authorizeRole(['CLAIMS_OFFICER']), claimController.startReview);
+
 module.exports = router;
