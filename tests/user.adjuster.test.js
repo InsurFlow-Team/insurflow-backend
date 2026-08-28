@@ -108,7 +108,7 @@ describe('GET /api/v1/users/adjusters', () => {
       status: 'ASSIGNED',
       customer: { name: 'C', phone: '1' },
       incidentType: 'COLLISION',
-      accidentLocation: 'L',
+      incidentLocation: 'L',
       assignedTo: adjuster2._id,
     });
   });

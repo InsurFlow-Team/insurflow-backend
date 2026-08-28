@@ -1,4 +1,5 @@
 const claimRepository = require('./claim.repository');
+const userRepository = require('../users/user.repository');
 const AppError = require('../../utils/appError');
 
 /**
@@ -14,7 +15,7 @@ const AppError = require('../../utils/appError');
  * @returns {Promise<object>} The newly created claim (minimal response per API contract).
  */
 const createClaim = async (body, authUser) => {
-  const { customerName, customerPhone, initialPlateNumber, incidentType, accidentLocation } = body;
+  const { customerName, customerPhone, initialPlateNumber, incidentType, incidentLocation } = body;
 
   const claimData = {
     // ── Multi-tenancy & Ownership (from JWT — never from client) ──
@@ -33,7 +34,7 @@ const createClaim = async (body, authUser) => {
       plateNumber: initialPlateNumber,
     },
     incidentType,
-    accidentLocation,
+    incidentLocation,
 
     // ── Seed the timeline with the creation event ──
     timeline: [
@@ -64,16 +65,26 @@ const createClaim = async (body, authUser) => {
  * @param {object} authUser - The authenticated user context from req.user.
  * @returns {Promise<object[]>}
  */
-const getClaims = async (authUser) => {
+const getClaims = async (authUser, status) => {
   const { userId, role, organizationId } = authUser;
+  let claims;
 
   // FIELD_ADJUSTER: sees only claims assigned to them
   if (role === 'FIELD_ADJUSTER') {
-    return await claimRepository.findByAssignee(organizationId, userId);
+    claims = await claimRepository.findByAssignee(organizationId, userId, status);
+  } else {
+    // CLAIMS_OFFICER & ADMIN: see all claims in their organization
+    claims = await claimRepository.findByOrganization(organizationId, status);
   }
 
-  // CLAIMS_OFFICER & ADMIN: see all claims in their organization
-  return await claimRepository.findByOrganization(organizationId);
+  return claims.map((claim) => ({
+    id: claim._id,
+    claimNumber: claim.claimNumber,
+    status: claim.status,
+    customerName: claim.customer.name,
+    initialPlateNumber: claim.vehicle.plateNumber,
+    createdAt: claim.createdAt,
+  }));
 };
 
 /**
@@ -101,7 +112,27 @@ const getClaimById = async (claimId, authUser) => {
     }
   }
 
-  return claim;
+  return {
+    id: claim._id,
+    claimNumber: claim.claimNumber,
+    status: claim.status,
+    customer: claim.customer,
+    vehicle: claim.vehicle,
+    incidentType: claim.incidentType,
+    incidentLocation: claim.incidentLocation,
+    assignment: {
+      assignedTo: claim.assignedTo,
+      assignedBy: claim.assignedBy,
+      assignedAt: claim.assignedAt,
+      priority: claim.priority,
+      assignmentNotes: claim.assignmentNotes,
+    },
+    accident: claim.accident,
+    location: claim.location,
+    timeline: claim.timeline,
+    createdAt: claim.createdAt,
+    updatedAt: claim.updatedAt,
+  };
 };
 
 /**
@@ -113,7 +144,7 @@ const getClaimById = async (claimId, authUser) => {
  * @returns {Promise<object>}
  */
 const assignClaim = async (claimId, body, authUser) => {
-  const { adjusterId } = body;
+  const { adjusterId, priority, notes } = body;
   const { userId, role, organizationId } = authUser;
 
   // 1. Find claim and verify it exists within this org
@@ -124,29 +155,19 @@ const assignClaim = async (claimId, body, authUser) => {
 
   // 2. Verify claim is in NEW state
   if (claim.status !== 'NEW') {
-    throw new AppError('Claim is not in NEW state', 400, 'INVALID_CLAIM_STATE');
+    throw new AppError('Claim is not in NEW state', 409, 'INVALID_STATUS_TRANSITION');
   }
 
-  // 3. Find the adjuster and verify they belong to the same org
-  // Assuming a user service or user repository can fetch this
-  const userRepository = require('../users/user.repository');
+  // 3. Find the adjuster and verify existence, role, and status
   const adjuster = await userRepository.findByIdAndOrganization(adjusterId, organizationId);
-  if (!adjuster) {
-    throw new AppError('Adjuster not found in your organization', 404, 'ADJUSTER_NOT_FOUND');
+  if (!adjuster || adjuster.role !== 'FIELD_ADJUSTER' || adjuster.status !== 'ACTIVE') {
+    throw new AppError('Adjuster not found', 404, 'ADJUSTER_NOT_FOUND');
   }
 
-  // 4. Verify adjuster role and status
-  if (adjuster.role !== 'FIELD_ADJUSTER') {
-    throw new AppError('User is not a Field Adjuster', 400, 'INVALID_ADJUSTER_ROLE');
-  }
-  if (adjuster.status !== 'ACTIVE') {
-    throw new AppError('Adjuster is not active', 400, 'ADJUSTER_NOT_ACTIVE');
-  }
-
-  // 5. Verify adjuster availability (no active claims)
+  // 4. Verify adjuster availability (no active claims)
   const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
   if (activeTasksCount > 0) {
-    throw new AppError('Adjuster is currently unavailable', 400, 'ADJUSTER_UNAVAILABLE');
+    throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
   }
 
   // 6. Assign the claim
@@ -162,6 +183,8 @@ const assignClaim = async (claimId, body, authUser) => {
     assignedBy: userId,
     assignedAt: new Date(),
     status: 'ASSIGNED',
+    priority,
+    assignmentNotes: notes,
     timelineEvent,
   };
 
@@ -171,6 +194,7 @@ const assignClaim = async (claimId, body, authUser) => {
     id: updatedClaim._id,
     claimNumber: updatedClaim.claimNumber,
     status: updatedClaim.status,
+    priority: updatedClaim.priority,
     assignedTo: updatedClaim.assignedTo,
     assignedBy: updatedClaim.assignedBy,
     assignedAt: updatedClaim.assignedAt,

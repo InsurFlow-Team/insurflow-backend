@@ -21,11 +21,10 @@ const lookupVehicle = async (plateNumber, authUser) => {
     throw new AppError('Vehicle not found', 404, 'VEHICLE_NOT_FOUND');
   }
 
-  // Format response to exactly match the Mobile contract
-  return {
+  const response = {
     vehicle: {
       id: vehicle._id,
-      plate_number: vehicle.plateNumber,
+      plateNumber: vehicle.plateNumber,
       make: vehicle.make,
       model: vehicle.model,
       year: vehicle.year,
@@ -34,20 +33,29 @@ const lookupVehicle = async (plateNumber, authUser) => {
     customer: vehicle.customerId
       ? {
           id: vehicle.customerId._id,
-          full_name: vehicle.customerId.fullName,
+          fullName: vehicle.customerId.fullName,
           phone: vehicle.customerId.phone,
         }
       : null,
     policy: vehicle.policyId
       ? {
           id: vehicle.policyId._id,
-          policy_number: vehicle.policyId.policyNumber,
+          policyNumber: vehicle.policyId.policyNumber,
           status: vehicle.policyId.status,
-          start_date: vehicle.policyId.startDate ? vehicle.policyId.startDate.toISOString().split('T')[0] : null,
-          expiry_date: vehicle.policyId.expiryDate ? vehicle.policyId.expiryDate.toISOString().split('T')[0] : null,
+          startDate: vehicle.policyId.startDate ? vehicle.policyId.startDate.toISOString().split('T')[0] : null,
+          expiryDate: vehicle.policyId.expiryDate ? vehicle.policyId.expiryDate.toISOString().split('T')[0] : null,
         }
       : null,
   };
+
+  if (vehicle.policyId && vehicle.policyId.status === 'EXPIRED') {
+    response.warning = {
+      code: 'POLICY_EXPIRED',
+      details: 'This policy has expired. The inspection may continue, but flag this claim for review.',
+    };
+  }
+
+  return response;
 };
 
 module.exports = {

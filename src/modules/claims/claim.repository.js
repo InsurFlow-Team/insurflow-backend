@@ -20,8 +20,9 @@ const create = async (data) => {
  * @param {string} organizationId
  * @returns {Promise<Claim[]>}
  */
-const findByOrganization = async (organizationId) => {
-  return await Claim.find({ organizationId })
+const findByOrganization = async (organizationId, status) => {
+  const query = { organizationId, ...(status && { status }) };
+  return await Claim.find(query)
     .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
     .sort({ createdAt: -1 })
     .lean();
@@ -34,8 +35,9 @@ const findByOrganization = async (organizationId) => {
  * @param {string} userId
  * @returns {Promise<Claim[]>}
  */
-const findByAssignee = async (organizationId, userId) => {
-  return await Claim.find({ organizationId, assignedTo: userId })
+const findByAssignee = async (organizationId, userId, status) => {
+  const query = { organizationId, assignedTo: userId, ...(status && { status }) };
+  return await Claim.find(query)
     .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
     .sort({ createdAt: -1 })
     .lean();
@@ -77,11 +79,11 @@ const countActiveClaimsByAssignee = async (userId) => {
  * @returns {Promise<Claim|null>}
  */
 const assignClaim = async (claimId, updateData) => {
-  const { assignedTo, assignedBy, assignedAt, status, timelineEvent } = updateData;
+  const { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes, timelineEvent } = updateData;
   return await Claim.findByIdAndUpdate(
     claimId,
     {
-      $set: { assignedTo, assignedBy, assignedAt, status },
+      $set: { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes },
       $push: { timeline: timelineEvent },
     },
     { new: true }
