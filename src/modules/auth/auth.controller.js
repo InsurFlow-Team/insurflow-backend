@@ -23,11 +23,12 @@ const login = async (req, res, next) => {
   const loginData = await authService.login(organizationCode, employeeCode, password);
 
   // 3. Set cookie
+  const isProduction = config.nodeEnv === 'production';
   res.cookie('token', loginData.accessToken, {
-    httpOnly: config.nodeEnv === 'production' ? true : false,
-    secure: config.nodeEnv === 'production' ? true : false,
-    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
-    maxAge: 8 * 60 * 60 * 1000 // 8 hours
+    httpOnly: true,                              // دائماً true للأمان
+    secure: isProduction,                        // false في dev (http), true في prod (https)
+    sameSite: isProduction ? 'none' : 'lax',    // none في prod (cross-site), lax في dev
+    maxAge: 8 * 60 * 60 * 1000                  // 8 ساعات
   });
 
   // 4. Return success response
