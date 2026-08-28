@@ -149,7 +149,6 @@ INSURFLOW/
 ```bash
 # نسخ المشروع
 git clone <repo-url>
-cd INSURFLOW
 
 # تثبيت الاعتماديات
 npm install
@@ -186,7 +185,6 @@ node src/scripts/seedMockData.js
 
 ### 5. تشغيل السيرفر
 
-```bash
 # للتطوير (يُعاد التشغيل تلقائيًا عند تعديل الكود)
 npm run dev
 

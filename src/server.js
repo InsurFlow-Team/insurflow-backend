@@ -4,7 +4,6 @@ const connectDB = require('./config/database');
 
 let server;
 
-// Connect to MongoDB, then start the server
 connectDB().then(() => {
   server = app.listen(config.port, () => {
     console.log(`Server running in ${config.nodeEnv} mode on port ${config.port}`);

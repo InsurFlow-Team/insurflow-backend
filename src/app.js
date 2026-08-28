@@ -8,15 +8,10 @@ const errorHandler = require('./middlewares/errorHandler');
 const notFoundHandler = require('./middlewares/notFound');
 const { successResponse } = require('./utils/apiResponse');
 
-// Initialize express app
 const app = express();
-
-// Global Middlewares
-app.use(helmet()); // Security headers
-app.use(express.json()); // Parse JSON payloads
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded payloads
-
-// CORS Configuration
+app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));//! this is for sending requests with files and images
 app.use(cors({
   origin: config.corsOrigin,
   optionsSuccessStatus: 200
