@@ -1,28 +1,12 @@
 const claimService = require('./claim.service');
-const {
-  createClaimSchema,
-  assignClaimSchema,
-  updateVehicleSchema,
-  updateAccidentSchema,
-  updateLocationSchema,
-} = require('./claim.validation');
-const { successResponse, errorResponse } = require('../../utils/apiResponse');
+const { successResponse } = require('../../utils/apiResponse');
 
 /**
  * POST /api/v1/claims
  * Creates a new claim. Authorized: CLAIMS_OFFICER only.
  */
 const createClaim = async (req, res) => {
-  const { error, value } = createClaimSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const validationErrors = error.details.map((e) => ({
-      code: 'VALIDATION_ERROR',
-      details: e.message,
-    }));
-    return res.status(400).json(errorResponse('Validation Error', validationErrors));
-  }
-
-  const result = await claimService.createClaim(value, req.user);
+  const result = await claimService.createClaim(req.body, req.user);
   return res.status(201).json(successResponse('Claim created successfully', result));
 };
 
@@ -32,16 +16,7 @@ const createClaim = async (req, res) => {
  */
 const assignClaim = async (req, res) => {
   const { claimId } = req.params;
-  const { error, value } = assignClaimSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const validationErrors = error.details.map((e) => ({
-      code: 'VALIDATION_ERROR',
-      details: e.message,
-    }));
-    return res.status(400).json(errorResponse('Validation Error', validationErrors));
-  }
-
-  const result = await claimService.assignClaim(claimId, value, req.user);
+  const result = await claimService.assignClaim(claimId, req.body, req.user);
   return res.status(200).json(successResponse('Claim assigned successfully', result));
 };
 
@@ -69,46 +44,19 @@ const getClaimById = async (req, res) => {
 
 const updateVehicle = async (req, res) => {
   const { claimId } = req.params;
-  const { error, value } = updateVehicleSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const validationErrors = error.details.map((e) => ({
-      code: 'VALIDATION_ERROR',
-      details: e.message,
-    }));
-    return res.status(400).json(errorResponse('Validation Error', validationErrors));
-  }
-
-  const result = await claimService.updateVehicle(claimId, value, req.user);
+  const result = await claimService.updateVehicle(claimId, req.body, req.user);
   return res.status(200).json(successResponse('Vehicle updated successfully', result));
 };
 
 const updateAccident = async (req, res) => {
   const { claimId } = req.params;
-  const { error, value } = updateAccidentSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const validationErrors = error.details.map((e) => ({
-      code: 'VALIDATION_ERROR',
-      details: e.message,
-    }));
-    return res.status(400).json(errorResponse('Validation Error', validationErrors));
-  }
-
-  const result = await claimService.updateAccident(claimId, value, req.user);
+  const result = await claimService.updateAccident(claimId, req.body, req.user);
   return res.status(200).json(successResponse('Accident updated successfully', result));
 };
 
 const updateLocation = async (req, res) => {
   const { claimId } = req.params;
-  const { error, value } = updateLocationSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const validationErrors = error.details.map((e) => ({
-      code: 'VALIDATION_ERROR',
-      details: e.message,
-    }));
-    return res.status(400).json(errorResponse('Validation Error', validationErrors));
-  }
-
-  const result = await claimService.updateLocation(claimId, value, req.user);
+  const result = await claimService.updateLocation(claimId, req.body, req.user);
   return res.status(200).json(successResponse('Location updated successfully', result));
 };
 

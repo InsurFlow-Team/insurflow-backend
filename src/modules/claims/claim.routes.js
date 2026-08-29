@@ -2,6 +2,14 @@ const express = require('express');
 const claimController = require('./claim.controller');
 const authenticate = require('../../middlewares/auth.middleware');
 const authorizeRole = require('../../middlewares/role.middleware');
+const validate = require('../../middlewares/validate.middleware');
+const {
+  createClaimSchema,
+  assignClaimSchema,
+  updateVehicleSchema,
+  updateAccidentSchema,
+  updateLocationSchema,
+} = require('./claim.validation');
 
 const router = express.Router();
 
@@ -12,6 +20,7 @@ router.use(authenticate);
 router.post(
   '/',
   authorizeRole(['CLAIMS_OFFICER']),
+  validate(createClaimSchema),
   claimController.createClaim
 );
 
@@ -33,12 +42,13 @@ router.get(
 router.post(
   '/:claimId/assign',
   authorizeRole(['CLAIMS_OFFICER']),
+  validate(assignClaimSchema),
   claimController.assignClaim
 );
 
-router.put('/:claimId/vehicle', authorizeRole(['FIELD_ADJUSTER']), claimController.updateVehicle);
-router.put('/:claimId/accident', authorizeRole(['FIELD_ADJUSTER']), claimController.updateAccident);
-router.put('/:claimId/location', authorizeRole(['FIELD_ADJUSTER']), claimController.updateLocation);
+router.put('/:claimId/vehicle', authorizeRole(['FIELD_ADJUSTER']), validate(updateVehicleSchema), claimController.updateVehicle);
+router.put('/:claimId/accident', authorizeRole(['FIELD_ADJUSTER']), validate(updateAccidentSchema), claimController.updateAccident);
+router.put('/:claimId/location', authorizeRole(['FIELD_ADJUSTER']), validate(updateLocationSchema), claimController.updateLocation);
 
 router.post('/:claimId/inspection/submit', authorizeRole(['FIELD_ADJUSTER']), claimController.submitInspection);
 router.post('/:claimId/review/start', authorizeRole(['CLAIMS_OFFICER']), claimController.startReview);
