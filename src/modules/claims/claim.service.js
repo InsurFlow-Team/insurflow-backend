@@ -5,18 +5,7 @@ const policyRepository = require('../policies/policy.repository');
 const customerRepository = require('../customers/customer.repository');
 const AppError = require('../../utils/appError');
 
-/**
- * Business Logic Layer — enforces all business rules for the Claims module.
- */
 
-/**
- * Create a new claim.
- * Enforces: organizationId and createdBy come from req.user, never from the client.
- *
- * @param {object} body - Validated request body.
- * @param {object} authUser - The authenticated user context from req.user.
- * @returns {Promise<object>} The newly created claim (minimal response per API contract).
- */
 const createClaim = async (body, authUser) => {
   const { customerName, customerPhone, initialPlateNumber, incidentType, incidentLocation } = body;
 
