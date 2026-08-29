@@ -10,6 +10,8 @@ const lookupVehicle = async (req, res) => {
   return res.status(200).json(successResponse('Vehicle found successfully', result));
 };
 
+const asyncWrapper = require('../../utils/asyncWrapper');
+
 module.exports = {
-  lookupVehicle,
+  lookupVehicle: asyncWrapper(lookupVehicle),
 };

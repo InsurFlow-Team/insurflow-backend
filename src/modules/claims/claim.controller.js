@@ -72,14 +72,16 @@ const startReview = async (req, res) => {
   return res.status(200).json(successResponse('Review started successfully', result));
 };
 
+const asyncWrapper = require('../../utils/asyncWrapper');
+
 module.exports = {
-  createClaim,
-  assignClaim,
-  getClaims,
-  getClaimById,
-  updateVehicle,
-  updateAccident,
-  updateLocation,
-  submitInspection,
-  startReview,
+  createClaim: asyncWrapper(createClaim),
+  assignClaim: asyncWrapper(assignClaim),
+  getClaims: asyncWrapper(getClaims),
+  getClaimById: asyncWrapper(getClaimById),
+  updateVehicle: asyncWrapper(updateVehicle),
+  updateAccident: asyncWrapper(updateAccident),
+  updateLocation: asyncWrapper(updateLocation),
+  submitInspection: asyncWrapper(submitInspection),
+  startReview: asyncWrapper(startReview),
 };

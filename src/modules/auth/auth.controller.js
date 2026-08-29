@@ -22,6 +22,8 @@ const login = async (req, res, next) => {
   return res.status(200).json(successResponse('Login successful', loginData));
 };
 
+const asyncWrapper = require('../../utils/asyncWrapper');
+
 module.exports = {
-  login,
+  login: asyncWrapper(login),
 };

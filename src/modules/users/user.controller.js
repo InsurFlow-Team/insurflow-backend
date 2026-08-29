@@ -13,6 +13,8 @@ const getAdjusters = async (req, res) => {
   return res.status(200).json(successResponse('Adjusters retrieved successfully', adjusters));
 };
 
+const asyncWrapper = require('../../utils/asyncWrapper');
+
 module.exports = {
-  getAdjusters,
+  getAdjusters: asyncWrapper(getAdjusters),
 };
