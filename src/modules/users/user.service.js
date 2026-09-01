@@ -1,13 +1,7 @@
 const userRepository = require('./user.repository');
 const claimRepository = require('../claims/claim.repository');
 
-/**
- * Retrieve adjusters for an organization, with availability status.
- *
- * @param {string} organizationId
- * @param {string} statusFilter - Optional filter, e.g., 'available'
- * @returns {Promise<object[]>}
- */
+
 const getAdjusters = async (organizationId, statusFilter) => {
   const adjusters = await userRepository.findAdjustersByOrganization(organizationId);
 

@@ -10,14 +10,10 @@ const createClaim = async (body, authUser) => {
   const { customerName, customerPhone, initialPlateNumber, incidentType, incidentLocation } = body;
 
   const claimData = {
-    // ── Multi-tenancy & Ownership (from JWT — never from client) ──
     organizationId: authUser.organizationId,
     createdBy: authUser.userId,
-
-    // ── Status is always NEW on creation ──
     status: 'NEW',
 
-    // ── Client-provided fields ──
     customer: {
       name: customerName,
       phone: customerPhone,
@@ -28,7 +24,6 @@ const createClaim = async (body, authUser) => {
     incidentType,
     incidentLocation,
 
-    // ── Seed the timeline with the creation event ──
     timeline: [
       {
         action: 'Claim Created',
@@ -41,7 +36,6 @@ const createClaim = async (body, authUser) => {
 
   const claim = await claimRepository.create(claimData);
 
-  // Return minimal response as per API contract Section 8
   return {
     id: claim._id,
     claimNumber: claim.claimNumber,
@@ -50,13 +44,7 @@ const createClaim = async (body, authUser) => {
   };
 };
 
-/**
- * Retrieve claims visible to the authenticated user.
- * Applies role-based filtering — same endpoint, different query per role.
- *
- * @param {object} authUser - The authenticated user context from req.user.
- * @returns {Promise<object[]>}
- */
+
 const getClaims = async (authUser, status) => {
   const { userId, role, organizationId } = authUser;
   let claims;
@@ -79,14 +67,7 @@ const getClaims = async (authUser, status) => {
   }));
 };
 
-/**
- * Retrieve a single claim's full details.
- * Enforces: organization isolation + assignment ownership for FIELD_ADJUSTER.
- *
- * @param {string} claimId
- * @param {object} authUser - The authenticated user context from req.user.
- * @returns {Promise<object>}
- */
+
 const getClaimById = async (claimId, authUser) => {
   const { userId, role, organizationId } = authUser;
 
@@ -127,14 +108,7 @@ const getClaimById = async (claimId, authUser) => {
   };
 };
 
-/**
- * Assign a claim to a Field Adjuster.
- *
- * @param {string} claimId
- * @param {object} body - Validated request body (requires adjusterId).
- * @param {object} authUser - The authenticated user context.
- * @returns {Promise<object>}
- */
+
 const assignClaim = async (claimId, body, authUser) => {
   const { adjusterId, priority, notes } = body;
   const { userId, role, organizationId } = authUser;

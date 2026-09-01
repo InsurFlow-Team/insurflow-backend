@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const crypto = require('crypto');
 const Counter = require('../../utils/counter.model');
 
 // ─── Timeline Sub-document Schema ────────────────────────────────────────────
@@ -188,6 +187,8 @@ const claimSchema = new mongoose.Schema(
 // ─── Indexes ──────────────────────────────────────────────────────────────────
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
 
+
+// this is for the claim number in the inso 
 claimSchema.pre('save', async function () {
   if (this.claimNumber) return;
 
