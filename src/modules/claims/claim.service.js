@@ -45,19 +45,24 @@ const createClaim = async (body, authUser) => {
 };
 
 
-const getClaims = async (authUser, status) => {
+const getClaims = async (authUser, status, pagination = {}) => {
   const { userId, role, organizationId } = authUser;
-  let claims;
+  const { page = 1, limit = 50 } = pagination;
+
+  let result;
 
   // FIELD_ADJUSTER: sees only claims assigned to them
   if (role === 'FIELD_ADJUSTER') {
-    claims = await claimRepository.findByAssignee(organizationId, userId, status);
+    result = await claimRepository.findByAssignee(organizationId, userId, status, { page, limit });
   } else {
     // CLAIMS_OFFICER & ADMIN: see all claims in their organization
-    claims = await claimRepository.findByOrganization(organizationId, status);
+    result = await claimRepository.findByOrganization(organizationId, status, { page, limit });
   }
 
-  return claims.map((claim) => ({
+  const { totalCount, claims } = result;
+  const totalPages = Math.ceil(totalCount / limit);
+
+  const formattedClaims = claims.map((claim) => ({
     id: claim._id,
     claimNumber: claim.claimNumber,
     status: claim.status,
@@ -65,7 +70,18 @@ const getClaims = async (authUser, status) => {
     initialPlateNumber: claim.vehicle.plateNumber,
     createdAt: claim.createdAt,
   }));
+
+  return {
+    claims: formattedClaims,
+    pagination: {
+      totalCount,
+      page,
+      limit,
+      totalPages,
+    },
+  };
 };
+
 
 
 const getClaimById = async (claimId, authUser) => {

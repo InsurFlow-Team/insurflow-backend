@@ -22,6 +22,11 @@ const config = {
     windowMs: parseInt(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes default
     max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX, 10) || 5, // 5 attempts default
   },
+  apiRateLimit: {
+    windowMs: parseInt(process.env.API_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes default
+    max: parseInt(process.env.API_RATE_LIMIT_MAX, 10) || 300, // 300 requests default
+  },
 };
+
 
 module.exports = config;

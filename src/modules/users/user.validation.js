@@ -31,7 +31,10 @@ const listUsersQuerySchema = Joi.object({
     .messages({
       'any.only': 'role must be one of: ADMIN, CLAIMS_OFFICER, FIELD_ADJUSTER',
     }),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(50),
 });
+
 
 module.exports = {
   createUserSchema,

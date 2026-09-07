@@ -4,6 +4,7 @@ const { errorResponse } = require('../utils/apiResponse');
 
 // In-memory store for tracking request hits
 const loginRateLimitStore = new MemoryStore();
+const apiRateLimitStore = new MemoryStore();
 
 /**
  * Dedicated rate limiter for the authentication login endpoint.
@@ -31,7 +32,41 @@ const loginLimiter = rateLimit({
 // Utility method for test isolation: resets the store
 loginLimiter.reset = () => loginRateLimitStore.resetAll();
 
+/**
+ * General API rate limiter applied to all `/api/v1` routes.
+ * Defends against API abuse, volumetric DoS, and automated scraping.
+ * Automatically bypassed in test mode unless specifically flagged for testing.
+ */
+const apiLimiter = rateLimit({
+  windowMs: config.apiRateLimit?.windowMs || 15 * 60 * 1000,
+  max: (req) =>
+    (req.headers['x-test-rate-limit-max']
+      ? parseInt(req.headers['x-test-rate-limit-max'], 10)
+      : config.apiRateLimit?.max || 300),
+  standardHeaders: true,
+
+  legacyHeaders: false,
+  skip: (req) => config.nodeEnv === 'test' && !req.headers['x-test-rate-limit'],
+
+  store: apiRateLimitStore,
+  handler: (req, res, next, options) => {
+    const message = 'Too many requests. Please try again later.';
+    const errors = [
+      {
+        code: 'TOO_MANY_REQUESTS',
+        details: message,
+      },
+    ];
+    return res.status(options.statusCode || 429).json(errorResponse(message, errors));
+  },
+});
+
+apiLimiter.reset = () => apiRateLimitStore.resetAll();
+
 module.exports = {
   loginLimiter,
   loginRateLimitStore,
+  apiLimiter,
+  apiRateLimitStore,
 };
+

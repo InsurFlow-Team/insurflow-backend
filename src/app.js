@@ -7,7 +7,9 @@ const cookieParser = require('cookie-parser');
 const config = require('./config/env');
 const errorHandler = require('./middlewares/errorHandler');
 const notFoundHandler = require('./middlewares/notFound');
+const { apiLimiter } = require('./middlewares/rateLimiter.middleware');
 const { successResponse } = require('./utils/apiResponse');
+
 
 const app = express();
 app.set('trust proxy', 1);
@@ -18,8 +20,18 @@ app.use(cookieParser());
 app.use(cors({
   origin: config.corsOrigin,
   optionsSuccessStatus: 200,
-  credentials: true
+  credentials: true,
+  exposedHeaders: [
+    'X-Total-Count',
+    'X-Page',
+    'X-Limit',
+    'X-Total-Pages',
+    'RateLimit-Limit',
+    'RateLimit-Remaining',
+    'RateLimit-Reset',
+  ],
 }));
+
 
 // Request Logging
 if (config.nodeEnv === 'development') {
@@ -39,6 +51,8 @@ const claimRoutes = require('./modules/claims/claim.routes');
 const userRoutes = require('./modules/users/user.routes');
 const vehicleRoutes = require('./modules/vehicles/vehicle.routes');
 
+// API Rate Limiter & Module Routes
+app.use('/api/v1', apiLimiter);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/claims', claimRoutes);
 app.use('/api/v1/users', userRoutes);

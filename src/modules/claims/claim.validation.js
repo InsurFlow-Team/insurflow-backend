@@ -108,7 +108,10 @@ const listClaimsQuerySchema = Joi.object({
     .messages({
       'any.only': 'status must be one of: NEW, ASSIGNED, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, CLOSED',
     }),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(50),
 });
+
 
 /**
  * Validation schema for POST /claims/:claimId/decision

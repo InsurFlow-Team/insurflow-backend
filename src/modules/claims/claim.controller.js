@@ -27,10 +27,17 @@ const assignClaim = async (req, res) => {
  * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
  */
 const getClaims = async (req, res) => {
-  const { status } = req.query;
-  const claims = await claimService.getClaims(req.user, status);
+  const { status, page, limit } = req.query;
+  const { claims, pagination } = await claimService.getClaims(req.user, status, { page, limit });
+
+  res.set('X-Total-Count', String(pagination.totalCount));
+  res.set('X-Page', String(pagination.page));
+  res.set('X-Limit', String(pagination.limit));
+  res.set('X-Total-Pages', String(pagination.totalPages));
+
   return res.status(200).json(successResponse('Claims retrieved successfully', claims));
 };
+
 
 /**
  * GET /api/v1/claims/:claimId

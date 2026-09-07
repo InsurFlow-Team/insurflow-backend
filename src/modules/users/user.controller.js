@@ -20,10 +20,17 @@ const createUser = async (req, res) => {
 };
 
 const listUsers = async (req, res) => {
-  const { role } = req.query;
-  const users = await userService.listUsers(req.user, role);
+  const { role, page, limit } = req.query;
+  const { users, pagination } = await userService.listUsers(req.user, role, { page, limit });
+
+  res.set('X-Total-Count', String(pagination.totalCount));
+  res.set('X-Page', String(pagination.page));
+  res.set('X-Limit', String(pagination.limit));
+  res.set('X-Total-Pages', String(pagination.totalPages));
+
   return res.status(200).json(successResponse('Users retrieved successfully', users));
 };
+
 
 const updateUserStatus = async (req, res) => {
   const { userId } = req.params;

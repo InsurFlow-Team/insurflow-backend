@@ -24,11 +24,24 @@ const create = async (data) => {
   return await user.save();
 };
 
-const findAllByOrganization = async (organizationId, role) => {
-  return await User.find({ organizationId, ...(role && { role }) })
-    .select('name employeeCode role status createdAt')
-    .lean();
+const findAllByOrganization = async (organizationId, role, pagination = {}) => {
+  const { page = 1, limit = 50 } = pagination;
+  const skip = (page - 1) * limit;
+  const query = { organizationId, ...(role && { role }) };
+
+  const [totalCount, users] = await Promise.all([
+    User.countDocuments(query),
+    User.find(query)
+      .select('name employeeCode role status createdAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  return { totalCount, users };
 };
+
 
 const resetPassword = async (userId, organizationId, newPassword) => {
   const user = await User.findOne({ _id: userId, organizationId });

@@ -7,22 +7,43 @@ const create = async (data) => {
 };
 
 
-const findByOrganization = async (organizationId, status) => {
+const findByOrganization = async (organizationId, status, pagination = {}) => {
+  const { page = 1, limit = 50 } = pagination;
+  const skip = (page - 1) * limit;
   const query = { organizationId, ...(status && { status }) };
-  return await Claim.find(query)
-    .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
-    .sort({ createdAt: -1 })
-    .lean();
+
+  const [totalCount, claims] = await Promise.all([
+    Claim.countDocuments(query),
+    Claim.find(query)
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  return { totalCount, claims };
 };
 
 
-const findByAssignee = async (organizationId, userId, status) => {
+const findByAssignee = async (organizationId, userId, status, pagination = {}) => {
+  const { page = 1, limit = 50 } = pagination;
+  const skip = (page - 1) * limit;
   const query = { organizationId, assignedTo: userId, ...(status && { status }) };
-  return await Claim.find(query)
-    .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
-    .sort({ createdAt: -1 })
-    .lean();
+
+  const [totalCount, claims] = await Promise.all([
+    Claim.countDocuments(query),
+    Claim.find(query)
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  return { totalCount, claims };
 };
+
 
 
 const findByIdAndOrganization = async (claimId, organizationId) => {

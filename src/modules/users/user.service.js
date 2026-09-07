@@ -30,9 +30,26 @@ const createUser = async (body, authUser) => {
   }
 };
 
-const listUsers = async (authUser, role) => {
-  return await userRepository.findAllByOrganization(authUser.organizationId, role);
+const listUsers = async (authUser, role, pagination = {}) => {
+  const { page = 1, limit = 50 } = pagination;
+  const { totalCount, users } = await userRepository.findAllByOrganization(
+    authUser.organizationId,
+    role,
+    { page, limit }
+  );
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return {
+    users,
+    pagination: {
+      totalCount,
+      page,
+      limit,
+      totalPages,
+    },
+  };
 };
+
 
 const updateUserStatus = async (userId, status, authUser) => {
   const updated = await userRepository.updateStatus(userId, authUser.organizationId, status);
