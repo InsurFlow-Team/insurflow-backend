@@ -163,4 +163,70 @@ describe('GET /api/v1/users/adjusters', () => {
     expect(response.body.success).toBe(false);
     expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
   });
+
+  it('should not count SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, or CLOSED claims towards activeTasksCount', async () => {
+    // Assign non-ASSIGNED claims to adjuster1
+    await Claim.create({
+      organizationId: org1._id,
+      createdBy: officer._id,
+      status: 'SUBMITTED',
+      customer: { name: 'C1', phone: '1' },
+      incidentType: 'COLLISION',
+      incidentLocation: 'L1',
+      assignedTo: adjuster1._id,
+    });
+    await Claim.create({
+      organizationId: org1._id,
+      createdBy: officer._id,
+      status: 'CLOSED',
+      customer: { name: 'C2', phone: '2' },
+      incidentType: 'COLLISION',
+      incidentLocation: 'L2',
+      assignedTo: adjuster1._id,
+    });
+
+    const response = await request(app)
+      .get('/api/v1/users/adjusters')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(200);
+    const a1 = response.body.data.find((a) => a.employeeCode === 'FA-01');
+    expect(a1.activeTasksCount).toBe(0);
+    expect(a1.availability).toBe('AVAILABLE');
+  });
+
+  it('should correctly reflect multiple active assigned tasks for an adjuster', async () => {
+    // Add another assigned claim to adjuster2 (already has 1)
+    await Claim.create({
+      organizationId: org1._id,
+      createdBy: officer._id,
+      status: 'ASSIGNED',
+      customer: { name: 'C3', phone: '3' },
+      incidentType: 'COLLISION',
+      incidentLocation: 'L3',
+      assignedTo: adjuster2._id,
+    });
+
+    const response = await request(app)
+      .get('/api/v1/users/adjusters')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(200);
+    const a2 = response.body.data.find((a) => a.employeeCode === 'FA-02');
+    expect(a2.activeTasksCount).toBe(2);
+    expect(a2.availability).toBe('UNAVAILABLE');
+  });
+
+  it('should eliminate N+1 queries by never calling Claim.countDocuments', async () => {
+    const countSpy = jest.spyOn(Claim, 'countDocuments');
+
+    const response = await request(app)
+      .get('/api/v1/users/adjusters')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(200);
+    expect(countSpy).not.toHaveBeenCalled();
+    countSpy.mockRestore();
+  });
 });
+

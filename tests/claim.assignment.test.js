@@ -140,26 +140,26 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     expect(response.body.data.priority).toBe('HIGH');
   });
 
-  it('should generate sequential claim numbers without collision risk', async () => {
-    // claimOrg1, claimOrg2, and the busy claim were created sequentially in beforeEach.
-    // They should be CLM-0001, CLM-0002, CLM-0003
-    expect(claimOrg1.claimNumber).toMatch(/^CLM-\d{4}$/);
-    expect(claimOrg2.claimNumber).toMatch(/^CLM-\d{4}$/);
-    
-    const seq1 = parseInt(claimOrg1.claimNumber.split('-')[1], 10);
-    const seq2 = parseInt(claimOrg2.claimNumber.split('-')[1], 10);
-    
-    // They should be different and sequential
-    expect(seq1).not.toBe(seq2);
-    
-    // Let's create two back to back explicitly to be absolutely sure
+  it('should generate tenant-scoped sequential claim numbers (CLM-<ORG_CODE>-NNNN)', async () => {
+    // claimOrg1 belongs to org1 (code: 'ORG-1'), claimOrg2 belongs to org2 (code: 'ORG-2')
+    // Each org should have its own independent sequence
+    expect(claimOrg1.claimNumber).toMatch(/^CLM-ORG-1-\d{4}$/);
+    expect(claimOrg2.claimNumber).toMatch(/^CLM-ORG-2-\d{4}$/);
+
+    // Extract sequence numbers (last segment after final hyphen)
+    const getSeq = (cn) => parseInt(cn.split('-').pop(), 10);
+
+    // Both orgs should start their own sequence at 0001
+    expect(getSeq(claimOrg1.claimNumber)).toBe(1);
+    expect(getSeq(claimOrg2.claimNumber)).toBe(1);
+
+    // Create two more claims in org1 — they should be sequential within org1
     const c1 = await Claim.create({ organizationId: org1._id, createdBy: officer1._id, status: 'NEW', customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
     const c2 = await Claim.create({ organizationId: org1._id, createdBy: officer1._id, status: 'NEW', customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
-    
-    const seqC1 = parseInt(c1.claimNumber.split('-')[1], 10);
-    const seqC2 = parseInt(c2.claimNumber.split('-')[1], 10);
-    
-    expect(seqC2).toBe(seqC1 + 1);
+
+    expect(c1.claimNumber).toMatch(/^CLM-ORG-1-\d{4}$/);
+    expect(c2.claimNumber).toMatch(/^CLM-ORG-1-\d{4}$/);
+    expect(getSeq(c2.claimNumber)).toBe(getSeq(c1.claimNumber) + 1);
   });
 
   it('should return 400 Bad Request when claimId is not a valid 24-character hex ObjectId', async () => {

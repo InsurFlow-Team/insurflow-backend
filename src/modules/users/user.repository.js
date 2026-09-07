@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('./user.model');
 
 
@@ -45,8 +46,98 @@ const updateStatus = async (userId, organizationId, status) => {
   ).lean();
 };
 
+/**
+ * Aggregates field adjusters in an organization along with their active claim workload in a single query.
+ * Eliminates the N+1 query loop.
+ */
+const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
+  const orgObjectId =
+    typeof organizationId === 'string'
+      ? new mongoose.Types.ObjectId(organizationId)
+      : organizationId;
+
+  const pipeline = [
+    {
+      $match: {
+        organizationId: orgObjectId,
+        role: 'FIELD_ADJUSTER',
+      },
+    },
+    {
+      $lookup: {
+        from: 'claims',
+        let: { adjusterId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$assignedTo', '$$adjusterId'] },
+                  { $eq: ['$status', 'ASSIGNED'] },
+                  { $eq: ['$organizationId', orgObjectId] },
+                ],
+              },
+            },
+          },
+          {
+            $count: 'count',
+          },
+        ],
+        as: 'activeClaims',
+      },
+    },
+    {
+      $addFields: {
+        activeTasksCount: {
+          $ifNull: [{ $arrayElemAt: ['$activeClaims.count', 0] }, 0],
+        },
+      },
+    },
+    {
+      $addFields: {
+        id: '$_id',
+        availability: {
+          $cond: {
+            if: {
+              $and: [
+                { $eq: ['$status', 'ACTIVE'] },
+                { $eq: ['$activeTasksCount', 0] },
+              ],
+            },
+            then: 'AVAILABLE',
+            else: 'UNAVAILABLE',
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        id: 1,
+        name: 1,
+        employeeCode: 1,
+        role: 1,
+        status: 1,
+        availability: 1,
+        activeTasksCount: 1,
+      },
+    },
+  ];
+
+  if (statusFilter === 'available') {
+    pipeline.push({
+      $match: {
+        availability: 'AVAILABLE',
+      },
+    });
+  }
+
+  return await User.aggregate(pipeline);
+};
+
 module.exports = {
   findAdjustersByOrganization,
+  findAdjustersWithWorkload,
   findByIdAndOrganization,
   findByIdWithPassword,
   create,
@@ -54,3 +145,4 @@ module.exports = {
   resetPassword,
   updateStatus,
 };
+

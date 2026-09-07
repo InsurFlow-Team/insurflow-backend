@@ -73,6 +73,26 @@ const startReview = async (req, res) => {
   return res.status(200).json(successResponse('Review started successfully', result));
 };
 
+/**
+ * POST /api/v1/claims/:claimId/decision
+ * Makes a decision (APPROVED/REJECTED) on a claim. Authorized: CLAIMS_OFFICER, ADMIN.
+ */
+const decideClaim = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.decideClaim(claimId, req.body, req.user);
+  return res.status(200).json(successResponse('Decision recorded successfully', result));
+};
+
+/**
+ * POST /api/v1/claims/:claimId/close
+ * Closes an approved claim. Authorized: ADMIN.
+ */
+const closeClaim = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.closeClaim(claimId, req.body, req.user);
+  return res.status(200).json(successResponse('Claim closed', result));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -83,4 +103,6 @@ module.exports = {
   updateLocation: asyncWrapper(updateLocation),
   submitInspection: asyncWrapper(submitInspection),
   startReview: asyncWrapper(startReview),
+  decideClaim: asyncWrapper(decideClaim),
+  closeClaim: asyncWrapper(closeClaim),
 };

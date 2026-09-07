@@ -103,11 +103,35 @@ const updateLocationSchema = Joi.object({
 
 const listClaimsQuerySchema = Joi.object({
   status: Joi.string()
-    .valid('NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'CLOSED')
+    .valid('NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CLOSED')
     .optional()
     .messages({
-      'any.only': 'status must be one of: NEW, ASSIGNED, SUBMITTED, UNDER_REVIEW, APPROVED, CLOSED',
+      'any.only': 'status must be one of: NEW, ASSIGNED, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, CLOSED',
     }),
+});
+
+/**
+ * Validation schema for POST /claims/:claimId/decision
+ * Transitions: UNDER_REVIEW → APPROVED | REJECTED
+ */
+const decisionSchema = Joi.object({
+  decision: Joi.string()
+    .valid('APPROVED', 'REJECTED')
+    .required()
+    .messages({
+      'any.only': 'decision must be one of: APPROVED, REJECTED',
+      'string.empty': 'Decision is required',
+      'any.required': 'Decision is required',
+    }),
+  notes: Joi.string().trim().optional().allow('', null),
+});
+
+/**
+ * Validation schema for POST /claims/:claimId/close
+ * Transitions: APPROVED → CLOSED
+ */
+const closeClaimSchema = Joi.object({
+  closingNotes: Joi.string().trim().optional().allow('', null),
 });
 
 module.exports = {
@@ -117,4 +141,7 @@ module.exports = {
   updateAccidentSchema,
   updateLocationSchema,
   listClaimsQuerySchema,
+  decisionSchema,
+  closeClaimSchema,
 };
+

@@ -10,6 +10,8 @@ const {
   updateAccidentSchema,
   updateLocationSchema,
   listClaimsQuerySchema,
+  decisionSchema,
+  closeClaimSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -83,6 +85,24 @@ router.post(
   authorizeRole(['CLAIMS_OFFICER']),
   validateObjectId('claimId'),
   claimController.startReview
+);
+
+// POST /api/v1/claims/:claimId/decision — Approve or reject a claim
+router.post(
+  '/:claimId/decision',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(decisionSchema),
+  claimController.decideClaim
+);
+
+// POST /api/v1/claims/:claimId/close — Admin closes an approved claim
+router.post(
+  '/:claimId/close',
+  authorizeRole(['ADMIN']),
+  validateObjectId('claimId'),
+  validate(closeClaimSchema),
+  claimController.closeClaim
 );
 
 module.exports = router;

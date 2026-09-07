@@ -94,6 +94,33 @@ const startReview = async (claimId, organizationId, timelineEvent) => {
   ).lean();
 };
 
+const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'UNDER_REVIEW' },
+    {
+      $set: { status: decision, decisionNotes },
+      $push: { timeline: timelineEvent },
+    },
+    { new: true }
+  ).lean();
+};
+
+const closeClaim = async (claimId, organizationId, closedBy, closingNotes, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'APPROVED' },
+    {
+      $set: {
+        status: 'CLOSED',
+        closedBy,
+        closedAt: timelineEvent.timestamp || new Date(),
+        closingNotes,
+      },
+      $push: { timeline: timelineEvent },
+    },
+    { new: true }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -106,4 +133,6 @@ module.exports = {
   updateLocation,
   submitInspection,
   startReview,
+  makeDecision,
+  closeClaim,
 };

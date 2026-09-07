@@ -302,6 +302,80 @@ const startReview = async (claimId, authUser) => {
   return { status: updatedClaim.status };
 };
 
+const decideClaim = async (claimId, body, authUser) => {
+  const { decision, notes } = body;
+  const { userId, role, organizationId } = authUser;
+
+  const timelineEvent = {
+    action: decision === 'APPROVED' ? 'Claim Approved' : 'Claim Rejected',
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.makeDecision(
+    claimId,
+    organizationId,
+    decision,
+    notes || null,
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    // Atomic query failed: check if claim exists to give specific error
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return {
+    id: updatedClaim._id,
+    claimNumber: updatedClaim.claimNumber,
+    status: updatedClaim.status,
+    decisionNotes: updatedClaim.decisionNotes,
+  };
+};
+
+const closeClaim = async (claimId, body, authUser) => {
+  const { closingNotes } = body || {};
+  const { userId, role, organizationId } = authUser;
+
+  const timelineEvent = {
+    action: 'Claim Closed',
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.closeClaim(
+    claimId,
+    organizationId,
+    userId,
+    closingNotes || null,
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    // Atomic query failed: check if claim exists to give specific error
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return {
+    id: updatedClaim._id,
+    claimNumber: updatedClaim.claimNumber,
+    status: updatedClaim.status,
+    closedBy: updatedClaim.closedBy,
+    closedAt: updatedClaim.closedAt,
+    closingNotes: updatedClaim.closingNotes,
+  };
+};
+
 module.exports = {
   createClaim,
   getClaims,
@@ -312,4 +386,6 @@ module.exports = {
   updateLocation,
   submitInspection,
   startReview,
+  decideClaim,
+  closeClaim,
 };

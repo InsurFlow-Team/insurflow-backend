@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Counter = require('../../utils/counter.model');
+const Organization = require('../organizations/organization.model');
 
 // ─── Timeline Sub-document Schema ────────────────────────────────────────────
 const timelineEventSchema = new mongoose.Schema(
@@ -47,7 +48,7 @@ const claimSchema = new mongoose.Schema(
     // ── Status & Lifecycle ──────────────────────────────────────────
     status: {
       type: String,
-      enum: ['NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'CLOSED'],
+      enum: ['NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CLOSED'],
       default: 'NEW',
       required: true,
     },
@@ -175,6 +176,12 @@ const claimSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ── Decision (populated by Claims Officer / Admin) ────────────────
+    decisionNotes: {
+      type: String,
+      default: null,
+    },
+
     // ── Audit Timeline ───────────────────────────────────────────────
     timeline: {
       type: [timelineEventSchema],
@@ -188,17 +195,26 @@ const claimSchema = new mongoose.Schema(
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
 
 
-// this is for the claim number in the inso 
+// ─── Tenant-Scoped Claim Number Generation ───────────────────────────────────
+// Generates CLM-<ORG_CODE>-0001 format. Counter is isolated per organizationId.
+// Guard: only runs on new document creation, never on updates.
 claimSchema.pre('save', async function () {
-  if (this.claimNumber) return;
+  if (!this.isNew || this.claimNumber) return;
 
+  // Resolve organization code for the claim number prefix
+  const org = await Organization.findById(this.organizationId).select('code').lean();
+  if (!org) {
+    throw new Error('Organization not found for claim number generation');
+  }
+
+  // Atomic tenant-scoped counter increment
   const counter = await Counter.findOneAndUpdate(
-    { _id: 'claimNumber' },
+    { _id: `claimNumber_${this.organizationId}` },
     { $inc: { seq: 1 } },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   );
 
-  this.claimNumber = `CLM-${String(counter.seq).padStart(4, '0')}`;
+  this.claimNumber = `CLM-${org.code}-${String(counter.seq).padStart(4, '0')}`;
 });
 
 module.exports = mongoose.model('Claim', claimSchema);
