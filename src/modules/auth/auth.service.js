@@ -47,7 +47,7 @@ const login = async (organizationCode, employeeCode, password) => {
     organizationId: organization._id,
   };
 
-  const accessToken = jwt.sign(payload, config.jwtSecret, { expiresIn: '8h' });
+  const accessToken = jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
 
   // 6. Return response data as per API contract
   return {

@@ -1,6 +1,7 @@
 const app = require('./app');
 const config = require('./config/env');
 const connectDB = require('./config/database');
+const mongoose = require('mongoose');
 
 let server;
 
@@ -20,3 +21,26 @@ process.on('unhandledRejection', (err, promise) => {
     process.exit(1);
   }
 });
+
+// Graceful shutdown handling for SIGTERM and SIGINT
+const gracefulShutdown = (signal) => {
+  console.log(`Received ${signal}. Starting graceful shutdown...`);
+  if (server) {
+    server.close(async () => {
+      console.log('HTTP server closed.');
+      try {
+        await mongoose.connection.close();
+        console.log('MongoDB connection closed.');
+        process.exit(0);
+      } catch (err) {
+        console.error(`Error closing MongoDB connection: ${err.message}`);
+        process.exit(1);
+      }
+    });
+  } else {
+    process.exit(0);
+  }
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

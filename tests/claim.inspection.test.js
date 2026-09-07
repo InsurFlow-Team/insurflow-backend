@@ -190,6 +190,80 @@ describe('Inspection Endpoints', () => {
       expect(res.status).toBe(404);
       expect(res.body.errors[0].code).toBe('VEHICLE_NOT_FOUND');
     });
+
+    it('should return 400 Bad Request when vehicleId is not a valid 24-character hex ObjectId', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: 'invalid-vehicle-id',
+          policyId: policy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation Error');
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toMatch(/Invalid ID format/i);
+    });
+
+    it('should return 400 Bad Request when policyId is not a valid 24-character hex ObjectId', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: 'invalid-policy-id',
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation Error');
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toMatch(/Invalid ID format/i);
+    });
+
+    it('should return 400 Bad Request when customerId is not a valid 24-character hex ObjectId', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: 'invalid-customer-id',
+          plateNumber: 'REAL-PLATE'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation Error');
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toMatch(/Invalid ID format/i);
+    });
+
+    it('should accept valid 24-character hex ObjectIds in uppercase format', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString().toUpperCase(),
+          policyId: policy._id.toString().toUpperCase(),
+          customerId: customer._id.toString().toUpperCase(),
+          plateNumber: 'REAL-PLATE'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.vehicle.vehicleId.toString()).toBe(vehicle._id.toString());
+    });
   });
 
   describe('PUT /claims/:claimId/accident', () => {

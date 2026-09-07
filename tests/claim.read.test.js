@@ -139,6 +139,28 @@ describe('Claim Read Endpoints', () => {
     expect(claims[0].id).toBe(assignedClaim._id.toString());
   });
 
+  it('GET /api/v1/claims?status=INVALID_STATUS returns 400 Bad Request with VALIDATION_ERROR', async () => {
+    const res = await request(app)
+      .get('/api/v1/claims?status=INVALID_STATUS')
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe('Validation Error');
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    expect(res.body.errors[0].details).toMatch(/status must be one of/i);
+  });
+
+  it('GET /api/v1/claims with unknown query parameter returns 400 Bad Request with VALIDATION_ERROR', async () => {
+    const res = await request(app)
+      .get('/api/v1/claims?unknownParam=attack')
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
   it('GET /api/v1/claims/:claimId returns mapped details without __v or organizationId', async () => {
     const res = await request(app)
       .get(`/api/v1/claims/${assignedClaim._id}`)

@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { objectIdPattern } = require('../../middlewares/validate.middleware');
 
 /**
  * Validation schema for POST /claims
@@ -35,18 +36,47 @@ const createClaimSchema = Joi.object({
  * Validation schema for POST /claims/:claimId/assign
  */
 const assignClaimSchema = Joi.object({
-  adjusterId: Joi.string().trim().required().messages({
-    'string.empty': 'Adjuster ID is required',
-    'any.required': 'Adjuster ID is required',
-  }),
+  adjusterId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+      'string.empty': 'Adjuster ID is required',
+      'any.required': 'Adjuster ID is required',
+    }),
   priority: Joi.string().valid('LOW', 'MEDIUM', 'HIGH').optional().default('MEDIUM'),
   notes: Joi.string().trim().optional().allow('', null),
 });
 
 const updateVehicleSchema = Joi.object({
-  vehicleId: Joi.string().trim().required(),
-  policyId: Joi.string().trim().required(),
-  customerId: Joi.string().trim().required(),
+  vehicleId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+      'string.empty': 'Vehicle ID is required',
+      'any.required': 'Vehicle ID is required',
+    }),
+  policyId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+      'string.empty': 'Policy ID is required',
+      'any.required': 'Policy ID is required',
+    }),
+  customerId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+      'string.empty': 'Customer ID is required',
+      'any.required': 'Customer ID is required',
+    }),
   plateNumber: Joi.string().trim().required(),
 });
 
@@ -71,10 +101,20 @@ const updateLocationSchema = Joi.object({
   capturedAt: Joi.date().iso().required(),
 });
 
+const listClaimsQuerySchema = Joi.object({
+  status: Joi.string()
+    .valid('NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'CLOSED')
+    .optional()
+    .messages({
+      'any.only': 'status must be one of: NEW, ASSIGNED, SUBMITTED, UNDER_REVIEW, APPROVED, CLOSED',
+    }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
   updateVehicleSchema,
   updateAccidentSchema,
   updateLocationSchema,
+  listClaimsQuerySchema,
 };

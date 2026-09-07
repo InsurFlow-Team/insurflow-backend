@@ -15,4 +15,28 @@ const resetPasswordSchema = Joi.object({
   newPassword: Joi.string().min(8).required(),
 });
 
-module.exports = { createUserSchema, updateStatusSchema, resetPasswordSchema };
+const getAdjustersQuerySchema = Joi.object({
+  status: Joi.string()
+    .valid('available')
+    .optional()
+    .messages({
+      'any.only': 'status must be: available',
+    }),
+});
+
+const listUsersQuerySchema = Joi.object({
+  role: Joi.string()
+    .valid('ADMIN', 'CLAIMS_OFFICER', 'FIELD_ADJUSTER')
+    .optional()
+    .messages({
+      'any.only': 'role must be one of: ADMIN, CLAIMS_OFFICER, FIELD_ADJUSTER',
+    }),
+});
+
+module.exports = {
+  createUserSchema,
+  updateStatusSchema,
+  resetPasswordSchema,
+  getAdjustersQuerySchema,
+  listUsersQuerySchema,
+};

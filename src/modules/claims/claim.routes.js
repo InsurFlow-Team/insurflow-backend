@@ -9,6 +9,7 @@ const {
   updateVehicleSchema,
   updateAccidentSchema,
   updateLocationSchema,
+  listClaimsQuerySchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -28,6 +29,7 @@ router.post(
 router.get(
   '/',
   authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validate(listClaimsQuerySchema, 'query'),
   claimController.getClaims
 );
 

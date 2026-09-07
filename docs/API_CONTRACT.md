@@ -28,6 +28,7 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
     }
     ```
     *(Aligned with the existing `src/utils/apiResponse.js` convention)*
+  - **Production Internal Error Masking (HTTP 500 / SEC-03):** In production environments, unexpected 500 errors always return a safe generic message (`"Internal Server Error"`) with error code `"INTERNAL_ERROR"`, strictly preventing leakage of internal exception messages, stack traces, database details, or filesystem paths to clients. Diagnostic details are preserved in server-side logs.
 
 ## 3. Authentication
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
@@ -94,6 +95,7 @@ Valid status transitions (enforced by the Backend):
 - **Error Responses:** 
   - `400 Bad Request`: Validation errors.
   - `401 Unauthorized`: Invalid credentials, Invalid organization, Inactive user.
+  - `429 Too Many Requests`: Too many failed login attempts (exceeded rate limit). Returns `TOO_MANY_REQUESTS`.
 
 ## 8. Claims APIs
 
@@ -131,6 +133,7 @@ Valid status transitions (enforced by the Backend):
 - **Purpose:** Retrieve Claims visible to the authenticated user.
 - **Authorized Roles:** `CLAIMS_OFFICER`, `FIELD_ADJUSTER`, `ADMIN`
 - **Authentication:** Required (JWT).
+- **Request Parameters:** `?status=NEW` (optional filter: `NEW`, `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
 - **Filtering Behavior:**
   - `CLAIMS_OFFICER`: Returns organization-wide Claims.
   - `FIELD_ADJUSTER`: Returns only Claims assigned to the authenticated user.
@@ -213,13 +216,13 @@ Valid status transitions (enforced by the Backend):
 - **Request Body:**
   ```json
   {
-    "adjusterId": "adjuster-uuid",
+    "adjusterId": "651a1f8b7f1d2c001f8d4e92",
     "priority": "HIGH",
     "notes": "Please inspect ASAP"
   }
   ```
 - **Business Rules:** The Backend records `assignedTo`, `assignedBy`, `assignedAt`.
-- **Validation rules (Rejects if):** Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive/unavailable, Claim is not in `NEW` status, Unauthorized user.
+- **Validation rules (Rejects if):** Malformed MongoDB ObjectId format for `adjusterId` (must be 24-character hexadecimal, returns 400 `VALIDATION_ERROR`), Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive/unavailable, Claim is not in `NEW` status, Unauthorized user.
 - **Success Response (200):**
   ```json
   {
@@ -260,13 +263,13 @@ Valid status transitions (enforced by the Backend):
 - **Request Body:**
   ```json
   {
-    "vehicleId": "v-uuid",
-    "policyId": "p-uuid",
-    "customerId": "c-uuid",
+    "vehicleId": "651a1f8b7f1d2c001f8d4e93",
+    "policyId": "651a1f8b7f1d2c001f8d4e94",
+    "customerId": "651a1f8b7f1d2c001f8d4e95",
     "plateNumber": "ABC-1234"
   }
   ```
-- **Business Rules:** Verify claim belongs to the user's org, is assigned to the authenticated Field Adjuster, and is in a valid state. No arbitrary changes to ownership allowed.
+- **Business Rules:** Verify claim belongs to the user's org, is assigned to the authenticated Field Adjuster, and is in a valid state. Rejects malformed `vehicleId`, `policyId`, or `customerId` with 400 `VALIDATION_ERROR` (must be valid 24-character hexadecimal MongoDB ObjectIds). No arbitrary changes to ownership allowed.
 
 ### `PUT /claims/:claimId/accident`
 - **Purpose:** Update accident details on the Claim.
@@ -408,7 +411,7 @@ Valid status transitions (enforced by the Backend):
 - **Purpose:** List all users belonging to the admin's organization.
 - **Authorized Roles:** `ADMIN`
 - **Authentication:** Required (JWT).
-- **Request Parameters:** `?role=FIELD_ADJUSTER` (optional role filter).
+- **Request Parameters:** `?role=FIELD_ADJUSTER` (optional role filter: `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`). Returns 400 `VALIDATION_ERROR` for invalid role values.
 - **Success Response (200):**
   ```json
   {
@@ -490,8 +493,8 @@ Valid status transitions (enforced by the Backend):
 
 ## 15. Error Contract
 - Error responses align with the utility found in `src/utils/apiResponse.js`.
-- Common HTTP Status Codes: `400`, `401`, `403`, `404`, `409`, `422`, `500`.
-- Common Error Codes: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `FORBIDDEN`, `CLAIM_NOT_FOUND`, `ADJUSTER_NOT_FOUND`, `ADJUSTER_UNAVAILABLE`, `INVALID_STATUS_TRANSITION`, `CLAIM_NOT_ASSIGNED`, `POLICY_EXPIRED`.
+- Common HTTP Status Codes: `400`, `401`, `403`, `404`, `409`, `422`, `429`, `500`.
+- Common Error Codes: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `FORBIDDEN`, `CLAIM_NOT_FOUND`, `ADJUSTER_NOT_FOUND`, `ADJUSTER_UNAVAILABLE`, `INVALID_STATUS_TRANSITION`, `CLAIM_NOT_ASSIGNED`, `POLICY_EXPIRED`, `TOO_MANY_REQUESTS`.
 
 ## 16. Status Transitions
 The backend is the sole authority enforcing these transitions:

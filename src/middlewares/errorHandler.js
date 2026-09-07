@@ -23,8 +23,17 @@ const errorHandler = (err, req, res, next) => {
     code = 'RESOURCE_NOT_FOUND';
   }
 
-  // Include stack trace only in development
-  if (config.nodeEnv === 'development' && statusCode === 500) {
+  // Environment check: identify production mode
+  const isProduction = config.nodeEnv === 'production' || process.env.NODE_ENV === 'production';
+
+  // In production, mask unexpected 500 internal errors to prevent leaking system details
+  if (isProduction && statusCode >= 500) {
+    message = 'Internal Server Error';
+    code = 'INTERNAL_ERROR';
+  }
+
+  // Server-side diagnostic logging: log stack trace for 500 errors
+  if (statusCode >= 500 && err.stack) {
     console.error(err.stack);
   }
 

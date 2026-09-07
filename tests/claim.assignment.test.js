@@ -176,6 +176,47 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     expect(response.body.errors[0].details).toMatch(/Invalid ID format/i);
   });
 
+  it('should return 400 Bad Request when adjusterId in body is not a valid 24-character hex ObjectId', async () => {
+    const token = generateToken(officer1);
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ adjusterId: 'invalid-hex-id-123' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toBe('Validation Error');
+    expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
+    expect(response.body.errors[0].details).toMatch(/Invalid ID format/i);
+  });
+
+  it('should return 404 when adjusterId is a valid 24-character hex ObjectId but does not exist in the database', async () => {
+    const token = generateToken(officer1);
+    const nonExistentId = new mongoose.Types.ObjectId().toString();
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ adjusterId: nonExistentId });
+
+    expect(response.status).toBe(404);
+    expect(response.body.success).toBe(false);
+    expect(response.body.errors[0].code).toBe('ADJUSTER_NOT_FOUND');
+  });
+
+  it('should accept a valid 24-character hex adjusterId in uppercase format', async () => {
+    const token = generateToken(officer1);
+    const upperAdjusterId = adjusterAvailable._id.toString().toUpperCase();
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ adjusterId: upperAdjusterId });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.assignedTo).toBe(adjusterAvailable._id.toString());
+    expect(response.body.data.status).toBe('ASSIGNED');
+  });
+
   it('should handle concurrent assignment race condition safely, allowing exactly one to succeed and rejecting duplicate with 409', async () => {
     const adjuster2 = await User.create({
       name: 'AA2',

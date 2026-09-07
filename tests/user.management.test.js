@@ -200,6 +200,40 @@ describe('User Management API (ADMIN only)', () => {
       
       expect(res.status).toBe(403);
     });
+
+    it('should filter users by role when valid role query parameter is passed', async () => {
+      const res = await request(app)
+        .get('/api/v1/users?role=CLAIMS_OFFICER')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      res.body.data.forEach((u) => {
+        expect(u.role).toBe('CLAIMS_OFFICER');
+      });
+    });
+
+    it('should return 400 Bad Request when role query parameter is invalid', async () => {
+      const res = await request(app)
+        .get('/api/v1/users?role=SUPER_USER')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation Error');
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toMatch(/role must be one of/i);
+    });
+
+    it('should return 400 Bad Request when unknown query parameter is passed', async () => {
+      const res = await request(app)
+        .get('/api/v1/users?unknownParam=attack')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
   });
 
   describe('PATCH /api/v1/users/:userId/status', () => {

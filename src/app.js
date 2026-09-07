@@ -10,6 +10,7 @@ const notFoundHandler = require('./middlewares/notFound');
 const { successResponse } = require('./utils/apiResponse');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));//! this is for sending requests with files and images

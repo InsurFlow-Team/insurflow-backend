@@ -16,8 +16,12 @@ const config = {
   databaseUrl: process.env.DATABASE_URL || 'mongodb://localhost:27017/insurflow',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   jwtSecret: process.env.JWT_SECRET || 'test-secret-do-not-use-in-prod',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
-  nodeEnv: process.env.NODE_ENV || 'development'
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  nodeEnv: process.env.NODE_ENV || 'development',
+  rateLimit: {
+    windowMs: parseInt(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes default
+    max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX, 10) || 5, // 5 attempts default
+  },
 };
 
 module.exports = config;

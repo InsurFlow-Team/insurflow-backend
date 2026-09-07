@@ -141,4 +141,26 @@ describe('GET /api/v1/users/adjusters', () => {
     expect(response.body.data.find(a => a.employeeCode === 'FA-02')).toBeUndefined();
     expect(response.body.data.find(a => a.employeeCode === 'FA-INACTIVE')).toBeUndefined();
   });
+
+  it('should return 400 Bad Request when status query parameter is not "available"', async () => {
+    const response = await request(app)
+      .get('/api/v1/users/adjusters?status=busy')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toBe('Validation Error');
+    expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
+    expect(response.body.errors[0].details).toMatch(/status must be: available/i);
+  });
+
+  it('should return 400 Bad Request when unknown query parameter is passed', async () => {
+    const response = await request(app)
+      .get('/api/v1/users/adjusters?unknownParam=attack')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
 });

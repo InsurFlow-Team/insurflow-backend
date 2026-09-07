@@ -165,7 +165,7 @@ copy .env.example .env
 
 ```env
 PORT=3000
-MONGODB_URI=mongodb://localhost:27017/insurflow
+DATABASE_URL=mongodb://localhost:27017/insurflow
 JWT_SECRET=your-super-secret-key-here
 CORS_ORIGIN=http://localhost:5173
 NODE_ENV=development

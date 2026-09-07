@@ -7,6 +7,8 @@ const {
   createUserSchema,
   updateStatusSchema,
   resetPasswordSchema,
+  getAdjustersQuerySchema,
+  listUsersQuerySchema,
 } = require('./user.validation');
 
 const router = express.Router();
@@ -18,12 +20,13 @@ router.use(authenticate);
 router.get(
   '/adjusters',
   authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validate(getAdjustersQuerySchema, 'query'),
   userController.getAdjusters
 );
 
 // ADMIN user management routes
 router.post('/', authorizeRole(['ADMIN']), validate(createUserSchema), userController.createUser);
-router.get('/', authorizeRole(['ADMIN']), userController.listUsers);
+router.get('/', authorizeRole(['ADMIN']), validate(listUsersQuerySchema, 'query'), userController.listUsers);
 router.patch('/:userId/status', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(updateStatusSchema), userController.updateUserStatus);
 router.patch('/:userId/reset-password', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(resetPasswordSchema), userController.resetUserPassword);
 

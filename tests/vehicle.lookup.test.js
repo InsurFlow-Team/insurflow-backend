@@ -155,6 +155,16 @@ describe('Vehicle Lookup API', () => {
     expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
   });
 
+  it('should return 400 if unknown query parameter is passed', async () => {
+    const res = await request(app)
+      .get('/api/v1/vehicles/lookup?plateNumber=TST-1234&unknownParam=attack')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
   it('should successfully look up a vehicle in the same organization', async () => {
     const res = await request(app)
       .get('/api/v1/vehicles/lookup?plateNumber=tst-1234 ') // testing lowercase and extra space (normalization)
