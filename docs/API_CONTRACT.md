@@ -119,6 +119,7 @@ Valid status transitions (enforced by the Backend):
     "message": "Claim created successfully",
     "data": {
       "id": "claim-uuid",
+      "claimNumber": "CLM-0001",
       "status": "NEW",
       "createdAt": "2026-08-26T15:00:00Z"
     }
@@ -138,9 +139,11 @@ Valid status transitions (enforced by the Backend):
   ```json
   {
     "success": true,
+    "message": "Claims retrieved successfully",
     "data": [
       {
         "id": "claim-uuid",
+        "claimNumber": "CLM-0001",
         "status": "NEW",
         "customerName": "John Doe",
         "initialPlateNumber": "ABC-1234",
@@ -320,6 +323,9 @@ Valid status transitions (enforced by the Backend):
 - **Status Transition:** `SUBMITTED` → `UNDER_REVIEW`
 
 ### `POST /claims/:claimId/decision`
+> **[DEFERRED TO SPRINT 2]**  
+> *This endpoint is out of scope for Sprint 1 and will be implemented in Sprint 2.*
+
 - **Purpose:** Make a decision on the Claim.
 - **Authorized Roles:** `CLAIMS_OFFICER`
 - **Authentication:** Required (JWT).
@@ -340,6 +346,9 @@ Valid status transitions (enforced by the Backend):
 ## 13. Admin Closure API
 
 ### `POST /claims/:claimId/close`
+> **[DEFERRED TO SPRINT 2]**  
+> *This endpoint is out of scope for Sprint 1 and will be implemented in Sprint 2.*
+
 - **Purpose:** Admin closes the Claim.
 - **Authorized Roles:** `ADMIN`
 - **Authentication:** Required (JWT).
@@ -356,7 +365,123 @@ Valid status transitions (enforced by the Backend):
   ```
 - **Status Transition:** `APPROVED` → `CLOSED`
 
-## 14. Request/Response Models
+## 14. User Administration APIs (`ADMIN` only)
+
+### `POST /users`
+- **Purpose:** Create a new user (Officer or Adjuster) within the admin's organization.
+- **Authorized Roles:** `ADMIN`
+- **Authentication:** Required (JWT).
+- **Request Body:**
+  ```json
+  {
+    "name": "Kareem Officer",
+    "employeeCode": "CO-002",
+    "password": "SecurePassword123!",
+    "role": "CLAIMS_OFFICER"
+  }
+  ```
+- **Validation Rules:**
+  - `name`: Required string.
+  - `employeeCode`: Required string (must be unique within the organization).
+  - `password`: Minimum 8 characters.
+  - `role`: Must be either `CLAIMS_OFFICER` or `FIELD_ADJUSTER` (cannot create another `ADMIN`).
+- **Success Response (201):**
+  ```json
+  {
+    "success": true,
+    "message": "User created successfully",
+    "data": {
+      "id": "user-uuid",
+      "name": "Kareem Officer",
+      "employeeCode": "CO-002",
+      "role": "CLAIMS_OFFICER",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-07T12:00:00Z"
+    }
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: Validation error or attempting to create `ADMIN` role.
+  - `409 Conflict`: `EMPLOYEE_CODE_TAKEN` if code already exists in organization.
+
+### `GET /users`
+- **Purpose:** List all users belonging to the admin's organization.
+- **Authorized Roles:** `ADMIN`
+- **Authentication:** Required (JWT).
+- **Request Parameters:** `?role=FIELD_ADJUSTER` (optional role filter).
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Users retrieved successfully",
+    "data": [
+      {
+        "_id": "user-uuid",
+        "name": "Ahmed Adjuster",
+        "employeeCode": "FA-001",
+        "role": "FIELD_ADJUSTER",
+        "status": "ACTIVE",
+        "createdAt": "2026-09-07T12:00:00Z"
+      }
+    ]
+  }
+  ```
+
+### `PATCH /users/:userId/status`
+- **Purpose:** Activate or deactivate a user account.
+- **Authorized Roles:** `ADMIN`
+- **Authentication:** Required (JWT).
+- **Path Parameters:** `:userId` (valid 24-character hex ObjectId).
+- **Request Body:**
+  ```json
+  {
+    "status": "INACTIVE"
+  }
+  ```
+- **Validation Rules:** `status` must be either `ACTIVE` or `INACTIVE`.
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "User status updated successfully",
+    "data": {
+      "id": "user-uuid",
+      "status": "INACTIVE"
+    }
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: Invalid ID format or invalid status value.
+  - `404 Not Found`: User not found in this organization.
+
+### `PATCH /users/:userId/reset-password`
+- **Purpose:** Administratively reset a user's password.
+- **Authorized Roles:** `ADMIN`
+- **Authentication:** Required (JWT).
+- **Path Parameters:** `:userId` (valid 24-character hex ObjectId).
+- **Request Body:**
+  ```json
+  {
+    "newPassword": "BrandNewPassword123!"
+  }
+  ```
+- **Validation Rules:** `newPassword` minimum 8 characters.
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "User password reset successfully",
+    "data": {
+      "id": "user-uuid",
+      "message": "Password reset successfully"
+    }
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: Invalid ID format or password too short.
+  - `404 Not Found`: User not found in this organization.
+
+## 15. Request/Response Models
 *Conceptual entities represented in the APIs. Not meant to map exactly 1:1 to database schema.*
 - **User:** `id`, `name`, `employeeCode`, `role`, `organizationId`, `status`.
 - **Organization:** `id`, `name`, `code`.

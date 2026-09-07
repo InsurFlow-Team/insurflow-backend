@@ -42,10 +42,10 @@ const countActiveClaimsByAssignee = async (userId) => {
   });
 };
 
-const assignClaim = async (claimId, updateData) => {
+const assignClaim = async (claimId, organizationId, updateData) => {
   const { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes, timelineEvent } = updateData;
-  return await Claim.findByIdAndUpdate(
-    claimId,
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'NEW' },
     {
       $set: { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes },
       $push: { timeline: timelineEvent },
@@ -54,41 +54,41 @@ const assignClaim = async (claimId, updateData) => {
   ).lean();
 };
 
-const updateVehicle = async (claimId, vehicleData, timelineEvent) => {
-  return await Claim.findByIdAndUpdate(
-    claimId,
+const updateVehicle = async (claimId, organizationId, assignedTo, vehicleData, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
     { $set: { vehicle: vehicleData }, $push: { timeline: timelineEvent } },
     { new: true }
   ).lean();
 };
 
-const updateAccident = async (claimId, accidentData, timelineEvent) => {
-  return await Claim.findByIdAndUpdate(
-    claimId,
+const updateAccident = async (claimId, organizationId, assignedTo, accidentData, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
     { $set: { accident: accidentData }, $push: { timeline: timelineEvent } },
     { new: true }
   ).lean();
 };
 
-const updateLocation = async (claimId, locationData, timelineEvent) => {
-  return await Claim.findByIdAndUpdate(
-    claimId,
+const updateLocation = async (claimId, organizationId, assignedTo, locationData, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
     { $set: { location: locationData }, $push: { timeline: timelineEvent } },
     { new: true }
   ).lean();
 };
 
-const submitInspection = async (claimId, timelineEvent) => {
-  return await Claim.findByIdAndUpdate(
-    claimId,
+const submitInspection = async (claimId, organizationId, assignedTo, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
     { $set: { status: 'SUBMITTED' }, $push: { timeline: timelineEvent } },
     { new: true }
   ).lean();
 };
 
-const startReview = async (claimId, timelineEvent) => {
-  return await Claim.findByIdAndUpdate(
-    claimId,
+const startReview = async (claimId, organizationId, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'SUBMITTED' },
     { $set: { status: 'UNDER_REVIEW' }, $push: { timeline: timelineEvent } },
     { new: true }
   ).lean();

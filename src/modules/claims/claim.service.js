@@ -113,30 +113,19 @@ const assignClaim = async (claimId, body, authUser) => {
   const { adjusterId, priority, notes } = body;
   const { userId, role, organizationId } = authUser;
 
-  // 1. Find claim and verify it exists within this org
-  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
-  if (!claim) {
-    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
-  }
-
-  // 2. Verify claim is in NEW state
-  if (claim.status !== 'NEW') {
-    throw new AppError('Claim is not in NEW state', 409, 'INVALID_STATUS_TRANSITION');
-  }
-
-  // 3. Find the adjuster and verify existence, role, and status
+  // 1. Find the adjuster and verify existence, role, and status
   const adjuster = await userRepository.findByIdAndOrganization(adjusterId, organizationId);
   if (!adjuster || adjuster.role !== 'FIELD_ADJUSTER' || adjuster.status !== 'ACTIVE') {
     throw new AppError('Adjuster not found', 404, 'ADJUSTER_NOT_FOUND');
   }
 
-  // 4. Verify adjuster availability (no active claims)
+  // 2. Verify adjuster availability (no active claims)
   const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
   if (activeTasksCount > 0) {
     throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
   }
 
-  // 6. Assign the claim
+  // 3. Atomically assign the claim (query checks org + status:'NEW')
   const timelineEvent = {
     action: 'Claim Assigned',
     performedBy: userId,
@@ -154,7 +143,17 @@ const assignClaim = async (claimId, body, authUser) => {
     timelineEvent,
   };
 
-  const updatedClaim = await claimRepository.assignClaim(claimId, updateData);
+  const updatedClaim = await claimRepository.assignClaim(claimId, organizationId, updateData);
+
+  if (!updatedClaim) {
+    // Atomic query failed: claim not found, wrong org, or status was not 'NEW' (race lost)
+    // Check if claim exists to give a more specific error
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    throw new AppError('Claim is not in NEW state', 409, 'INVALID_STATUS_TRANSITION');
+  }
 
   return {
     id: updatedClaim._id,
@@ -205,12 +204,16 @@ const updateVehicle = async (claimId, body, authUser) => {
     customerId: customer._id,
   };
 
-  const updatedClaim = await claimRepository.updateVehicle(claimId, vehicleData, {
+  const updatedClaim = await claimRepository.updateVehicle(claimId, authUser.organizationId, authUser.userId, vehicleData, {
     action: 'Vehicle Confirmed',
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
+
+  if (!updatedClaim) {
+    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
 
   return { status: updatedClaim.status, vehicle: updatedClaim.vehicle };
 };
@@ -218,12 +221,16 @@ const updateVehicle = async (claimId, body, authUser) => {
 const updateAccident = async (claimId, body, authUser) => {
   await getOwnedAssignedClaim(claimId, authUser);
 
-  const updatedClaim = await claimRepository.updateAccident(claimId, body, {
+  const updatedClaim = await claimRepository.updateAccident(claimId, authUser.organizationId, authUser.userId, body, {
     action: 'Accident Details Recorded',
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
+
+  if (!updatedClaim) {
+    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
 
   return { status: updatedClaim.status, accident: updatedClaim.accident };
 };
@@ -231,12 +238,16 @@ const updateAccident = async (claimId, body, authUser) => {
 const updateLocation = async (claimId, body, authUser) => {
   await getOwnedAssignedClaim(claimId, authUser);
 
-  const updatedClaim = await claimRepository.updateLocation(claimId, body, {
+  const updatedClaim = await claimRepository.updateLocation(claimId, authUser.organizationId, authUser.userId, body, {
     action: 'Location Captured',
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
+
+  if (!updatedClaim) {
+    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
 
   return { status: updatedClaim.status, location: updatedClaim.location };
 };
@@ -257,33 +268,36 @@ const submitInspection = async (claimId, authUser) => {
     );
   }
 
-  const updatedClaim = await claimRepository.submitInspection(claimId, {
+  const updatedClaim = await claimRepository.submitInspection(claimId, authUser.organizationId, authUser.userId, {
     action: 'Inspection Submitted',
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
 
+  if (!updatedClaim) {
+    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
   return { status: updatedClaim.status };
 };
 
 const startReview = async (claimId, authUser) => {
-  const claim = await claimRepository.findByIdAndOrganization(claimId, authUser.organizationId);
-
-  if (!claim) {
-    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
-  }
-
-  if (claim.status !== 'SUBMITTED') {
-    throw new AppError('Claim is not in SUBMITTED status', 409, 'INVALID_STATUS_TRANSITION');
-  }
-
-  const updatedClaim = await claimRepository.startReview(claimId, {
+  const updatedClaim = await claimRepository.startReview(claimId, authUser.organizationId, {
     action: 'Review Started',
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
+
+  if (!updatedClaim) {
+    // Atomic query failed: check if claim exists to give specific error
+    const existing = await claimRepository.findByIdAndOrganization(claimId, authUser.organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    throw new AppError('Claim is not in SUBMITTED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
 
   return { status: updatedClaim.status };
 };

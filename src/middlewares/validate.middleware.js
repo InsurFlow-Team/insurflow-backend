@@ -1,4 +1,23 @@
+const Joi = require('joi');
 const { errorResponse } = require('../utils/apiResponse');
+
+const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+
+/**
+ * Creates a Joi schema for validating a 24-character hexadecimal MongoDB ObjectId in params.
+ * @param {string} paramName - Name of the route param (e.g. 'claimId', 'userId')
+ */
+const objectIdSchema = (paramName) =>
+  Joi.object({
+    [paramName]: Joi.string()
+      .pattern(objectIdPattern)
+      .required()
+      .messages({
+        'string.pattern.base': 'Invalid ID format',
+        'string.empty': `${paramName} is required`,
+        'any.required': `${paramName} is required`,
+      }),
+  });
 
 /**
  * Middleware to validate request properties against a Joi schema.
@@ -23,4 +42,17 @@ const validate = (schema, property = 'body') => {
   };
 };
 
+/**
+ * Reusable middleware to validate an ObjectId route parameter.
+ * @param {string} paramName - Parameter name to validate in req.params (e.g. 'claimId', 'userId')
+ */
+const validateObjectId = (paramName) => validate(objectIdSchema(paramName), 'params');
+
+// Support both direct function import: const validate = require('...')
+// and destructuring: const { validate, validateObjectId } = require('...')
 module.exports = validate;
+module.exports.validate = validate;
+module.exports.validateObjectId = validateObjectId;
+module.exports.objectIdSchema = objectIdSchema;
+module.exports.objectIdPattern = objectIdPattern;
+

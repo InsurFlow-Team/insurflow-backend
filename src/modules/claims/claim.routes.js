@@ -2,7 +2,7 @@ const express = require('express');
 const claimController = require('./claim.controller');
 const authenticate = require('../../middlewares/auth.middleware');
 const authorizeRole = require('../../middlewares/role.middleware');
-const validate = require('../../middlewares/validate.middleware');
+const { validate, validateObjectId } = require('../../middlewares/validate.middleware');
 const {
   createClaimSchema,
   assignClaimSchema,
@@ -35,6 +35,7 @@ router.get(
 router.get(
   '/:claimId',
   authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validateObjectId('claimId'),
   claimController.getClaimById
 );
 
@@ -42,15 +43,44 @@ router.get(
 router.post(
   '/:claimId/assign',
   authorizeRole(['CLAIMS_OFFICER']),
+  validateObjectId('claimId'),
   validate(assignClaimSchema),
   claimController.assignClaim
 );
 
-router.put('/:claimId/vehicle', authorizeRole(['FIELD_ADJUSTER']), validate(updateVehicleSchema), claimController.updateVehicle);
-router.put('/:claimId/accident', authorizeRole(['FIELD_ADJUSTER']), validate(updateAccidentSchema), claimController.updateAccident);
-router.put('/:claimId/location', authorizeRole(['FIELD_ADJUSTER']), validate(updateLocationSchema), claimController.updateLocation);
+router.put(
+  '/:claimId/vehicle',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  validate(updateVehicleSchema),
+  claimController.updateVehicle
+);
+router.put(
+  '/:claimId/accident',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  validate(updateAccidentSchema),
+  claimController.updateAccident
+);
+router.put(
+  '/:claimId/location',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  validate(updateLocationSchema),
+  claimController.updateLocation
+);
 
-router.post('/:claimId/inspection/submit', authorizeRole(['FIELD_ADJUSTER']), claimController.submitInspection);
-router.post('/:claimId/review/start', authorizeRole(['CLAIMS_OFFICER']), claimController.startReview);
+router.post(
+  '/:claimId/inspection/submit',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  claimController.submitInspection
+);
+router.post(
+  '/:claimId/review/start',
+  authorizeRole(['CLAIMS_OFFICER']),
+  validateObjectId('claimId'),
+  claimController.startReview
+);
 
 module.exports = router;

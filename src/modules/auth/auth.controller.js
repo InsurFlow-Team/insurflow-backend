@@ -1,6 +1,7 @@
 const authService = require('./auth.service');
 const { successResponse } = require('../../utils/apiResponse');
 const config = require('../../config/env');
+const asyncWrapper = require('../../utils/asyncWrapper');
 
 
 const login = async (req, res, next) => {
@@ -22,8 +23,13 @@ const login = async (req, res, next) => {
   return res.status(200).json(successResponse('Login successful', loginData));
 };
 
-const asyncWrapper = require('../../utils/asyncWrapper');
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const result = await authService.changePassword(currentPassword, newPassword, req.user);
+  return res.status(200).json(successResponse('Password changed successfully', result));
+};
 
 module.exports = {
   login: asyncWrapper(login),
+  changePassword: asyncWrapper(changePassword),
 };

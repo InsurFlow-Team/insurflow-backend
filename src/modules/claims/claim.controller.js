@@ -1,5 +1,6 @@
 const claimService = require('./claim.service');
 const { successResponse } = require('../../utils/apiResponse');
+const asyncWrapper = require('../../utils/asyncWrapper');
 
 /**
  * POST /api/v1/claims
@@ -71,8 +72,6 @@ const startReview = async (req, res) => {
   const result = await claimService.startReview(claimId, req.user);
   return res.status(200).json(successResponse('Review started successfully', result));
 };
-
-const asyncWrapper = require('../../utils/asyncWrapper');
 
 module.exports = {
   createClaim: asyncWrapper(createClaim),

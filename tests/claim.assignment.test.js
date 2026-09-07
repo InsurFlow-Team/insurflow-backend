@@ -161,4 +161,63 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     
     expect(seqC2).toBe(seqC1 + 1);
   });
+
+  it('should return 400 Bad Request when claimId is not a valid 24-character hex ObjectId', async () => {
+    const token = generateToken(officer1);
+    const response = await request(app)
+      .post('/api/v1/claims/invalid-claim-id-123/assign')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ adjusterId: adjusterAvailable._id });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toBe('Validation Error');
+    expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
+    expect(response.body.errors[0].details).toMatch(/Invalid ID format/i);
+  });
+
+  it('should handle concurrent assignment race condition safely, allowing exactly one to succeed and rejecting duplicate with 409', async () => {
+    const adjuster2 = await User.create({
+      name: 'AA2',
+      employeeCode: 'AA-2',
+      password: 'p',
+      role: 'FIELD_ADJUSTER',
+      organizationId: org1._id,
+      status: 'ACTIVE',
+    });
+
+    const token = generateToken(officer1);
+
+    // Trigger two simultaneous assignment calls on the same claim
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ adjusterId: adjusterAvailable._id }),
+      request(app)
+        .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ adjusterId: adjuster2._id }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const successfulRes = res1.status === 200 ? res1 : res2;
+    const failedRes = res1.status === 409 ? res1 : res2;
+
+    expect(successfulRes.body.success).toBe(true);
+    expect(successfulRes.body.data.status).toBe('ASSIGNED');
+    expect(failedRes.body.success).toBe(false);
+    expect(failedRes.body.errors[0].code).toBe('INVALID_STATUS_TRANSITION');
+
+    // Confirm database state
+    const dbClaim = await Claim.findById(claimOrg1._id);
+    expect(dbClaim.status).toBe('ASSIGNED');
+    const assignmentTimelineEvents = dbClaim.timeline.filter(
+      (e) => e.action === 'Claim Assigned'
+    );
+    expect(assignmentTimelineEvents.length).toBe(1);
+  });
 });
+

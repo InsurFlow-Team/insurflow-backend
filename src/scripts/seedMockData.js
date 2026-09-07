@@ -26,6 +26,14 @@ const seedMockData = async () => {
     await User.deleteMany({ organizationId: organization._id });
     await User.create([
       {
+        name: 'Admin User',
+        employeeCode: 'AD-001',
+        password: 'Password123!',
+        role: 'ADMIN',
+        organizationId: organization._id,
+        status: 'ACTIVE',
+      },
+      {
         name: 'Sara Officer',
         employeeCode: 'CO-001',
         password: 'Password123!',

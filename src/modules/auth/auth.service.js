@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const Organization = require('../organizations/organization.model');
 const User = require('../users/user.model');
+const userRepository = require('../users/user.repository');
 const config = require('../../config/env');
 const AppError = require('../../utils/appError');
 
@@ -62,6 +63,28 @@ const login = async (organizationCode, employeeCode, password) => {
   };
 };
 
+const changePassword = async (currentPassword, newPassword, authUser) => {
+  const user = await userRepository.findByIdWithPassword(authUser.userId, authUser.organizationId);
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    throw new AppError('Current password is incorrect', 401, 'INVALID_CREDENTIALS');
+  }
+
+  if (currentPassword === newPassword) {
+    throw new AppError('New password must be different from the current password', 400, 'VALIDATION_ERROR');
+  }
+
+  user.password = newPassword;
+  await user.save(); // triggers the pre-save hashing hook — do not use findByIdAndUpdate here
+
+  return { message: 'Password changed successfully' };
+};
+
 module.exports = {
   login,
+  changePassword,
 };
