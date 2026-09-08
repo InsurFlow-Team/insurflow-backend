@@ -81,12 +81,14 @@
 
 ---
 
-## 4. Known Technical Debt & Sprint 2 Backlog (`Can Wait`)
+## 4. Sprint 2 Scope & Resolutions (`COMPLETED`)
 
-| Item | Classification | Planned Resolution |
+| Item | Classification | Resolution Status |
 |---|---|---|
-| **Global Claim Counter** | Technical Debt | Move from platform-wide `Counter` to tenant-scoped counter (`claimNumber_<orgId>`) in Sprint 2. |
-| **N+1 Query in `getAdjusters`** | Performance Optimization | Replace `Promise.all` mapping over adjusters with MongoDB aggregation pipeline in Sprint 2. |
-| **Pagination on Listings** | Scalability Enhancement | Introduce `limit` / `skip` / cursor pagination on `GET /claims` and `GET /users` in Sprint 2. |
-| **Login Rate Limiting** | Security Hardening | Add `express-rate-limit` on `POST /auth/login` prior to public staging deployment. |
-| **Claim Decision & Closure APIs** | Future Functional Scope | Implement `POST /claims/:claimId/decision` and `POST /claims/:claimId/close` in Sprint 2. |
+| **Global Claim Counter** | Technical Debt | ✅ **RESOLVED:** Tenant-scoped counter (`claimNumber_<orgId>`) generating `CLM-<ORG>-NNNN`. |
+| **Claim Decision Engine** | Functional Scope | ✅ **RESOLVED:** Implemented `POST /claims/:claimId/decision` (`UNDER_REVIEW` → `APPROVED` \| `REJECTED`). |
+| **Admin Claim Closure** | Functional Scope | ✅ **RESOLVED:** Implemented `POST /claims/:claimId/close` (`APPROVED` → `CLOSED`, ADMIN only). |
+| **N+1 Query in `getAdjusters`** | Performance Optimization | ✅ **RESOLVED:** Replaced `Promise.all` loop with single MongoDB `$lookup` aggregation pipeline. |
+| **Pagination on Listings** | Scalability Enhancement | ✅ **RESOLVED:** Header-based pagination (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /claims` and `GET /users`. |
+| **API & Login Rate Limiting** | Security Hardening | ✅ **RESOLVED:** Multi-tiered rate limiting with `loginLimiter` (brute-force defense) and `apiLimiter` (DoS/scraping defense). |
+

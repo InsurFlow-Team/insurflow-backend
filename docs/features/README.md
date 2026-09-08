@@ -1,0 +1,33 @@
+# InsurFlow — Backend Feature Specifications Index
+
+> **Authoritative Architectural & Functional Specifications**  
+> This directory houses the complete, deep, production-grade technical specification for every feature in the InsurFlow backend. Each document is self-contained with full architecture diagrams, API contracts, multi-tenancy invariants, database schemas, and test coverage matrices.
+
+---
+
+## Complete Feature Matrix
+
+| # | Feature Specification Document | Core Domains Covered | Key Roles Involved | Primary Endpoints |
+|---|--------------------------------|----------------------|--------------------|-------------------|
+| **01** | [01-authentication-and-sessions.md](./01-authentication-and-sessions.md) | Multi-tenant login, JWT tokens, bcrypt password hashing, password change, brute-force defense | All Roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`) | `POST /api/v1/auth/login`<br>`PUT /api/v1/auth/change-password` |
+| **02** | [02-user-management-and-rbac.md](./02-user-management-and-rbac.md) | Administrative staff onboarding, user listing, account deactivation, password resets | `ADMIN` only | `POST /api/v1/users`<br>`GET /api/v1/users`<br>`PATCH /api/v1/users/:id/status`<br>`PATCH /api/v1/users/:id/reset-password` |
+| **03** | [03-claim-intake-and-creation.md](./03-claim-intake-and-creation.md) | Claim intake form, customer & incident capture, initial `NEW` status, audit timeline initiation | `CLAIMS_OFFICER` | `POST /api/v1/claims` |
+| **04** | [04-tenant-scoped-claim-numbering.md](./04-tenant-scoped-claim-numbering.md) | `CLM-<ORG>-0001` format, isolated atomic Counter model, Mongoose pre-save hook, compound unique index | System / All Roles | Automatic on `Claim.create()` |
+| **05** | [05-adjuster-workload-and-availability.md](./05-adjuster-workload-and-availability.md) | Real-time availability calculation, single MongoDB `$lookup` aggregation pipeline, N+1 query elimination | `CLAIMS_OFFICER`, `ADMIN` | `GET /api/v1/users/adjusters?status=available` |
+| **06** | [06-claim-assignment.md](./06-claim-assignment.md) | Dispatching claims to available adjusters, `NEW` → `ASSIGNED` transition, atomic concurrency protection | `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/assign` |
+| **07** | [07-vehicle-and-policy-lookup.md](./07-vehicle-and-policy-lookup.md) | License plate lookup, underwriting policy resolution, customer details, expired policy warning | `FIELD_ADJUSTER` | `GET /api/v1/vehicles/lookup?plateNumber=...` |
+| **08** | [08-field-inspection-workflow.md](./08-field-inspection-workflow.md) | Partial draft updates (Vehicle, Accident narrative, GPS coordinates & address), assigned adjuster write locks | Assigned `FIELD_ADJUSTER` | `PUT /api/v1/claims/:id/vehicle`<br>`PUT /api/v1/claims/:id/accident`<br>`PUT /api/v1/claims/:id/location` |
+| **09** | [09-inspection-submission-and-review.md](./09-inspection-submission-and-review.md) | Three-pillar validation, `ASSIGNED` → `SUBMITTED` transition, `SUBMITTED` → `UNDER_REVIEW` transition | `FIELD_ADJUSTER`<br>`CLAIMS_OFFICER` | `POST /api/v1/claims/:id/inspection/submit`<br>`POST /api/v1/claims/:id/review/start` |
+| **10** | [10-claim-decision-engine.md](./10-claim-decision-engine.md) | Final adjudication, `UNDER_REVIEW` → `APPROVED` \| `REJECTED`, atomic state mutation, 409 conflict handling | `CLAIMS_OFFICER`, `ADMIN` | `POST /api/v1/claims/:claimId/decision` |
+| **11** | [11-claim-closure.md](./11-claim-closure.md) | Administrative case closure, `APPROVED` → `CLOSED`, closedBy & closingNotes tracking, audit trail logging | `ADMIN` only | `POST /api/v1/claims/:claimId/close` |
+| **12** | [12-pagination-and-query-limits.md](./12-pagination-and-query-limits.md) | Standardized listing pagination, default 50 / max 100, HTTP response headers (`X-Total-Count`, etc.), CORS exposure | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims`<br>`GET /api/v1/users` |
+| **13** | [13-rate-limiting-and-security.md](./13-rate-limiting-and-security.md) | Multi-tiered rate limiting (`loginLimiter` & `apiLimiter`), production override protection, trust proxy, error masking | Global Infrastructure | Applied across all `/api/v1` routes |
+
+---
+
+## Architectural Principles Enforced Across All Features
+
+1. **Multi-Tenancy by Default:** Tenant identity is derived exclusively from `req.user.organizationId` via JWT. Request bodies and query parameters referencing tenancy are discarded. Cross-tenant access returns stealth `404 Not Found`.
+2. **Layered Architecture:** Routes (`.routes.js`) → Controllers (`.controller.js`) → Services (`.service.js`) → Repositories (`.repository.js`) → Models (`.model.js`).
+3. **Atomic State Mutations:** State transitions use atomic `findOneAndUpdate({ _id, organizationId, status: expectedStatus })` to eliminate Time-of-Check to Time-of-Use (TOCTOU) race conditions.
+4. **Zero Unvalidated Inputs:** Every incoming payload and query string is strictly validated using Joi schemas before touching business logic.

@@ -34,7 +34,7 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
 ## 4. Roles & Authorization
-- **ADMIN:** Administrative operations, Final claim closure.
+- **ADMIN:** Administrative operations, Make Claim decision, Final claim closure.
 - **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Make Claim decision.
 - **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Perform inspection, Submit inspection.
 
@@ -133,7 +133,15 @@ Valid status transitions (enforced by the Backend):
 - **Purpose:** Retrieve Claims visible to the authenticated user.
 - **Authorized Roles:** `CLAIMS_OFFICER`, `FIELD_ADJUSTER`, `ADMIN`
 - **Authentication:** Required (JWT).
-- **Request Parameters:** `?status=NEW` (optional filter: `NEW`, `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
+- **Request Parameters:**
+  - `status`: Optional filter (`NEW`, `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
+  - `page`: Optional integer $\ge 1$ (default: `1`).
+  - `limit`: Optional integer between $1$ and $100$ (default: `50`).
+- **Pagination Headers (Response):**
+  - `X-Total-Count`: Total number of matching claims in organization.
+  - `X-Page`: Current page number.
+  - `X-Limit`: Items per page.
+  - `X-Total-Pages`: Total page count.
 - **Filtering Behavior:**
   - `CLAIMS_OFFICER`: Returns organization-wide Claims.
   - `FIELD_ADJUSTER`: Returns only Claims assigned to the authenticated user.
@@ -326,45 +334,64 @@ Valid status transitions (enforced by the Backend):
 - **Status Transition:** `SUBMITTED` → `UNDER_REVIEW`
 
 ### `POST /claims/:claimId/decision`
-> **[DEFERRED TO SPRINT 2]**  
-> *This endpoint is out of scope for Sprint 1 and will be implemented in Sprint 2.*
-
-- **Purpose:** Make a decision on the Claim.
-- **Authorized Roles:** `CLAIMS_OFFICER`
+- **Purpose:** Make an adjudication decision on an `UNDER_REVIEW` claim.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
 - **Authentication:** Required (JWT).
 - **Request Body:**
   ```json
   {
     "decision": "APPROVED",
-    "reviewNotes": "Looks good."
+    "notes": "All documentation verified."
   }
   ```
-- **Business Rules:** Claim must be `UNDER_REVIEW`. (Note: `REJECTED` is NOT implemented in Sprint 1 unless explicitly approved by the team).
+- **Validation Rules:**
+  - `decision`: Required, enum: `"APPROVED"`, `"REJECTED"`.
+  - `notes`: Optional string.
+- **Business Rules:** Claim must belong to user's organization and currently be in `UNDER_REVIEW` status. Appends audit timeline event (`'Claim Approved'` or `'Claim Rejected'`).
 - **Success Response (200):**
   ```json
-  { "success": true, "message": "Claim approved", "data": { "status": "APPROVED" } }
+  {
+    "success": true,
+    "message": "Decision recorded successfully",
+    "data": {
+      "id": "claim-uuid",
+      "claimNumber": "CLM-ORG-0001",
+      "status": "APPROVED",
+      "decisionNotes": "All documentation verified."
+    }
+  }
   ```
-- **Status Transition:** `UNDER_REVIEW` → `APPROVED`
+- **Status Transition:** `UNDER_REVIEW` → `APPROVED` | `REJECTED`
 
 ## 13. Admin Closure API
 
 ### `POST /claims/:claimId/close`
-> **[DEFERRED TO SPRINT 2]**  
-> *This endpoint is out of scope for Sprint 1 and will be implemented in Sprint 2.*
-
-- **Purpose:** Admin closes the Claim.
+- **Purpose:** Admin closes an approved Claim.
 - **Authorized Roles:** `ADMIN`
 - **Authentication:** Required (JWT).
 - **Request Body:**
   ```json
   {
-    "closingNotes": "Finalized and archived."
+    "closingNotes": "Payout confirmed and case archived."
   }
   ```
-- **Business Rules:** Claim must be `APPROVED`. Backend records `closedBy` and `closedAt`.
+- **Validation Rules:**
+  - `closingNotes`: Optional string.
+- **Business Rules:** Claim must belong to admin's organization and currently be in `APPROVED` status. Backend atomically records `closedBy`, `closedAt`, and `closingNotes`, and appends `'Claim Closed'` timeline event.
 - **Success Response (200):**
   ```json
-  { "success": true, "message": "Claim closed", "data": { "status": "CLOSED" } }
+  {
+    "success": true,
+    "message": "Claim closed",
+    "data": {
+      "id": "claim-uuid",
+      "claimNumber": "CLM-ORG-0001",
+      "status": "CLOSED",
+      "closedBy": "admin-uuid",
+      "closedAt": "2026-09-08T00:00:00Z",
+      "closingNotes": "Payout confirmed and case archived."
+    }
+  }
   ```
 - **Status Transition:** `APPROVED` → `CLOSED`
 
@@ -411,7 +438,15 @@ Valid status transitions (enforced by the Backend):
 - **Purpose:** List all users belonging to the admin's organization.
 - **Authorized Roles:** `ADMIN`
 - **Authentication:** Required (JWT).
-- **Request Parameters:** `?role=FIELD_ADJUSTER` (optional role filter: `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`). Returns 400 `VALIDATION_ERROR` for invalid role values.
+- **Request Parameters:**
+  - `role`: Optional role filter (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`). Returns 400 `VALIDATION_ERROR` for invalid role values.
+  - `page`: Optional integer $\ge 1$ (default: `1`).
+  - `limit`: Optional integer between $1$ and $100$ (default: `50`).
+- **Pagination Headers (Response):**
+  - `X-Total-Count`: Total number of matching users in organization.
+  - `X-Page`: Current page number.
+  - `X-Limit`: Items per page.
+  - `X-Total-Pages`: Total page count.
 - **Success Response (200):**
   ```json
   {

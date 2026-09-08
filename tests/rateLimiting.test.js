@@ -98,6 +98,32 @@ describe('Rate Limiting Middleware', () => {
       }
 
     });
+
+    it('should ignore x-test-rate-limit-max when nodeEnv is not test', async () => {
+      const originalEnv = config.nodeEnv;
+      config.nodeEnv = 'production';
+
+      try {
+        // Send a request with x-test-rate-limit-max header attempting to set limit to 1
+        const res1 = await request(app)
+          .get('/api/v1/auth/does-not-exist')
+          .set('x-test-rate-limit-max', '1');
+
+        // In production, x-test-rate-limit-max must be completely ignored.
+        // RateLimit-Limit header reflects the configured production max (300), not 1.
+        expect(res1.headers).toHaveProperty('ratelimit-limit');
+        expect(parseInt(res1.headers['ratelimit-limit'], 10)).toBe(config.apiRateLimit.max || 300);
+
+        // A second request must NOT be blocked with 429
+        const res2 = await request(app)
+          .get('/api/v1/auth/does-not-exist')
+          .set('x-test-rate-limit-max', '1');
+        expect(res2.status).not.toBe(429);
+      } finally {
+        config.nodeEnv = originalEnv;
+        apiLimiter.reset();
+      }
+    });
   });
 
   // ─── Login Limiter Independence ─────────────────────────────────────────────

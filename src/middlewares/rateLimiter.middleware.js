@@ -40,7 +40,7 @@ loginLimiter.reset = () => loginRateLimitStore.resetAll();
 const apiLimiter = rateLimit({
   windowMs: config.apiRateLimit?.windowMs || 15 * 60 * 1000,
   max: (req) =>
-    (req.headers['x-test-rate-limit-max']
+    (config.nodeEnv === 'test' && req.headers['x-test-rate-limit-max']
       ? parseInt(req.headers['x-test-rate-limit-max'], 10)
       : config.apiRateLimit?.max || 300),
   standardHeaders: true,
