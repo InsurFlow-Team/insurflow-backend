@@ -6,7 +6,7 @@ The **Claim Assignment** feature enables a Claims Officer to dispatch a newly cr
 Key operational requirements:
 1. Only claims currently in status **`NEW`** can be assigned.
 2. The target adjuster must belong to the same tenant, have role **`FIELD_ADJUSTER`**, and have status **`ACTIVE`**.
-3. The target adjuster must have **0 active tasks** currently assigned.
+3. The target adjuster must be available with **3 or fewer active tasks** (`activeTasksCount <= 3`). If `activeTasksCount > 3`, assignment is blocked.
 4. Assignment must execute **atomically** to prevent race conditions (e.g. two officers simultaneously assigning the same claim).
 5. The claim transitions: **`NEW` → `ASSIGNED`**.
 
@@ -35,7 +35,7 @@ Key operational requirements:
    ├── 1. Query adjuster in tenant: User.findOne({ _id: adjusterId, organizationId })
    │      └── Throws 404 ADJUSTER_NOT_FOUND if invalid, wrong role, or inactive
    ├── 2. Query adjuster active workload: countActiveClaimsByAssignee(adjusterId)
-   │      └── Throws 409 ADJUSTER_UNAVAILABLE if activeTasksCount > 0
+   │      └── Throws 409 ADJUSTER_UNAVAILABLE if activeTasksCount > 3
    └── 3. Atomic Assignment Query:
           Claim.findOneAndUpdate(
             { _id: claimId, organizationId, status: 'NEW' },
@@ -84,7 +84,7 @@ Key operational requirements:
   * `400 Bad Request`: `VALIDATION_ERROR` (invalid ObjectId format or invalid priority).
   * `404 Not Found`: `CLAIM_NOT_FOUND` or `ADJUSTER_NOT_FOUND`.
   * `409 Conflict`:
-    * `ADJUSTER_UNAVAILABLE`: Target adjuster already has 1 or more active assigned tasks.
+    * `ADJUSTER_UNAVAILABLE`: Target adjuster already has more than 3 active assigned tasks (`activeTasksCount > 3`).
     * `INVALID_STATUS_TRANSITION`: Claim is not in `NEW` status.
 
 ---

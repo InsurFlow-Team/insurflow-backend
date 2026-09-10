@@ -3,6 +3,7 @@ const userRepository = require('../users/user.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
 const policyRepository = require('../policies/policy.repository');
 const customerRepository = require('../customers/customer.repository');
+const Claim = require('./claim.model');
 const AppError = require('../../utils/appError');
 
 
@@ -138,9 +139,10 @@ const assignClaim = async (claimId, body, authUser) => {
     throw new AppError('Adjuster not found', 404, 'ADJUSTER_NOT_FOUND');
   }
 
-  // 2. Verify adjuster availability (no active claims)
+  // 2. Verify adjuster availability (active claims <= 3 is AVAILABLE, > 3 is UNAVAILABLE)
   const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
-  if (activeTasksCount > 0) {
+  const maxActiveClaims = Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3;
+  if (activeTasksCount > maxActiveClaims) {
     throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
   }
 

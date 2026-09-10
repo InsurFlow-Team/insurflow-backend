@@ -56,11 +56,13 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     claimOrg1 = await Claim.create({ organizationId: org1._id, createdBy: officer1._id, status: 'NEW', customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
     claimOrg2 = await Claim.create({ organizationId: org2._id, createdBy: officer2._id, status: 'NEW', customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
 
-    // Make adjusterBusy actually busy
-    await Claim.create({ organizationId: org1._id, createdBy: officer1._id, status: 'ASSIGNED', assignedTo: adjusterBusy._id, customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
+    // Make adjusterBusy actually busy (exceeds 3 active claims -> 4 claims)
+    for (let i = 0; i < 4; i++) {
+      await Claim.create({ organizationId: org1._id, createdBy: officer1._id, status: 'ASSIGNED', assignedTo: adjusterBusy._id, customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
+    }
   });
 
-  it('should successfully assign a NEW claim to an available adjuster', async () => {
+  it('should successfully assign a NEW claim to an available adjuster with 0 active claims', async () => {
     const token = generateToken(officer1);
     const response = await request(app)
       .post(`/api/v1/claims/${claimOrg1._id}/assign`)
@@ -72,7 +74,26 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     expect(response.body.data.status).toBe('ASSIGNED');
   });
 
-  it('should fail to assign if adjuster is busy', async () => {
+  it('should successfully assign to an adjuster who currently has up to 3 active claims (3 and less is available)', async () => {
+    const token = generateToken(officer1);
+
+    // Create 3 active claims for adjusterAvailable
+    for (let i = 0; i < 3; i++) {
+      await Claim.create({ organizationId: org1._id, createdBy: officer1._id, status: 'ASSIGNED', assignedTo: adjusterAvailable._id, customer: { name: 'C', phone: '1' }, incidentType: 'COLLISION', incidentLocation: 'L' });
+    }
+
+    // Assigning the claimOrg1 should still succeed because currently activeTasksCount = 3 (<= 3)
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ adjusterId: adjusterAvailable._id });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.assignedTo).toBe(adjusterAvailable._id.toString());
+    expect(response.body.data.status).toBe('ASSIGNED');
+  });
+
+  it('should fail to assign if adjuster is busy (more than 3 active claims)', async () => {
     const token = generateToken(officer1);
     const response = await request(app)
       .post(`/api/v1/claims/${claimOrg1._id}/assign`)

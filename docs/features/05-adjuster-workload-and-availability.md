@@ -5,7 +5,7 @@ Before a Claims Officer dispatches an inspection, they must determine which Fiel
 
 An adjuster is defined as **`AVAILABLE`** if and only if:
 1. Their account status is **`ACTIVE`**.
-2. They have **`0`** active inspection tasks currently in status **`ASSIGNED`**.
+2. They have **3 or fewer (`<= 3`)** active inspection tasks (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`). If active tasks exceed 3, they become **`UNAVAILABLE`**.
 
 To prevent performance degradation (N+1 query loop) as adjuster headcount scales, this calculation is executed via a single MongoDB `$lookup` aggregation pipeline.
 
@@ -68,7 +68,7 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
             if: {
               $and: [
                 { $eq: ['$status', 'ACTIVE'] },
-                { $eq: ['$activeTasksCount', 0] },
+                { $lte: ['$activeTasksCount', 3] },
               ],
             },
             then: 'AVAILABLE',

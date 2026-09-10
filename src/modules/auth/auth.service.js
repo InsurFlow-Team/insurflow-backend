@@ -20,11 +20,11 @@ const login = async (organizationCode, employeeCode, password) => {
   }
 
   // 2. Find user by employee code and organization ID
-  const user = await User.findOne({ 
-    employeeCode, 
-    organizationId: organization._id 
+  const user = await User.findOne({
+    employeeCode,
+    organizationId: organization._id
   }).select('+password');
-  
+
   if (!user) {
     throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }

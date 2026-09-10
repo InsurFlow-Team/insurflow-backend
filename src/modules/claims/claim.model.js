@@ -231,5 +231,6 @@ claimSchema.pre('save', async function () {
 
 const Claim = mongoose.model('Claim', claimSchema);
 Claim.ACTIVE_ADJUSTER_STATUSES = ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'];
+Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER = 3;
 
 module.exports = Claim;

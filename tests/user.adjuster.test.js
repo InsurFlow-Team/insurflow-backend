@@ -101,16 +101,18 @@ describe('GET /api/v1/users/adjusters', () => {
       status: 'ACTIVE',
     });
 
-    // Assign claim to adjuster 2 (so they are unavailable)
-    await Claim.create({
-      organizationId: org1._id,
-      createdBy: officer._id,
-      status: 'ASSIGNED',
-      customer: { name: 'C', phone: '1' },
-      incidentType: 'COLLISION',
-      incidentLocation: 'L',
-      assignedTo: adjuster2._id,
-    });
+    // Assign 4 claims to adjuster 2 (so activeTasksCount > 3, making them unavailable)
+    for (let i = 0; i < 4; i++) {
+      await Claim.create({
+        organizationId: org1._id,
+        createdBy: officer._id,
+        status: 'ASSIGNED',
+        customer: { name: `C${i}`, phone: '1' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'L',
+        assignedTo: adjuster2._id,
+      });
+    }
   });
 
   it('should fetch all adjusters in the organization with their availability', async () => {
@@ -127,7 +129,7 @@ describe('GET /api/v1/users/adjusters', () => {
 
     expect(a1.availability).toBe('AVAILABLE');
     expect(a2.availability).toBe('UNAVAILABLE');
-    expect(a2.activeTasksCount).toBe(1);
+    expect(a2.activeTasksCount).toBe(4);
     expect(aInactive.availability).toBe('UNAVAILABLE');
   });
 
@@ -195,29 +197,55 @@ describe('GET /api/v1/users/adjusters', () => {
     expect(a1.availability).toBe('AVAILABLE');
   });
 
-  it('should correctly reflect multiple active assigned tasks for an adjuster', async () => {
-    // Add another assigned claim to adjuster2 (already has 1)
+  it('should correctly reflect multiple active assigned tasks and availability (available when <= 3, unavailable when > 3)', async () => {
+    // Reset claims for adjuster1
+    await Claim.deleteMany({ assignedTo: adjuster1._id });
+
+    // 1. Give adjuster1 3 active assigned tasks
+    for (let i = 1; i <= 3; i++) {
+      await Claim.create({
+        organizationId: org1._id,
+        createdBy: officer._id,
+        status: 'ASSIGNED',
+        customer: { name: `C${i}`, phone: '1' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'L',
+        assignedTo: adjuster1._id,
+      });
+    }
+
+    let response = await request(app)
+      .get('/api/v1/users/adjusters')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    let a1 = response.body.data.find((a) => a.employeeCode === 'FA-01');
+    expect(a1.activeTasksCount).toBe(3);
+    expect(a1.availability).toBe('AVAILABLE'); // 3 or less is available
+
+    // 2. Add a 4th active claim (> 3)
     await Claim.create({
       organizationId: org1._id,
       createdBy: officer._id,
       status: 'ASSIGNED',
-      customer: { name: 'C3', phone: '3' },
+      customer: { name: 'C4', phone: '1' },
       incidentType: 'COLLISION',
-      incidentLocation: 'L3',
-      assignedTo: adjuster2._id,
+      incidentLocation: 'L',
+      assignedTo: adjuster1._id,
     });
 
-    const response = await request(app)
+    response = await request(app)
       .get('/api/v1/users/adjusters')
       .set('Authorization', `Bearer ${officerToken}`);
 
-    expect(response.status).toBe(200);
-    const a2 = response.body.data.find((a) => a.employeeCode === 'FA-02');
-    expect(a2.activeTasksCount).toBe(2);
-    expect(a2.availability).toBe('UNAVAILABLE');
+    a1 = response.body.data.find((a) => a.employeeCode === 'FA-01');
+    expect(a1.activeTasksCount).toBe(4);
+    expect(a1.availability).toBe('UNAVAILABLE'); // more than 3 is unavailable
   });
 
   it('should count IN_PROGRESS and CORRECTION_REQUIRED claims towards activeTasksCount', async () => {
+    // Reset adjuster1 & adjuster3
+    await Claim.deleteMany({ assignedTo: { $in: [adjuster1._id, adjuster3._id] } });
+
     await Claim.create({
       organizationId: org1._id,
       createdBy: officer._id,
@@ -245,9 +273,9 @@ describe('GET /api/v1/users/adjusters', () => {
     const a1 = response.body.data.find((a) => a.employeeCode === 'FA-01');
     const a3 = response.body.data.find((a) => a.employeeCode === 'FA-03');
     expect(a1.activeTasksCount).toBe(1);
-    expect(a1.availability).toBe('UNAVAILABLE');
+    expect(a1.availability).toBe('AVAILABLE');
     expect(a3.activeTasksCount).toBe(1);
-    expect(a3.availability).toBe('UNAVAILABLE');
+    expect(a3.availability).toBe('AVAILABLE');
   });
 
   it('should eliminate N+1 queries by never calling Claim.countDocuments', async () => {
