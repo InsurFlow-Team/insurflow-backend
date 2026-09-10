@@ -72,7 +72,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
         organizationId: org1._id,
         createdBy: officer1._id,
         assignedTo: adjuster1._id,
-        status: 'ASSIGNED',
+        status: 'IN_PROGRESS',
         customer: { name: 'C', phone: '1' },
         vehicle: { plateNumber: 'XYZ-123', vehicleId: new mongoose.Types.ObjectId() },
         accident: { accidentType: 'COLLISION' },
@@ -303,6 +303,13 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
         .send({ adjusterId: adjuster1._id });
       expect(assignRes.status).toBe(200);
       expect(assignRes.body.data.status).toBe('ASSIGNED');
+
+      // 2b. Start inspection -> IN_PROGRESS
+      const startRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/inspection/start`)
+        .set('Authorization', `Bearer ${adjusterToken}`);
+      expect(startRes.status).toBe(200);
+      expect(startRes.body.data.status).toBe('IN_PROGRESS');
 
       // 3. Fill vehicle
       const vehicleRes = await request(app)

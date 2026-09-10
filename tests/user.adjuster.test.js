@@ -217,6 +217,39 @@ describe('GET /api/v1/users/adjusters', () => {
     expect(a2.availability).toBe('UNAVAILABLE');
   });
 
+  it('should count IN_PROGRESS and CORRECTION_REQUIRED claims towards activeTasksCount', async () => {
+    await Claim.create({
+      organizationId: org1._id,
+      createdBy: officer._id,
+      status: 'IN_PROGRESS',
+      customer: { name: 'C1', phone: '1' },
+      incidentType: 'COLLISION',
+      incidentLocation: 'L1',
+      assignedTo: adjuster1._id,
+    });
+    await Claim.create({
+      organizationId: org1._id,
+      createdBy: officer._id,
+      status: 'CORRECTION_REQUIRED',
+      customer: { name: 'C2', phone: '2' },
+      incidentType: 'COLLISION',
+      incidentLocation: 'L2',
+      assignedTo: adjuster3._id,
+    });
+
+    const response = await request(app)
+      .get('/api/v1/users/adjusters')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(200);
+    const a1 = response.body.data.find((a) => a.employeeCode === 'FA-01');
+    const a3 = response.body.data.find((a) => a.employeeCode === 'FA-03');
+    expect(a1.activeTasksCount).toBe(1);
+    expect(a1.availability).toBe('UNAVAILABLE');
+    expect(a3.activeTasksCount).toBe(1);
+    expect(a3.availability).toBe('UNAVAILABLE');
+  });
+
   it('should eliminate N+1 queries by never calling Claim.countDocuments', async () => {
     const countSpy = jest.spyOn(Claim, 'countDocuments');
 

@@ -61,7 +61,7 @@ describe('Inspection Endpoints', () => {
     claimAssigned = await Claim.create({
       organizationId: org1._id,
       createdBy: officer._id,
-      status: 'ASSIGNED',
+      status: 'IN_PROGRESS',
       assignedTo: adjuster1._id,
       customer: { name: 'C', phone: '1' },
       vehicle: { plateNumber: 'OLD-PLATE' },
@@ -105,7 +105,7 @@ describe('Inspection Endpoints', () => {
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('ASSIGNED'); // Status unchanged
+      expect(res.body.data.status).toBe('IN_PROGRESS'); // Status unchanged
       expect(res.body.data.vehicle.plateNumber).toBe('REAL-PLATE');
       expect(res.body.data.vehicle.vehicleId.toString()).toBe(vehicle._id.toString());
       
@@ -281,7 +281,7 @@ describe('Inspection Endpoints', () => {
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('ASSIGNED');
+      expect(res.body.data.status).toBe('IN_PROGRESS');
       expect(res.body.data.accident.accidentType).toBe('COLLISION');
     });
 
@@ -317,7 +317,7 @@ describe('Inspection Endpoints', () => {
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('ASSIGNED');
+      expect(res.body.data.status).toBe('IN_PROGRESS');
       expect(res.body.data.location.address).toBe('123 Main St, NY');
     });
 
