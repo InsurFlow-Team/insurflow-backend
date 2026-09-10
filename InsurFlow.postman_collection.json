@@ -1,0 +1,1599 @@
+{
+  "collection": {
+    "info": {
+      "_postman_id": "2cc8307a-749f-4cf6-b547-29ee44495b82",
+      "name": "InsurFlow",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      "createdAt": "2026-08-25T11:42:57.000Z",
+      "updatedAt": "2026-09-09T13:41:23.000Z",
+      "lastUpdatedBy": "48167372",
+      "uid": "48167372-2cc8307a-749f-4cf6-b547-29ee44495b82"
+    },
+    "item": [
+      {
+        "name": "auth",
+        "item": [
+          {
+            "name": "login (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Admin Login successful\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "id": "641a3e77-7fe1-45b7-8dc6-4e0aab9092bd",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"organizationCode\": \"DEMO-INS\",\n  \"employeeCode\": \"AD-001\",\n  \"password\": \"Password123!\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/auth/login",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "auth",
+                  "login"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-10T10:08:50.000Z",
+            "uid": "48167372-641a3e77-7fe1-45b7-8dc6-4e0aab9092bd"
+          },
+          {
+            "name": "login (Claims Officer)",
+            "event": [
+              {
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Officer Login successful\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "9c369154-4288-4ce2-b5a7-680719666d3d",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\r\n  \"organizationCode\": \"DEMO-INS\",\r\n  \"employeeCode\": \"CO-001\",\r\n  \"password\": \"Password123!\"\r\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/auth/login",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "auth",
+                  "login"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T15:06:37.000Z",
+            "updatedAt": "2026-09-10T10:08:54.000Z",
+            "uid": "48167372-9c369154-4288-4ce2-b5a7-680719666d3d"
+          },
+          {
+            "name": "Change Password",
+            "event": [
+              {
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Password changed successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ]
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "18995563-d5d6-2ff8-9c81-670718718736",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "value": "application/json",
+                  "key": "Content-Type"
+                },
+                {
+                  "value": "Bearer <TOKEN>",
+                  "key": "Authorization"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"NewAdminPassword123!\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/auth/change-password",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "auth",
+                  "change-password"
+                ]
+              },
+              "description": "Change current user password. Requires valid JWT token in Authorization header."
+            },
+            "response": [],
+            "createdAt": "2026-09-10T09:39:51.000Z",
+            "updatedAt": "2026-09-10T10:09:29.000Z",
+            "uid": "48167372-18995563-d5d6-2ff8-9c81-670718718736"
+          },
+          {
+            "name": "login (Field Adjuster)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Field Adjuster Login successful\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.user.role).to.eql(\"FIELD_ADJUSTER\");",
+                    "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "id": "c1f9f059-7334-90e4-8b9b-0d9238e586f6",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"organizationCode\": \"DEMO-INS\",\n  \"employeeCode\": \"FA-001\",\n  \"password\": \"Password123!\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/auth/login",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "auth",
+                  "login"
+                ]
+              },
+              "description": "Authenticate as Field Adjuster (FA) and receive JWT access token."
+            },
+            "response": [],
+            "createdAt": "2026-09-10T10:09:48.000Z",
+            "updatedAt": "2026-09-10T10:09:48.000Z",
+            "uid": "48167372-c1f9f059-7334-90e4-8b9b-0d9238e586f6"
+          }
+        ],
+        "id": "885d4861-69e5-44a2-969e-140ee70a6b2f",
+        "createdAt": "2026-08-28T15:05:35.000Z",
+        "updatedAt": "2026-09-10T10:09:48.000Z",
+        "uid": "48167372-885d4861-69e5-44a2-969e-140ee70a6b2f"
+      },
+      {
+        "name": "Users",
+        "item": [
+          {
+            "name": "1. Create User - Field Adjuster (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 201 Created\", function () {",
+                    "    pm.response.to.have.status(201);",
+                    "});",
+                    "pm.test(\"Adjuster created successfully with ID\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"id\");",
+                    "    pm.expect(jsonData.data.role).to.eql(\"FIELD_ADJUSTER\");",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ACTIVE\");",
+                    "    pm.expect(jsonData.data).to.not.have.property(\"password\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "id": "13f11155-27a9-4b41-bb8c-5dba22e4067d",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer <TOKEN>"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Field Adjuster Demo\",\n  \"employeeCode\": \"FA-105\",\n  \"password\": \"Password123!\",\n  \"role\": \"FIELD_ADJUSTER\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-10T10:09:00.000Z",
+            "uid": "48167372-13f11155-27a9-4b41-bb8c-5dba22e4067d"
+          },
+          {
+            "name": "2. Create User - Claims Officer (Admin)",
+            "event": [
+              {
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 201 Created\", function () {",
+                    "    pm.response.to.have.status(201);",
+                    "});",
+                    "pm.test(\"Claims Officer created successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.role).to.eql(\"CLAIMS_OFFICER\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "3552f21c-ea67-4da8-99cf-6a42f67115d7",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer <TOKEN>"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Claims Officer Demo\",\n  \"employeeCode\": \"CO-105\",\n  \"password\": \"Password123!\",\n  \"role\": \"CLAIMS_OFFICER\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-10T10:09:05.000Z",
+            "uid": "48167372-3552f21c-ea67-4da8-99cf-6a42f67115d7"
+          },
+          {
+            "name": "3. List All Users (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Returns user list with pagination headers\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "    pm.expect(jsonData.data.length).to.be.above(0);",
+                    "    pm.expect(pm.response.headers.has(\"X-Total-Count\")).to.be.true;",
+                    "    pm.expect(pm.response.headers.has(\"X-Page\")).to.be.true;",
+                    "    pm.expect(pm.response.headers.has(\"X-Limit\")).to.be.true;",
+                    "    pm.expect(pm.response.headers.has(\"X-Total-Pages\")).to.be.true;",
+                    "    jsonData.data.forEach(function(u) {",
+                    "        pm.expect(u).to.not.have.property(\"password\");",
+                    "    });",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "5a476c47-9fc9-40e7-8f36-7bfd7bb5ec01",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users?page=1&limit=10",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users"
+                ],
+                "query": [
+                  {
+                    "key": "page",
+                    "value": "1"
+                  },
+                  {
+                    "key": "limit",
+                    "value": "10"
+                  }
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-5a476c47-9fc9-40e7-8f36-7bfd7bb5ec01"
+          },
+          {
+            "name": "4. List Users by Role - FIELD_ADJUSTER (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"All returned users have role FIELD_ADJUSTER\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "    jsonData.data.forEach(function(user) {",
+                    "        pm.expect(user.role).to.eql(\"FIELD_ADJUSTER\");",
+                    "    });",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "93141744-78ae-4be6-8aa1-a08eb93e0a64",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users?role=FIELD_ADJUSTER",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users"
+                ],
+                "query": [
+                  {
+                    "key": "role",
+                    "value": "FIELD_ADJUSTER"
+                  }
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-93141744-78ae-4be6-8aa1-a08eb93e0a64"
+          },
+          {
+            "name": "5. List Adjusters with Availability (Admin/Officer)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Adjusters list retrieved with availability fields\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "    jsonData.data.forEach(function(adj) {",
+                    "        pm.expect(adj).to.have.property(\"availability\");",
+                    "        pm.expect(adj).to.have.property(\"activeTasksCount\");",
+                    "        pm.expect(adj.availability).to.eql(\"AVAILABLE\");",
+                    "    });",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "6a084416-f4e2-4555-ab51-f4873a66f86e",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/adjusters?status=available",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "adjusters"
+                ],
+                "query": [
+                  {
+                    "key": "status",
+                    "value": "available"
+                  }
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-6a084416-f4e2-4555-ab51-f4873a66f86e"
+          },
+          {
+            "name": "6. Update User Status - Deactivate to INACTIVE (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "id": "da49b006-4f24-4a66-a9ce-8a484a9e8e11",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"User status updated to INACTIVE\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"INACTIVE\");",
+                    "});"
+                  ],
+                  "type": "text/javascript",
+                  "packages": {},
+                  "requests": {}
+                }
+              }
+            ],
+            "id": "244b14c6-07b3-4176-a50f-7e54879af124",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/6aa280c2ff3ba88a24c4e5dc/status",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "6aa280c2ff3ba88a24c4e5dc",
+                  "status"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-10T10:05:07.000Z",
+            "uid": "48167372-244b14c6-07b3-4176-a50f-7e54879af124"
+          },
+          {
+            "name": "7. Reset User Password (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "id": "a811c46b-69aa-4f40-8c0b-0101e0914a40",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Password reset response received\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.message).to.include(\"successfully\");",
+                    "});"
+                  ],
+                  "type": "text/javascript",
+                  "packages": {},
+                  "requests": {}
+                }
+              }
+            ],
+            "id": "76212e7b-6142-4565-9919-8ff57fada803",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"newPassword\": \"NewPassword123!\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/6aa280c2ff3ba88a24c4e5dc/reset-password",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "6aa280c2ff3ba88a24c4e5dc",
+                  "reset-password"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-10T10:05:36.000Z",
+            "uid": "48167372-76212e7b-6142-4565-9919-8ff57fada803"
+          },
+          {
+            "name": "8. Update User Status - Reactivate to ACTIVE (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "id": "af1dbab1-14c2-4da4-947d-8a68eb87f1e5",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"User status reactivated to ACTIVE\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ACTIVE\");",
+                    "});"
+                  ],
+                  "type": "text/javascript",
+                  "packages": {},
+                  "requests": {}
+                }
+              }
+            ],
+            "id": "67acdc01-8b3f-4638-b90c-e1f84e71ffcd",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/6aa280c2ff3ba88a24c4e5dc/status",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "6aa280c2ff3ba88a24c4e5dc",
+                  "status"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-10T10:05:43.000Z",
+            "uid": "48167372-67acdc01-8b3f-4638-b90c-e1f84e71ffcd"
+          },
+          {
+            "name": "9. Login with Newly Reset Password (Adjuster)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Login successful with new password\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "c4ab00d1-5bee-4787-8e31-19c0afc0e353",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"organizationCode\": \"DEMO-INS\",\n  \"employeeCode\": \"{{newAdjusterCode}}\",\n  \"password\": \"NewPassword123!\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/auth/login",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "auth",
+                  "login"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-c4ab00d1-5bee-4787-8e31-19c0afc0e353"
+          },
+          {
+            "name": "10. [Negative Test] Create User with Invalid Role (Expect 400)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                    "    pm.response.to.have.status(400);",
+                    "});",
+                    "pm.test(\"Validation error code returned\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.errors[0].code).to.eql(\"VALIDATION_ERROR\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "8b6d6201-cefd-41e1-9943-03d8416cbde5",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Invalid Role User\",\n  \"employeeCode\": \"INV-001\",\n  \"password\": \"Password123!\",\n  \"role\": \"ADMIN\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-8b6d6201-cefd-41e1-9943-03d8416cbde5"
+          },
+          {
+            "name": "11. [Negative Test] Create User Forbidden for Claims Officer (Expect 403)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 403 Forbidden\", function () {",
+                    "    pm.response.to.have.status(403);",
+                    "});",
+                    "pm.test(\"Access denied for non-admin\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "057f38d7-21c2-4080-9a3c-cbf23a857ccd",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Forbidden Officer User\",\n  \"employeeCode\": \"FB-001\",\n  \"password\": \"Password123!\",\n  \"role\": \"FIELD_ADJUSTER\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-057f38d7-21c2-4080-9a3c-cbf23a857ccd"
+          },
+          {
+            "name": "12. [Negative Test] Update Status with Invalid ObjectId (Expect 400)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                    "    pm.response.to.have.status(400);",
+                    "});",
+                    "pm.test(\"Validation error on invalid ObjectId\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.errors[0].code).to.eql(\"VALIDATION_ERROR\");",
+                    "    pm.expect(jsonData.errors[0].details).to.include(\"Invalid ID format\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "id": "4af8b916-811a-4f90-823c-64be91c37673",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/invalid-object-id/status",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "invalid-object-id",
+                  "status"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-09-09T13:41:23.000Z",
+            "updatedAt": "2026-09-09T13:41:23.000Z",
+            "uid": "48167372-4af8b916-811a-4f90-823c-64be91c37673"
+          }
+        ],
+        "id": "1c372911-672a-4205-929c-e82c036e7a2c",
+        "createdAt": "2026-09-09T13:41:23.000Z",
+        "updatedAt": "2026-09-09T13:41:23.000Z",
+        "uid": "48167372-1c372911-672a-4205-929c-e82c036e7a2c"
+      },
+      {
+        "name": "Claims",
+        "item": [
+          {
+            "name": "madeClaim",
+            "id": "8c7521cc-f20d-4b8c-8746-322e162c49fa",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\r\n  \"customerName\": \"John Doe\",\r\n  \"customerPhone\": \"+1234567890\",\r\n  \"initialPlateNumber\": \"ABC-1234\",\r\n  \"incidentType\": \"COLLISION\",\r\n  \"incidentLocation\": \"طريق الملك فهد، الرياض\"\r\n}\r\n",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T15:18:25.000Z",
+            "updatedAt": "2026-09-01T08:30:46.000Z",
+            "uid": "48167372-8c7521cc-f20d-4b8c-8746-322e162c49fa"
+          },
+          {
+            "name": "allClaims",
+            "id": "eec530a1-d164-466d-9aa1-c47c63fd867c",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims?status=NEW",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ],
+                "query": [
+                  {
+                    "key": "status",
+                    "value": "NEW"
+                  }
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T18:57:20.000Z",
+            "updatedAt": "2026-09-01T08:30:51.000Z",
+            "uid": "48167372-eec530a1-d164-466d-9aa1-c47c63fd867c"
+          },
+          {
+            "name": "claimById",
+            "id": "d7c6f926-0f55-4cc9-b77f-37c04dd84731",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T18:52:53.000Z",
+            "updatedAt": "2026-09-01T08:30:56.000Z",
+            "uid": "48167372-d7c6f926-0f55-4cc9-b77f-37c04dd84731"
+          },
+          {
+            "name": "assign",
+            "id": "8db0a008-2650-4cfa-9dfc-4bfa8b410701",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\r\n  \"adjusterId\": \"6a919f4ee62778a597174335\",\r\n  \"priority\": \"HIGH\", \r\n  \"notes\": \"Please inspect this as soon as possible\"\r\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/assign",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b",
+                  "assign"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T19:06:27.000Z",
+            "updatedAt": "2026-09-01T08:31:00.000Z",
+            "uid": "48167372-8db0a008-2650-4cfa-9dfc-4bfa8b410701"
+          },
+          {
+            "name": "submit claim",
+            "id": "04f3e9ef-d56f-4fb5-91b6-8fae05cf4859",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/inspection/submit",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b",
+                  "inspection",
+                  "submit"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T19:31:28.000Z",
+            "updatedAt": "2026-09-01T08:31:04.000Z",
+            "uid": "48167372-04f3e9ef-d56f-4fb5-91b6-8fae05cf4859"
+          },
+          {
+            "name": "Start Review claim",
+            "id": "2587a331-8a22-4c91-9c5e-2e2ac7c1d437",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/review/start",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b",
+                  "review",
+                  "start"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T19:31:49.000Z",
+            "updatedAt": "2026-09-01T08:31:09.000Z",
+            "uid": "48167372-2587a331-8a22-4c91-9c5e-2e2ac7c1d437"
+          },
+          {
+            "name": "Decide Claim - Approve / Reject (Admin/Officer)",
+            "event": [
+              {
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim decision processed successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.be.oneOf([\"APPROVED\", \"REJECTED\"]);",
+                    "});"
+                  ]
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "8e3afa98-2d01-1cf7-9d92-4bcf740d565c",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "value": "application/json",
+                  "key": "Content-Type"
+                },
+                {
+                  "value": "Bearer <TOKEN>",
+                  "key": "Authorization"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"decision\": \"APPROVED\",\n  \"notes\": \"Claim verified and approved.\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decision",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decision"
+                ]
+              },
+              "description": "Approve or reject a claim. Accessible by CLAIMS_OFFICER and ADMIN. Claim must be in UNDER_REVIEW status."
+            },
+            "response": [],
+            "createdAt": "2026-09-10T09:39:44.000Z",
+            "updatedAt": "2026-09-10T10:09:14.000Z",
+            "uid": "48167372-8e3afa98-2d01-1cf7-9d92-4bcf740d565c"
+          },
+          {
+            "name": "Close Claim (Admin Only)",
+            "event": [
+              {
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim closed successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"CLOSED\");",
+                    "    pm.expect(jsonData.data.closedBy).to.be.ok;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "bc79307d-9cb9-2f44-aef4-931c35fbdfcd",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer <TOKEN>"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"closingNotes\": \"Claim processed, payout settled, and officially closed by Admin.\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/close",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "close"
+                ]
+              },
+              "description": "Close an approved claim. EXCLUSIVELY for ADMIN role. Claim must be in APPROVED status."
+            },
+            "response": [],
+            "createdAt": "2026-09-10T09:39:47.000Z",
+            "updatedAt": "2026-09-10T10:09:18.000Z",
+            "uid": "48167372-bc79307d-9cb9-2f44-aef4-931c35fbdfcd"
+          }
+        ],
+        "id": "75fd566b-96d7-41ec-8e40-7be35cb40b24",
+        "createdAt": "2026-08-28T15:16:32.000Z",
+        "updatedAt": "2026-09-10T09:39:47.000Z",
+        "uid": "48167372-75fd566b-96d7-41ec-8e40-7be35cb40b24"
+      },
+      {
+        "name": "adjesters",
+        "item": [
+          {
+            "name": "allAdjesters",
+            "id": "7290ed9c-169b-4d1c-b34d-576570345f62",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/adjusters",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "adjusters"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T15:57:17.000Z",
+            "updatedAt": "2026-09-01T08:31:14.000Z",
+            "uid": "48167372-7290ed9c-169b-4d1c-b34d-576570345f62"
+          }
+        ],
+        "id": "3252c40a-de6f-492c-bc31-f1116ef63304",
+        "createdAt": "2026-08-28T15:57:04.000Z",
+        "updatedAt": "2026-08-28T18:53:09.000Z",
+        "uid": "48167372-3252c40a-de6f-492c-bc31-f1116ef63304"
+      },
+      {
+        "name": "Vehicle",
+        "item": [
+          {
+            "name": "Vehicle Lookup",
+            "id": "caf93d93-59e3-4e48-9171-c071dc44947c",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/vehicles/lookup?plateNumber=ABC-1234",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "vehicles",
+                  "lookup"
+                ],
+                "query": [
+                  {
+                    "key": "plateNumber",
+                    "value": "ABC-1234"
+                  }
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T15:18:14.000Z",
+            "updatedAt": "2026-09-01T08:31:19.000Z",
+            "uid": "48167372-caf93d93-59e3-4e48-9171-c071dc44947c"
+          },
+          {
+            "name": "Update Vehicle",
+            "id": "05dc5fac-262a-401f-a0b2-1c2f31374074",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PUT",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\r\n  \"vehicleId\": \"6a919f50e62778a59717433c\",\r\n  \"policyId\": \"6a919f4fe62778a59717433a\",\r\n  \"customerId\": \"6a919f4ee62778a597174338\",\r\n  \"plateNumber\": \"123-ABC\"\r\n}\r\n",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/vehicle",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b",
+                  "vehicle"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T19:13:01.000Z",
+            "updatedAt": "2026-09-01T08:31:24.000Z",
+            "uid": "48167372-05dc5fac-262a-401f-a0b2-1c2f31374074"
+          }
+        ],
+        "id": "66948f88-7355-4d37-b99c-8f32d93a7d0a",
+        "createdAt": "2026-08-28T18:52:56.000Z",
+        "updatedAt": "2026-08-28T19:13:01.000Z",
+        "uid": "48167372-66948f88-7355-4d37-b99c-8f32d93a7d0a"
+      },
+      {
+        "name": "Accident",
+        "item": [
+          {
+            "name": "Update Accident",
+            "id": "dfc62cb9-5410-455c-aeed-7042150e5601",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PUT",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\r\n  \"accidentType\": \"REAR_END_COLLISION\",\r\n  \"accidentDate\": \"2026-08-28\",\r\n  \"accidentTime\": \"14:30\",\r\n  \"description\": \"Car was hit from behind while waiting at a red light.\",\r\n  \"damageDescription\": \"Severe damage to the rear bumper and trunk.\"\r\n}\r\n",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/accident",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b",
+                  "accident"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T19:27:13.000Z",
+            "updatedAt": "2026-09-01T08:31:29.000Z",
+            "uid": "48167372-dfc62cb9-5410-455c-aeed-7042150e5601"
+          }
+        ],
+        "id": "0018cd90-c42e-43a8-b66d-d6ae02753722",
+        "createdAt": "2026-08-28T19:26:51.000Z",
+        "updatedAt": "2026-08-28T19:27:13.000Z",
+        "uid": "48167372-0018cd90-c42e-43a8-b66d-d6ae02753722"
+      },
+      {
+        "name": "Location",
+        "item": [
+          {
+            "name": "Update Location",
+            "id": "7e878dbf-09e6-4055-9b4b-69cb19560567",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PUT",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\r\n  \"latitude\": 24.7136,\r\n  \"longitude\": 46.6753,\r\n  \"address\": \"King Fahd Road, Riyadh\",\r\n  \"capturedAt\": \"2026-08-28T14:35:00.000Z\"\r\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/location",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "6a91ab09c9ff1dc54fabf15b",
+                  "location"
+                ]
+              }
+            },
+            "response": [],
+            "createdAt": "2026-08-28T19:29:50.000Z",
+            "updatedAt": "2026-09-01T08:31:46.000Z",
+            "uid": "48167372-7e878dbf-09e6-4055-9b4b-69cb19560567"
+          }
+        ],
+        "id": "7ef10878-73fa-4acc-85be-e19d0646bef3",
+        "createdAt": "2026-08-28T19:29:26.000Z",
+        "updatedAt": "2026-08-28T19:29:50.000Z",
+        "uid": "48167372-7ef10878-73fa-4acc-85be-e19d0646bef3"
+      },
+      {
+        "name": "test the server",
+        "id": "91a830ee-bd2d-4f3a-94a7-3d6878cb9d68",
+        "protocolProfileBehavior": {
+          "disableBodyPruning": true
+        },
+        "request": {
+          "method": "GET",
+          "header": [],
+          "body": {
+            "mode": "formdata",
+            "formdata": [
+              {
+                "key": "coverImage",
+                "type": "file",
+                "uuid": "81aa4ae9-da18-4c1c-ab27-3b2f91b7a654",
+                "src": "/C:/Users/HP/Pictures/-3.jpg"
+              },
+              {
+                "key": "title",
+                "value": "{\"ar\": \"حملة تشجير\", \"en\": \"Tree Campaign\"}",
+                "type": "text",
+                "uuid": "caaba700-b729-40f4-b2f7-0ecb62f223a8"
+              },
+              {
+                "key": "description",
+                "value": "{\"ar\": \"وصف النشاط\", \"en\": \"Description\"}",
+                "type": "text",
+                "uuid": "e88e4e7f-ae5d-4a3c-93a8-2b8457983621"
+              },
+              {
+                "key": "category",
+                "value": "relief",
+                "type": "text",
+                "uuid": "56cc7ffd-1f1e-41df-9aa1-39b951032a80"
+              },
+              {
+                "key": "date",
+                "value": "2026-08-12",
+                "type": "text",
+                "uuid": "3e07ef3e-58f4-4867-9cea-5e7dbec01875"
+              }
+            ]
+          },
+          "url": {
+            "raw": "http://127.0.0.1:3000/health",
+            "protocol": "http",
+            "host": [
+              "127",
+              "0",
+              "0",
+              "1"
+            ],
+            "port": "3000",
+            "path": [
+              "health"
+            ]
+          }
+        },
+        "response": [],
+        "createdAt": "2026-08-25T11:43:19.000Z",
+        "updatedAt": "2026-08-28T19:10:18.000Z",
+        "uid": "48167372-91a830ee-bd2d-4f3a-94a7-3d6878cb9d68"
+      }
+    ]
+  }
+}
