@@ -4,7 +4,7 @@
 Once a Field Adjuster has gathered all required field evidence, they submit the final report. This locks further on-site editing and transitions the claim to back-office processing.
 
 This feature encompasses two sequential lifecycle transitions:
-1. **Inspection Submission:** `ASSIGNED` → `SUBMITTED` (executed by assigned `FIELD_ADJUSTER`).
+1. **Inspection Submission:** `IN_PROGRESS` → `SUBMITTED` (executed by assigned `FIELD_ADJUSTER`).
 2. **Review Initiation:** `SUBMITTED` → `UNDER_REVIEW` (executed by any `CLAIMS_OFFICER` within the organization).
 
 ---
@@ -12,7 +12,7 @@ This feature encompasses two sequential lifecycle transitions:
 ## 2. Business Invariants & Three Mandatory Pillars
 
 ### Rule BR-SUBMIT-2 (Three Pillars Validation)
-Before transitioning from `ASSIGNED` to `SUBMITTED`, the backend verifies that all three core pillars of the inspection report have been completed:
+Before transitioning from `IN_PROGRESS` to `SUBMITTED`, the backend verifies that all three core pillars of the inspection report have been completed:
 1. **Pillar 1 — Vehicle Verified:** `claim.vehicle.vehicleId` must not be null.
 2. **Pillar 2 — Accident Recorded:** `claim.accident.accidentType` must not be null.
 3. **Pillar 3 — Location Captured:** `claim.location.latitude` and `claim.location.longitude` must not be null. (Note: `0` is a mathematically valid coordinate and is not treated as null).
@@ -27,12 +27,12 @@ If any pillar is missing, the submission is rejected with **`422 Unprocessable E
 * **Authorized Roles:** `FIELD_ADJUSTER` only (assigned adjuster only).
 * **Validation & Execution Sequence:**
   1. Verifies caller is assigned to the claim and belongs to the tenant.
-  2. Asserts status is `ASSIGNED` (409 if not).
+  2. Asserts status is `IN_PROGRESS` (409 if not).
   3. Verifies the Three Mandatory Pillars (422 if incomplete).
   4. Executes atomic update:
      ```javascript
      Claim.findOneAndUpdate(
-       { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
+       { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
        { $set: { status: 'SUBMITTED' }, $push: { timeline: timelineEvent } },
        { new: true }
      );

@@ -1,4 +1,4 @@
-# 🛡️ InsurFlow — Backend API (Sprint 1)
+# 🛡️ InsurFlow — Backend API
 
 > **نظام إدارة مطالبات التأمين على المركبات**  
 > A multi-tenant insurance claims management backend built with Node.js, Express, and MongoDB.
@@ -12,11 +12,12 @@ InsurFlow هو نظام إدارة مطالبات التأمين على السي
 **المشكلة التي يحلها:**  
 عند وقوع حادث سيارة، يحتاج العميل إلى تقديم مطالبة تأمينية. هذا النظام يُنظّم العملية كاملة:
 1. موظف المطالبات يفتح الملف
-2. يُعيّن مفتش ميداني يذهب لمكان الحادث
-3. المفتش يجمع كل البيانات (السيارة، الحادث، الموقع)
-4. المفتش يُرسل تقرير الفحص
-5. الموظف يراجع ويوافق
-6. الإدارة تُغلق الملف نهائيًا
+2. يُعيّن مفتشًا ميدانيًا متاحًا يذهب لمكان الحادث
+3. المفتش يبدأ المعاينة ويجمع البيانات (السيارة، الحادث، الموقع)
+4. المفتش يُرسل تقرير الفحص المكتمل
+5. الموظف يراجع التقرير (مع إمكانية طلب تصحيحات من المفتش)
+6. يُعتمد التعويض أو يُرفض
+7. الإدارة تُغلق الملف نهائيًا بعد صرف المستحقات
 
 ---
 
@@ -64,6 +65,8 @@ INSURFLOW/
 │   ├── middlewares/              ← وسطاء الطلبات (تُنفَّذ قبل كل endpoint)
 │   │   ├── auth.middleware.js    ← التحقق من الـ JWT token
 │   │   ├── role.middleware.js    ← التحقق من صلاحية الدور
+│   │   ├── validate.middleware.js← التحقق من المدخلات بواسطة Joi
+│   │   ├── rateLimiter.middleware.js ← تحديد معدل الطلبات وحماية الهجمات
 │   │   ├── errorHandler.js       ← معالج الأخطاء العام
 │   │   └── notFound.js           ← معالج الـ 404
 │   │
@@ -117,19 +120,8 @@ INSURFLOW/
 │           ├── policy.model.js
 │           └── policy.repository.js
 │
-├── tests/                        ← الاختبارات التلقائية
-│   ├── auth.test.js
-│   ├── claim.lifecycle.test.js
-│   ├── claim.assignment.test.js
-│   ├── claim.inspection.test.js
-│   ├── claim.read.test.js
-│   ├── user.adjuster.test.js
-│   ├── vehicle.lookup.test.js
-│   └── middleware.test.js
-│
-├── docs/
-│   └── API_CONTRACT.md           ← عقد الـ API مع فرق الـ Frontend والـ Mobile
-│
+├── tests/                        ← الاختبارات التلقائية (16 Suites / 190 Tests)
+├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json
 └── README.md
@@ -185,6 +177,7 @@ node src/scripts/seedMockData.js
 
 ### 5. تشغيل السيرفر
 
+```bash
 # للتطوير (يُعاد التشغيل تلقائيًا عند تعديل الكود)
 npm run dev
 
@@ -229,9 +222,9 @@ npm test
 
 | الدور | الصلاحيات |
 |-------|-----------|
-| `CLAIMS_OFFICER` | إنشاء مطالبة، تعيين مفتش، بدء المراجعة |
-| `FIELD_ADJUSTER` | عرض المطالبات المُعيّنة له، تنفيذ الفحص، إرسال التقرير |
-| `ADMIN` | إغلاق المطالبة نهائيًا |
+| `CLAIMS_OFFICER` | إنشاء مطالبة، تعيين مفتش، بدء المراجعة، طلب تصحيح، اتخاذ قرار الاعتماد/الرفض |
+| `FIELD_ADJUSTER` | عرض المطالبات المُعيّنة له، بدء/استئناف المعاينة، حفظ مسودات الفحص، إرسال التقرير |
+| `ADMIN` | إدارة الموظفين، الرقابة الشاملة، اتخاذ قرار الاعتماد/الرفض، إغلاق المطالبة نهائيًا |
 
 ### JWT Authentication (المصادقة)
 
@@ -255,10 +248,15 @@ Authorization: Bearer <token>
 
 ## 🔄 دورة حياة المطالبة (The Claim Lifecycle)
 
-هذا هو قلب النظام. المطالبة تمر بهذه المراحل بالترتيب:
+## 🔄 دورة حياة المطالبة (The Claim Lifecycle)
+
+هذا هو قلب النظام. تدعم المنصة آلة حالات متكاملة من 9 حالات مع حلقة تصحيح تفاعلية:
 
 ```
-NEW → ASSIGNED → SUBMITTED → UNDER_REVIEW → APPROVED → CLOSED
+NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / REJECTED → CLOSED
+                              ▲                       │
+                              │                       ▼
+                              └─── CORRECTION_REQUIRED ◄── (طلب تصحيح)
 ```
 
 ### شرح كل مرحلة:
@@ -267,35 +265,43 @@ NEW → ASSIGNED → SUBMITTED → UNDER_REVIEW → APPROVED → CLOSED
 1. NEW
    ├── من يفعلها: CLAIMS_OFFICER
    ├── كيف: POST /api/v1/claims
-   └── ماذا يحدث: يُنشئ ملف المطالبة بالمعلومات الأساسية
+   └── ماذا يحدث: يُنشئ ملف المطالبة بالمعلومات الأساسية (CLM-<ORG>-0001)
 
 2. ASSIGNED  
    ├── من يفعلها: CLAIMS_OFFICER
    ├── كيف: POST /api/v1/claims/:id/assign
-   └── ماذا يحدث: يُعيّن مفتشًا ميدانيًا متاحًا للمطالبة
+   └── ماذا يحدث: يُعيّن مفتشًا ميدانيًا متاحًا (لديه 3 مهام نشطة أو أقل)
 
-3. SUBMITTED
+3. IN_PROGRESS
+   ├── من يفعلها: FIELD_ADJUSTER
+   ├── كيف: POST /api/v1/claims/:id/inspection/start
+   └── ماذا يحدث: يبدأ المفتش المعاينة ميدانياً ويسجل المسودات (المركبة، الحادث، الموقع)
+
+4. SUBMITTED
    ├── من يفعلها: FIELD_ADJUSTER
    ├── كيف: POST /api/v1/claims/:id/inspection/submit
-   └── ماذا يحدث: المفتش يُرسل التقرير بعد إكمال الفحص
+   └── ماذا يحدث: يُسلّم التقرير بعد التحقق من الأركان الإلزامية الثلاثة (المركبة، الحادث، الموقع)
 
-4. UNDER_REVIEW
+5. UNDER_REVIEW
    ├── من يفعلها: CLAIMS_OFFICER
    ├── كيف: POST /api/v1/claims/:id/review/start
-   └── ماذا يحدث: الموظف يبدأ مراجعة تقرير المفتش
+   └── ماذا يحدث: الموظف يفتح التقرير ويبدأ المراجعة والتدقيق
 
-5. APPROVED
-   ├── من يفعلها: CLAIMS_OFFICER (مخطط — لم يُنفَّذ في Sprint 1)
+6. CORRECTION_REQUIRED (حلقة التصحيح)
+   ├── من يفعلها: CLAIMS_OFFICER
+   ├── كيف: POST /api/v1/claims/:id/review/request-correction
+   └── ماذا يحدث: الموظف يطلب تعديلات محددة بملاحظات إجبارية، ليعود المفتش ويستأنف المعاينة
+
+7. APPROVED / REJECTED (القرار النهائي)
+   ├── من يفعلها: CLAIMS_OFFICER أو ADMIN
    ├── كيف: POST /api/v1/claims/:id/decision
-   └── ماذا يحدث: الموظف يُقرر الموافقة على المطالبة
+   └── ماذا يحدث: اتخاذ قرار الموافقة على التعويض أو رفض المطالبة مع تدوين الأسباب
 
-6. CLOSED
-   ├── من يفعلها: ADMIN (مخطط — لم يُنفَّذ في Sprint 1)
+8. CLOSED (الإغلاق النهائي)
+   ├── من يفعلها: ADMIN حصرًا
    ├── كيف: POST /api/v1/claims/:id/close
-   └── ماذا يحدث: الإدارة تُغلق الملف نهائيًا
+   └── ماذا يحدث: بعد تسوية التعويضات، تغلق الإدارة الملف نهائيًا وتؤرشفه
 ```
-
-> **ملاحظة:** المراحل 5 و6 مُخططة في الـ API Contract لكن تنفيذها في Sprint التالي.
 
 ---
 
@@ -303,57 +309,54 @@ NEW → ASSIGNED → SUBMITTED → UNDER_REVIEW → APPROVED → CLOSED
 
 **Base URL:** `http://localhost:3000/api/v1`
 
-### 🔐 المصادقة
+### 🔐 المصادقة والحساب (Authentication)
 
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
-| `POST` | `/auth/login` | الكل | تسجيل الدخول والحصول على JWT |
-
-**مثال طلب تسجيل الدخول:**
-```json
-POST /api/v1/auth/login
-{
-  "organizationCode": "DEMO-INS",
-  "employeeCode": "CO-001",
-  "password": "password123"
-}
-```
+| `POST` | `/auth/login` | الكل | تسجيل الدخول والحصول على JWT (محمي بـ loginLimiter) |
+| `PUT` | `/auth/change-password` | الكل (مسجل الدخول) | تغيير كلمة المرور الذاتي للمستخدم |
 
 ---
 
-### 📋 المطالبات (Claims)
+### 📋 المطالبات والمعاينة الميدانية (Claims & Inspection)
 
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
 | `POST` | `/claims` | CLAIMS_OFFICER | إنشاء مطالبة جديدة |
-| `GET` | `/claims` | الكل* | عرض قائمة المطالبات |
-| `GET` | `/claims/:claimId` | الكل* | عرض تفاصيل مطالبة واحدة |
-| `POST` | `/claims/:claimId/assign` | CLAIMS_OFFICER | تعيين مفتش للمطالبة |
-| `PUT` | `/claims/:claimId/vehicle` | FIELD_ADJUSTER | تحديث بيانات المركبة |
-| `PUT` | `/claims/:claimId/accident` | FIELD_ADJUSTER | تحديث تفاصيل الحادث |
-| `PUT` | `/claims/:claimId/location` | FIELD_ADJUSTER | تحديث موقع الحادث |
-| `POST` | `/claims/:claimId/inspection/submit` | FIELD_ADJUSTER | إرسال تقرير الفحص |
-| `POST` | `/claims/:claimId/review/start` | CLAIMS_OFFICER | بدء مراجعة التقرير |
+| `GET` | `/claims` | الكل* | عرض قائمة المطالبات (مع الهيدرز للـ Pagination) |
+| `GET` | `/claims/:claimId` | الكل* | عرض تفاصيل المطالبة وسجل الـ Timeline |
+| `POST` | `/claims/:claimId/assign` | CLAIMS_OFFICER | تعيين مفتش متاح للمطالبة |
+| `POST` | `/claims/:claimId/inspection/start` | FIELD_ADJUSTER | بدء أو استئناف المعاينة الميدانية (`IN_PROGRESS`) |
+| `PUT` | `/claims/:claimId/vehicle` | FIELD_ADJUSTER | ربط بيانات المركبة والوثيقة والعميل |
+| `PUT` | `/claims/:claimId/accident` | FIELD_ADJUSTER | تسجيل تفاصيل وأضرار الحادث |
+| `PUT` | `/claims/:claimId/location` | FIELD_ADJUSTER | تسجيل إحداثيات الموقع (GPS) |
+| `POST` | `/claims/:claimId/inspection/submit` | FIELD_ADJUSTER | إرسال تقرير الفحص المكتمل |
+| `POST` | `/claims/:claimId/review/start` | CLAIMS_OFFICER | بدء تدقيق ومراجعة التقرير |
+| `POST` | `/claims/:claimId/review/request-correction` | CLAIMS_OFFICER | إرجاع المطالبة للمفتش للتصحيح مع ملاحظات |
+| `POST` | `/claims/:claimId/decision` | CLAIMS_OFFICER / ADMIN | اعتماد (`APPROVED`) أو رفض (`REJECTED`) المطالبة |
+| `POST` | `/claims/:claimId/close` | ADMIN | إغلاق وأرشفة المطالبة المعتمدة نهائيًا |
 
 *مع فلترة حسب الدور: FIELD_ADJUSTER يرى فقط ما عُيّن له.
 
 ---
 
-### 👥 المستخدمون (Users)
+### 👥 المستخدمون والمفتشون (Users Management)
 
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
-| `GET` | `/users/adjusters` | CLAIMS_OFFICER | قائمة المفتشين مع حالة التوفر |
-
-**الاستعلام الاختياري:** `?status=available` — يُرجع المفتشين المتاحين فقط
+| `GET` | `/users/adjusters?status=available` | CLAIMS_OFFICER / ADMIN | قائمة المفتشين وحمل العمل (متاح إذا المطالبات $\le 3$) |
+| `POST` | `/users` | ADMIN | إنشاء حساب موظف جديد (`CLAIMS_OFFICER` أو `FIELD_ADJUSTER`) |
+| `GET` | `/users` | ADMIN | عرض جدول موظفي المؤسسة مع الترقيم والفلترة |
+| `PATCH` | `/users/:userId/status` | ADMIN | تفعيل أو تعطيل حساب موظف (`ACTIVE` / `INACTIVE`) |
+| `PATCH` | `/users/:userId/reset-password` | ADMIN | إعادة تعيين كلمة مرور موظف إداريًا |
 
 ---
 
-### 🚗 المركبات (Vehicles)
+### 🚗 المركبات والوثائق (Vehicles & Policies)
 
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
-| `GET` | `/vehicles/lookup?plateNumber=ABC-1234` | FIELD_ADJUSTER | البحث عن مركبة برقم اللوحة |
+| `GET` | `/vehicles/lookup?plateNumber=ABC-1234` | FIELD_ADJUSTER | البحث برقم اللوحة (مركبة، وثيقة، عميل، تنبيه الانتهاء) |
 
 ---
 
@@ -361,7 +364,7 @@ POST /api/v1/auth/login
 
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
-| `GET` | `/health` | الكل | التحقق من أن السيرفر يعمل |
+| `GET` | `/health` | الكل | التحقق من أن السيرفر وقاعدة البيانات تعمل |
 
 ---
 
@@ -427,10 +430,10 @@ User {
 
 ```
 Claim {
-  claimNumber: String   ← يُوَلَّد تلقائيًا (CLM-0001, CLM-0002...)
+  claimNumber: String   ← يُوَلَّد تلقائيًا لكل مؤسسة (CLM-<ORG_CODE>-0001...)
   organizationId: ObjectId → Organization
   createdBy: ObjectId → User
-  status: Enum          ← NEW | ASSIGNED | SUBMITTED | UNDER_REVIEW | APPROVED | CLOSED
+  status: Enum          ← NEW | ASSIGNED | IN_PROGRESS | SUBMITTED | UNDER_REVIEW | CORRECTION_REQUIRED | APPROVED | REJECTED | CLOSED
 
   customer: {           ← بيانات العميل عند فتح الملف
     name: String
@@ -453,7 +456,7 @@ Claim {
   priority: Enum        ← LOW | MEDIUM | HIGH
   assignmentNotes: String
 
-  accident: {           ← يُملأ من المفتش الميداني
+  accident: {           ← يُملأ من المفتش الميداني أثناء المعاينة
     accidentType: Enum
     accidentDate: String
     accidentTime: String
@@ -461,19 +464,24 @@ Claim {
     damageDescription: String
   }
 
-  location: {           ← إحداثيات GPS من المفتش
+  location: {           ← إحداثيات GPS ملتقطة من المفتش
     latitude: Number
     longitude: Number
     address: String
     capturedAt: Date
   }
 
+  decisionNotes: String ← أسباب قرار الاعتماد أو الرفض
+
   closedBy: ObjectId → User
   closedAt: Date
   closingNotes: String
 
-  timeline: [{          ← سجل تاريخي لكل حدث
-    action: String      ← مثل "Claim Created", "Claim Assigned"
+  timeline: [{          ← سجل تدقيق تاريخي متكامل لكل حدث
+    action: String      ← مثل "Claim Created", "Inspection Started", "Correction Requested"
+    previousStatus: String
+    newStatus: String
+    notes: String
     performedBy: ObjectId → User
     role: String
     timestamp: Date
@@ -520,27 +528,30 @@ Policy {
 
 ---
 
-## 🔒 قواعد الأمان المُطبَّقة
+## 🔒 قواعد الأمان والتشغيل المُطبَّقة
 
-### 1. توليد رقم المطالبة تلقائيًا
+### 1. توليد رقم المطالبة تلقائيًا بمعزل المؤسسة
 ```
-CLM-0001, CLM-0002, CLM-0003...
+CLM-DEMO-0001, CLM-DEMO-0002...
 ```
-يُستخدم MongoDB Counter لضمان عدم التكرار.
+يُستخدم عداد ذري معزول لكل مؤسسة (`claimNumber_<organizationId>`) لضمان التسلسل وعدم التكرار.
 
-### 2. عزل البيانات بين المؤسسات
-كل query في قاعدة البيانات تشترط `organizationId`. لا يُمكن لموظف في شركة A رؤية بيانات شركة B.
+### 2. عزل البيانات الصارم بين المؤسسات (Multi-Tenancy)
+كل استعلام وقراءة وكتابة في قاعدة البيانات تشترط `organizationId` المستخرج حصرًا من الـ JWT token. محاولة الوصول لبيانات مؤسسة أخرى تُرجع فورًا `404 Not Found` لمنع استكشاف الموارد.
 
-### 3. التحقق من توفر المفتش
-قبل التعيين، النظام يتحقق:
+### 3. التحقق الذكي من سعة وتوفر المفتش
+قبل التعيين، يفحص النظام المفتشين عبر استعلام تجميعي مفرد (`$lookup`):
 - هل المفتش نشط (`status: ACTIVE`)؟
-- هل لديه مطالبة مُعيَّنة بالفعل؟ إذا نعم → `ADJUSTER_UNAVAILABLE`
+- عدد مهامه النشطة في الحالات (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`):
+  - $\le 3$ مهام نشطة ← متاح (`AVAILABLE`) ويقبل التعيين.
+  - $> 3$ مهام نشطة ← غير متاح (`UNAVAILABLE`) ويُرفض التعيين بـ `409 Conflict`.
 
-### 4. الـ Timeline (سجل الأحداث)
-كل تغيير في المطالبة يُسجَّل تلقائيًا مع:
-- من قام به؟
-- ما هو دوره؟
-- متى؟
+### 4. الـ Timeline (سجل التدقيق التاريخي)
+كل عملية في المطالبة تُسجَّل تلقائيًا مع:
+- من قام بالعملية؟ وما دوره؟
+- الحالة السابقة والحالة الجديدة
+- الملاحظات أو الأسباب المدخلة (مثل أسباب طلب التصحيح)
+- التاريخ والوقت بدقة UTC
 
 ### 5. تحذير انتهاء وثيقة التأمين
 عند البحث عن مركبة بلوحتها، إذا كانت الوثيقة `EXPIRED`:
@@ -552,120 +563,101 @@ CLM-0001, CLM-0002, CLM-0003...
 ```
 الفحص يستمر ولكن الملف يُعلَّم للمراجعة.
 
+### 6. الحماية المتقدمة وتحديد معدل الطلبات (Rate Limiting)
+- `loginLimiter`: حماية endpoint الدخول ضد هجمات التخمين (Brute-force) بحد 5 محاولات لكل 15 دقيقة لكل IP.
+- `apiLimiter`: حماية شاملة للـ API من هجمات الحرمان من الخدمة (DoS).
+
 ---
 
 ## 🔄 سير العمل الكامل (End-to-End Flow)
 
-### السيناريو: حادث سيارة
+### السيناريو: حادث سيارة مكتمل الدورة
 
 ```
 1. العميل يتصل بشركة التأمين
    └── موظف المطالبات يفتح ملفًا في النظام
-       └── POST /claims → status: NEW
+       └── POST /claims → status: NEW (رقم المطالبة CLM-DEMO-0001)
 
-2. الموظف يبحث عن مفتش متاح
-   └── GET /users/adjusters?status=available
-
-3. الموظف يُعيّن المفتش
+2. الموظف يبحث عن مفتش متاح ويعينه
+   ├── GET /users/adjusters?status=available (يفحص المعاينين بـ <= 3 مهام)
    └── POST /claims/:id/assign → status: ASSIGNED
 
-4. المفتش الميداني يذهب لمكان الحادث
-   │
-   ├── يبحث عن السيارة برقم اللوحة
-   │   └── GET /vehicles/lookup?plateNumber=ABC-1234
-   │       (يُرجع بيانات السيارة والعميل والوثيقة)
-   │
-   ├── يُحدّث بيانات السيارة على الملف
-   │   └── PUT /claims/:id/vehicle
-   │
-   ├── يُسجّل تفاصيل الحادث
-   │   └── PUT /claims/:id/accident
-   │
-   └── يُسجّل موقع GPS
-       └── PUT /claims/:id/location
+3. المفتش الميداني يفتح التطبيق ويبدأ المعاينة
+   └── POST /claims/:id/inspection/start → status: IN_PROGRESS
 
-5. المفتش يُرسل التقرير
+4. المفتش يجمع البيانات الميدانية ويحفظ المسودات
+   ├── يبحث برقم اللوحة: GET /vehicles/lookup?plateNumber=ABC-1234
+   ├── يربط المركبة والوثيقة والعميل: PUT /claims/:id/vehicle
+   ├── يُسجّل تفاصيل وأضرار الحادث: PUT /claims/:id/accident
+   └── يُسجّل إحداثيات الـ GPS: PUT /claims/:id/location
+
+5. المفتش يُرسل تقرير الفحص
    └── POST /claims/:id/inspection/submit
-       النظام يتحقق: هل كل البيانات مكتملة؟
-       ✓ السيارة | ✓ الحادث | ✓ الموقع
+       النظام يتحقق من اكتمال الأركان الثلاثة (مركبة، حادث، موقع)
        → status: SUBMITTED
 
-6. موظف المطالبات يبدأ المراجعة
+6. موظف المطالبات يراجع التقرير
    └── POST /claims/:id/review/start → status: UNDER_REVIEW
 
-7. [Sprint التالي] الموافقة والإغلاق
-   ├── POST /claims/:id/decision → status: APPROVED
-   └── POST /claims/:id/close → status: CLOSED
+7. [اختياري] حلقة طلب التصحيح
+   ├── الموظف يطلب تعديلات: POST /claims/:id/review/request-correction → CORRECTION_REQUIRED
+   ├── المفتش يستأنف المعاينة: POST /claims/:id/inspection/start → IN_PROGRESS
+   └── المفتش يعدل ويعيد الإرسال: POST /claims/:id/inspection/submit → SUBMITTED
+
+8. اتخاذ القرار النهائي
+   └── POST /claims/:id/decision → status: APPROVED (أو REJECTED)
+
+9. إغلاق وأرشفة الملف
+   └── POST /claims/:id/close (خاص بالمدير ADMIN فقط) → status: CLOSED
 ```
 
 ---
 
-## ✅ ما تم إنجازه في Sprint 1
+## ✅ ما تم إنجازه في المشروع (Sprint 1 & Sprint 2) — 100% مكتمل ومختبر
 
-### ✅ البنية التحتية (Infrastructure)
-- [x] إعداد المشروع بـ Node.js + Express
-- [x] الاتصال بـ MongoDB عبر Mongoose
-- [x] نظام متغيرات البيئة (.env)
-- [x] نمط المعماريات الثلاث (Routes → Controller → Service → Repository → Model)
-- [x] Helmet للأمان
-- [x] Morgan لتسجيل الطلبات
-- [x] معالج عام للأخطاء
-- [x] معالج 404
-- [x] تنسيق موحد لكل الردود (`successResponse` / `errorResponse`)
+### ✅ البنية التحتية والأمان (Infrastructure & Security)
+- [x] إعداد Express 5 + Node.js + Mongoose 9
+- [x] نظام متغيرات بيئة محكم مع تحقق إلزامي عند الإقلاع (Fail-fast)
+- [x] نمط الطبقات الخمس (Routes → Controller → Service → Repository → Model)
+- [x] Helmet و Morgan ومعالج مركزي للأخطاء ومعالج 404 وتنسيق ردود موحد
+- [x] حماية مزدوجة بـ Rate Limiting (`loginLimiter` و `apiLimiter`)
+- [x] دعم الترقيم بالهيدرز (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`)
 
-### ✅ المصادقة (Authentication)
-- [x] تسجيل الدخول بثلاثة عناصر: كود المؤسسة + كود الموظف + كلمة المرور
-- [x] توليد JWT يصلح لـ 8 ساعات
-- [x] middleware للتحقق من الـ JWT في كل طلب محمي
-- [x] middleware للتحقق من الدور (RBAC)
-- [x] تشفير كلمات المرور بـ bcrypt
+### ✅ المصادقة والمستخدمين (Auth & RBAC)
+- [x] تسجيل الدخول بكود المؤسسة + كود الموظف + كلمة المرور
+- [x] توليد JWT لـ 8 ساعات ودعم استخراجه من الـ Header والـ Cookie
+- [x] تشفير bcrypt وميزة تغيير كلمة المرور الذاتية
+- [x] إدارة الموظفين للمدير (`POST /users`, `GET /users`, `status`, `reset-password`)
+- [x] التحقق من سعة المعاينين عبر Aggregation بحد أقصى 3 مهام نشطة
 
-### ✅ إدارة المطالبات (Claims Management)
-- [x] إنشاء مطالبة جديدة (CLAIMS_OFFICER فقط)
-- [x] توليد رقم تسلسلي تلقائي (CLM-0001...)
-- [x] عرض قائمة المطالبات مع فلترة حسب الدور
-- [x] عرض تفاصيل مطالبة واحدة
-- [x] نظام Audit Timeline (تسجيل كل حدث)
+### ✅ إدارة المطالبات وآلة الحالات (Claims & 9-Status State Machine)
+- [x] إنشاء المطالبات مع ترقيم تسلسلي معزول للمؤسسة (`CLM-<ORG>-0001`)
+- [x] تعيين المفتش مع حماية تعارض التزامن الذرية (Atomic 409 Conflict)
+- [x] بدء واستئناف المعاينة الميدانية والانتقال لـ `IN_PROGRESS`
+- [x] فحص المركبة والوثيقة مع تنبيه انتهاء الوثيقة
+- [x] حفظ مسودات المعاينة (مركبة، حادث، موقع GPS)
+- [x] إرسال التقرير مع تحقق إلزامي من الأركان الثلاثة (422 Unprocessable Entity)
+- [x] بدء تدقيق المراجعة من موظف المطالبات (`UNDER_REVIEW`)
+- [x] حلقة طلب التصحيح مع الملاحظات الإلزامية (`CORRECTION_REQUIRED`)
+- [x] محرك القرارات بالاعتماد أو الرفض (`APPROVED` / `REJECTED`)
+- [x] إغلاق وأرشفة المطالبة من قِبل المدير (`CLOSED`)
+- [x] سجل تدقيق تاريخي ذري وشامل (Timeline) يوثق كل حالة وملاحظة ومستخدم
 
-### ✅ تعيين المفتشين (Adjuster Assignment)
-- [x] عرض قائمة المفتشين مع حالة التوفر الحقيقية
-- [x] التعيين مع التحقق من: وجود المطالبة، حالتها NEW، نشاط المفتش، عدم انشغاله
-- [x] تسجيل من عيّن ومتى
-
-### ✅ فحص ميداني (Field Inspection)
-- [x] البحث عن مركبة برقم اللوحة
-- [x] ربط المركبة + الوثيقة + العميل بالمطالبة
-- [x] تسجيل تفاصيل الحادث
-- [x] تسجيل الموقع الجغرافي (GPS)
-- [x] إرسال التقرير مع التحقق من اكتمال البيانات
-- [x] تحذير انتهاء الوثيقة
-
-### ✅ بدء المراجعة
-- [x] انتقال الحالة من SUBMITTED → UNDER_REVIEW
-
-### ✅ الاختبارات التلقائية (Automated Tests)
-- [x] اختبارات المصادقة (`auth.test.js`)
-- [x] اختبارات دورة حياة المطالبة (`claim.lifecycle.test.js`)
-- [x] اختبارات التعيين (`claim.assignment.test.js`)
-- [x] اختبارات الفحص الميداني (`claim.inspection.test.js`)
-- [x] اختبارات القراءة (`claim.read.test.js`)
-- [x] اختبارات المفتشين (`user.adjuster.test.js`)
-- [x] اختبارات البحث عن المركبات (`vehicle.lookup.test.js`)
-- [x] اختبارات الـ Middleware (`middleware.test.js`)
-
-### ✅ التوثيق (Documentation)
-- [x] API Contract كامل (`docs/API_CONTRACT.md`)
-- [x] سكريبت بيانات تجريبية (`seedMockData.js`)
+### ✅ الاختبارات والتوثيق المعتمد
+- [x] اجتياز 100% من الاختبارات التلقائية (16 Test Suites / 190 Tests Passed)
+- [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
+- [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
+- [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)
+- [x] وثائق تفصيلية لجميع الميزات الـ 14 في مجلد `docs/features/`
 
 ---
 
-## ❌ ما لم يُنفَّذ بعد (Sprint التالي)
+## 🔮 خارطة العمل المستقبلية (Sprint 3 القادم)
 
-- [ ] `POST /claims/:id/decision` — قرار الموافقة/الرفض
-- [ ] `POST /claims/:id/close` — إغلاق الملف من الإدارة
-- [ ] رفع الصور والأدلة (Evidence)
-- [ ] التوقيع الرقمي (Digital Signature)
-- [ ] نظام الإشعارات
+- [ ] رفع وتخزين الصور والأدلة عالية الدقة على السحابة (Cloud Object Storage مثل AWS S3 / Cloudinary)
+- [ ] جمع التوقيع الرقمي للمفتش والعميل على تطبيق الموبايل (Digital Signatures)
+- [ ] نظام الإشعارات اللحظية (Push Notifications / WebSockets)
+- [ ] التكامل مع ورش الصيانة وتقديرات التكاليف وبوابات الصرف البنكية
 
 ---
 

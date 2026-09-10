@@ -94,6 +94,7 @@ src/
 │   ├── auth.middleware.js   # JWT verification & req.user attachment
 │   ├── role.middleware.js   # RBAC permission checks
 │   ├── validate.middleware.js# Joi boundary schema validator
+│   ├── rateLimiter.middleware.js # Multi-tier rate limiting (loginLimiter & apiLimiter)
 │   ├── errorHandler.js      # Global centralized error response handler
 │   └── notFound.js          # 404 handler for undefined endpoints
 ├── utils/

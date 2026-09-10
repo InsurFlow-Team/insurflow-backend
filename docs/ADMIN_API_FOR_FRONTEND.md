@@ -217,6 +217,7 @@
 * **المسار (Endpoint):** `GET /api/v1/users/adjusters?status=available`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **Query Parameters:** `status=available` (اختياري لجلب المتفرغين فقط).
+* **قاعدة التوفر:** يعتبر المعاين متاحاً (`availability: "AVAILABLE"`) إذا كان حسابه نشطاً ولديه 3 مطالبات نشطة أو أقل (`activeTasksCount <= 3`) في الحالات (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`).
 * **Success Response (200 OK):**
   ```json
   {
@@ -229,8 +230,8 @@
         "employeeCode": "FA-001",
         "role": "FIELD_ADJUSTER",
         "status": "ACTIVE",
-        "activeClaimsCount": 0,
-        "isAvailable": true
+        "availability": "AVAILABLE",
+        "activeTasksCount": 0
       }
     ]
   }

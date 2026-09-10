@@ -14,14 +14,14 @@ Drafting allows the adjuster to update these sections repeatedly and in any orde
 
 ### State & Ownership Invariants
 All three update endpoints enforce strict write guards:
-1. **Status Invariant:** The claim must be in status **`ASSIGNED`**.
+1. **Status Invariant:** The claim must be in status **`IN_PROGRESS`** (initiated via `POST /claims/:claimId/inspection/start`).
 2. **Assignee Invariant:** The caller's `userId` must match `claim.assignedTo`.
 3. **Tenant Invariant:** The claim must match `req.user.organizationId`.
 
 Executed via atomic `findOneAndUpdate` queries in [src/modules/claims/claim.repository.js:L78-L100](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.repository.js#L78-L100):
 ```javascript
 Claim.findOneAndUpdate(
-  { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
+  { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
   { $set: { ...sectionData }, $push: { timeline: timelineEvent } },
   { new: true }
 );
@@ -112,7 +112,7 @@ Claim.findOneAndUpdate(
 ## 4. Multi-Tenancy & Error Handling
 
 * **Stealth Multi-Tenancy:** If an adjuster attempts to modify a claim belonging to another tenant or assigned to another adjuster in the same tenant, the backend responds with `404 Not Found` (`CLAIM_NOT_FOUND`), preventing existence enumeration.
-* **Status Invariant Check:** If the claim exists and belongs to the adjuster but is not in status `ASSIGNED` (e.g. already submitted), responds with `409 Conflict` (`INVALID_STATUS_TRANSITION`).
+* **Status Invariant Check:** If the claim exists and belongs to the adjuster but is not in status `IN_PROGRESS` (e.g. still in `ASSIGNED` before starting inspection, or already submitted), responds with `409 Conflict` (`INVALID_STATUS_TRANSITION`).
 
 ---
 

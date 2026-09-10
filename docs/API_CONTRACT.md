@@ -1,7 +1,7 @@
 # InsurFlow API Contract
 
 ## 1. Purpose
-This document defines the API contract between the InsurFlow Backend, Web Dashboard, and Flutter Mobile Application. It serves as the shared agreement for the Sprint 1 scope, reflecting the new business workflow.
+This document defines the API contract between the InsurFlow Backend, Web Dashboard, and Flutter Mobile Application. It serves as the shared agreement across the full operational scope (Sprint 1 & Sprint 2), reflecting the complete business workflow.
 
 ## 2. API Conventions
 - **Base URL:** `/api/v1/`
@@ -34,9 +34,9 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
 ## 4. Roles & Authorization
-- **ADMIN:** Administrative operations, Make Claim decision, Final claim closure.
-- **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Make Claim decision.
-- **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Perform inspection, Submit inspection.
+- **ADMIN:** Administrative user management, Oversight of all organization claims, Make Claim decision, Final claim closure.
+- **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision.
+- **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
 
 *(No additional permissions are invented outside of these scopes).*
 
@@ -49,15 +49,17 @@ The API uses JWT-based authentication. The context containing user identity, rol
 - Organization isolation must apply to all Claim-related operations (reading, writing, and transitioning).
 
 ## 6. Claim Lifecycle
-Valid status enum: `NEW`, `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `CLOSED`.
+Valid status enum: `NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`.
 
 Valid status transitions (enforced by the Backend):
 - `Create Claim` → `NEW`
-- `Assign Adjuster` → `ASSIGNED`
-- `Submit Inspection` → `SUBMITTED`
-- `Start Review` → `UNDER_REVIEW`
-- `Approve` → `APPROVED`
-- `Admin Close` → `CLOSED`
+- `Assign Adjuster` (`NEW` → `ASSIGNED`)
+- `Start / Resume Inspection` (`ASSIGNED` or `CORRECTION_REQUIRED` → `IN_PROGRESS`)
+- `Submit Inspection` (`IN_PROGRESS` → `SUBMITTED`)
+- `Start Review` (`SUBMITTED` → `UNDER_REVIEW`)
+- `Request Correction` (`UNDER_REVIEW` → `CORRECTION_REQUIRED`)
+- `Make Decision` (`UNDER_REVIEW` → `APPROVED` | `REJECTED`)
+- `Admin Close` (`APPROVED` → `CLOSED`)
 
 ## 7. Authentication APIs
 
@@ -134,7 +136,7 @@ Valid status transitions (enforced by the Backend):
 - **Authorized Roles:** `CLAIMS_OFFICER`, `FIELD_ADJUSTER`, `ADMIN`
 - **Authentication:** Required (JWT).
 - **Request Parameters:**
-  - `status`: Optional filter (`NEW`, `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
+  - `status`: Optional filter (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
   - `page`: Optional integer $\ge 1$ (default: `1`).
   - `limit`: Optional integer between $1$ and $100$ (default: `50`).
 - **Pagination Headers (Response):**
@@ -154,7 +156,7 @@ Valid status transitions (enforced by the Backend):
     "data": [
       {
         "id": "claim-uuid",
-        "claimNumber": "CLM-0001",
+        "claimNumber": "CLM-DEMO-0001",
         "status": "NEW",
         "customerName": "John Doe",
         "initialPlateNumber": "ABC-1234",
@@ -184,7 +186,15 @@ Valid status transitions (enforced by the Backend):
         "assignedAt": "2026-08-26T15:10:00Z" 
       },
       "timeline": [
-        { "action": "Claim Created", "performedBy": "officer-id", "role": "CLAIMS_OFFICER", "timestamp": "2026-08-26T15:00:00Z" }
+        { 
+          "action": "Claim Created", 
+          "previousStatus": null,
+          "newStatus": null,
+          "notes": null,
+          "performedBy": "officer-id", 
+          "role": "CLAIMS_OFFICER", 
+          "timestamp": "2026-08-26T15:00:00Z" 
+        }
       ],
       "createdAt": "2026-08-26T15:00:00Z"
     }
@@ -198,7 +208,7 @@ Valid status transitions (enforced by the Backend):
 - **Authorized Roles:** `CLAIMS_OFFICER`
 - **Authentication:** Required (JWT).
 - **Request Parameters:** `?status=available` (optional filter).
-- **Business Rules:** The Backend calculates availability. AVAILABLE if User status = `ACTIVE` AND the Field Adjuster has no active inspection task in `ASSIGNED` or `IN_PROGRESS`. 
+- **Business Rules:** The Backend calculates availability via a single `$lookup` aggregation. `AVAILABLE` if User status = `ACTIVE` AND the Field Adjuster has 3 or fewer active inspection tasks (`activeTasksCount <= 3`) across `ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`. If `activeTasksCount > 3`, status is `UNAVAILABLE`.
 - **Success Response (200):**
   ```json
   {
@@ -230,7 +240,7 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 - **Business Rules:** The Backend records `assignedTo`, `assignedBy`, `assignedAt`.
-- **Validation rules (Rejects if):** Malformed MongoDB ObjectId format for `adjusterId` (must be 24-character hexadecimal, returns 400 `VALIDATION_ERROR`), Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive/unavailable, Claim is not in `NEW` status, Unauthorized user.
+- **Validation rules (Rejects if):** Malformed MongoDB ObjectId format for `adjusterId` (must be 24-character hexadecimal, returns 400 `VALIDATION_ERROR`), Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive/unavailable (has $> 3$ active assigned tasks), Claim is not in `NEW` status, Unauthorized user.
 - **Success Response (200):**
   ```json
   {
@@ -264,6 +274,27 @@ Valid status transitions (enforced by the Backend):
 
 ## 11. Inspection APIs
 
+### `POST /claims/:claimId/inspection/start`
+- **Purpose:** Field Adjuster starts a new inspection or resumes an inspection after a correction request.
+- **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
+- **Authentication:** Required (JWT).
+- **Preconditions:** Claim must be in status `ASSIGNED` or `CORRECTION_REQUIRED`. Attempting to start from any other status returns 409 `INVALID_STATUS_TRANSITION`.
+- **Request Body:** None.
+- **Timeline Event Generated:**
+  - If previous status was `ASSIGNED`: `action: 'Inspection Started'`, `previousStatus: 'ASSIGNED'`, `newStatus: 'IN_PROGRESS'`.
+  - If previous status was `CORRECTION_REQUIRED`: `action: 'Inspection Resumed'`, `previousStatus: 'CORRECTION_REQUIRED'`, `newStatus: 'IN_PROGRESS'`.
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Inspection started successfully",
+    "data": {
+      "status": "IN_PROGRESS"
+    }
+  }
+  ```
+- **Status Transition:** `ASSIGNED` | `CORRECTION_REQUIRED` → `IN_PROGRESS`
+
 ### `PUT /claims/:claimId/vehicle`
 - **Purpose:** Field Adjuster associates the identified vehicle/policy/customer information with the Claim.
 - **Authorized Roles:** `FIELD_ADJUSTER`
@@ -277,7 +308,7 @@ Valid status transitions (enforced by the Backend):
     "plateNumber": "ABC-1234"
   }
   ```
-- **Business Rules:** Verify claim belongs to the user's org, is assigned to the authenticated Field Adjuster, and is in a valid state. Rejects malformed `vehicleId`, `policyId`, or `customerId` with 400 `VALIDATION_ERROR` (must be valid 24-character hexadecimal MongoDB ObjectIds). No arbitrary changes to ownership allowed.
+- **Business Rules:** Verify claim belongs to the user's org, is assigned to the authenticated Field Adjuster, and is currently in `IN_PROGRESS` status. Rejects malformed `vehicleId`, `policyId`, or `customerId` with 400 `VALIDATION_ERROR` (must be valid 24-character hexadecimal MongoDB ObjectIds). No arbitrary changes to ownership allowed.
 
 ### `PUT /claims/:claimId/accident`
 - **Purpose:** Update accident details on the Claim.
@@ -293,7 +324,7 @@ Valid status transitions (enforced by the Backend):
     "damageDescription": "Bumper broken."
   }
   ```
-- **Business Rules:** Allowed types: `COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`.
+- **Business Rules:** Claim must be in `IN_PROGRESS` status. Allowed types: `COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`.
 
 ### `PUT /claims/:claimId/location`
 - **Purpose:** Update the location associated with the Claim.
@@ -308,17 +339,24 @@ Valid status transitions (enforced by the Backend):
     "capturedAt": "2026-08-26T18:45:00Z"
   }
   ```
+- **Business Rules:** Claim must be in `IN_PROGRESS` status.
 
 ### `POST /claims/:claimId/inspection/submit`
 - **Purpose:** Submit the completed field inspection.
 - **Authorized Roles:** `FIELD_ADJUSTER`
 - **Authentication:** Required (JWT).
-- **Business Rules:** Backend validates required inspection information (Vehicle, Policy, Accident, Location, Evidence, Signature). Returns validation error if incomplete. If valid, timeline event is created.
+- **Business Rules:** Caller must be assigned adjuster and claim must be in `IN_PROGRESS` status. Backend validates required inspection information (Vehicle, Accident, Location). Returns 422 `INSPECTION_INCOMPLETE` if any pillar is missing.
 - **Success Response (200):**
   ```json
-  { "success": true, "message": "Inspection submitted successfully", "data": { "status": "SUBMITTED" } }
+  {
+    "success": true,
+    "message": "Inspection submitted successfully",
+    "data": {
+      "status": "SUBMITTED"
+    }
+  }
   ```
-- **Status Transition:** `ASSIGNED` → `SUBMITTED`
+- **Status Transition:** `IN_PROGRESS` → `SUBMITTED`
 
 ## 12. Review & Decision APIs
 
@@ -329,9 +367,44 @@ Valid status transitions (enforced by the Backend):
 - **Business Rules:** Verify authenticated user is Claims Officer, claim belongs to same organization, and claim is currently `SUBMITTED`.
 - **Success Response (200):**
   ```json
-  { "success": true, "message": "Review started", "data": { "status": "UNDER_REVIEW" } }
+  {
+    "success": true,
+    "message": "Review started",
+    "data": {
+      "status": "UNDER_REVIEW"
+    }
+  }
   ```
 - **Status Transition:** `SUBMITTED` → `UNDER_REVIEW`
+
+### `POST /claims/:claimId/review/request-correction`
+- **Purpose:** Request changes on an inspection currently under review.
+- **Authorized Roles:** `CLAIMS_OFFICER`
+- **Authentication:** Required (JWT).
+- **Preconditions:** Claim must be in `UNDER_REVIEW` status.
+- **Request Body:**
+  ```json
+  {
+    "notes": "Rear bumper damage description lacks detail. Please update narrative and re-verify plate."
+  }
+  ```
+- **Validation Rules:** `notes` is required, non-empty trimmed string. Returns 400 `VALIDATION_ERROR` if empty.
+- **Timeline Event Generated:**
+  - `action`: `'Correction Requested'`
+  - `previousStatus`: `'UNDER_REVIEW'`
+  - `newStatus`: `'CORRECTION_REQUIRED'`
+  - `notes`: Provided reason string
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Correction requested successfully",
+    "data": {
+      "status": "CORRECTION_REQUIRED"
+    }
+  }
+  ```
+- **Status Transition:** `UNDER_REVIEW` → `CORRECTION_REQUIRED`
 
 ### `POST /claims/:claimId/decision`
 - **Purpose:** Make an adjudication decision on an `UNDER_REVIEW` claim.
