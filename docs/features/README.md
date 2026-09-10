@@ -22,6 +22,7 @@
 | **11** | [11-claim-closure.md](./11-claim-closure.md) | Administrative case closure, `APPROVED` → `CLOSED`, closedBy & closingNotes tracking, audit trail logging | `ADMIN` only | `POST /api/v1/claims/:claimId/close` |
 | **12** | [12-pagination-and-query-limits.md](./12-pagination-and-query-limits.md) | Standardized listing pagination, default 50 / max 100, HTTP response headers (`X-Total-Count`, etc.), CORS exposure | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims`<br>`GET /api/v1/users` |
 | **13** | [13-rate-limiting-and-security.md](./13-rate-limiting-and-security.md) | Multi-tiered rate limiting (`loginLimiter` & `apiLimiter`), production override protection, trust proxy, error masking | Global Infrastructure | Applied across all `/api/v1` routes |
+| **14** | [14-status-machine-expansion.md](./14-status-machine-expansion.md) | 9-status lifecycle, IN_PROGRESS state, correction loop, audit trail metadata (previousStatus, newStatus, notes) | `FIELD_ADJUSTER`, `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/inspection/start`<br>`POST /api/v1/claims/:claimId/review/request-correction` |
 
 ---
 
