@@ -59,7 +59,7 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
 const countActiveClaimsByAssignee = async (userId) => {
   return await Claim.countDocuments({
     assignedTo: userId,
-    status: 'ASSIGNED',
+    status: { $in: Claim.ACTIVE_ADJUSTER_STATUSES || ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'] },
   });
 };
 
@@ -71,39 +71,55 @@ const assignClaim = async (claimId, organizationId, updateData) => {
       $set: { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes },
       $push: { timeline: timelineEvent },
     },
-    { new: true }
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const startInspection = async (claimId, organizationId, assignedTo, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    {
+      _id: claimId,
+      organizationId,
+      assignedTo,
+      status: { $in: ['ASSIGNED', 'CORRECTION_REQUIRED'] },
+    },
+    {
+      $set: { status: 'IN_PROGRESS' },
+      $push: { timeline: timelineEvent },
+    },
+    { returnDocument: 'after' }
   ).lean();
 };
 
 const updateVehicle = async (claimId, organizationId, assignedTo, vehicleData, timelineEvent) => {
   return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
     { $set: { vehicle: vehicleData }, $push: { timeline: timelineEvent } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 };
 
 const updateAccident = async (claimId, organizationId, assignedTo, accidentData, timelineEvent) => {
   return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
     { $set: { accident: accidentData }, $push: { timeline: timelineEvent } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 };
 
 const updateLocation = async (claimId, organizationId, assignedTo, locationData, timelineEvent) => {
   return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
     { $set: { location: locationData }, $push: { timeline: timelineEvent } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 };
 
 const submitInspection = async (claimId, organizationId, assignedTo, timelineEvent) => {
   return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'ASSIGNED', assignedTo },
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
     { $set: { status: 'SUBMITTED' }, $push: { timeline: timelineEvent } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 };
 
@@ -111,7 +127,18 @@ const startReview = async (claimId, organizationId, timelineEvent) => {
   return await Claim.findOneAndUpdate(
     { _id: claimId, organizationId, status: 'SUBMITTED' },
     { $set: { status: 'UNDER_REVIEW' }, $push: { timeline: timelineEvent } },
-    { new: true }
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const requestCorrection = async (claimId, organizationId, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'UNDER_REVIEW' },
+    {
+      $set: { status: 'CORRECTION_REQUIRED' },
+      $push: { timeline: timelineEvent },
+    },
+    { returnDocument: 'after' }
   ).lean();
 };
 
@@ -122,7 +149,7 @@ const makeDecision = async (claimId, organizationId, decision, decisionNotes, ti
       $set: { status: decision, decisionNotes },
       $push: { timeline: timelineEvent },
     },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 };
 
@@ -138,7 +165,7 @@ const closeClaim = async (claimId, organizationId, closedBy, closingNotes, timel
       },
       $push: { timeline: timelineEvent },
     },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 };
 
@@ -149,11 +176,13 @@ module.exports = {
   findByIdAndOrganization,
   countActiveClaimsByAssignee,
   assignClaim,
+  startInspection,
   updateVehicle,
   updateAccident,
   updateLocation,
   submitInspection,
   startReview,
+  requestCorrection,
   makeDecision,
   closeClaim,
 };

@@ -10,6 +10,7 @@ const {
   updateAccidentSchema,
   updateLocationSchema,
   listClaimsQuerySchema,
+  requestCorrectionSchema,
   decisionSchema,
   closeClaimSchema,
 } = require('./claim.validation');
@@ -52,6 +53,13 @@ router.post(
   claimController.assignClaim
 );
 
+router.post(
+  '/:claimId/inspection/start',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  claimController.startInspection
+);
+
 router.put(
   '/:claimId/vehicle',
   authorizeRole(['FIELD_ADJUSTER']),
@@ -85,6 +93,13 @@ router.post(
   authorizeRole(['CLAIMS_OFFICER']),
   validateObjectId('claimId'),
   claimController.startReview
+);
+router.post(
+  '/:claimId/review/request-correction',
+  authorizeRole(['CLAIMS_OFFICER']),
+  validateObjectId('claimId'),
+  validate(requestCorrectionSchema),
+  claimController.requestCorrection
 );
 
 // POST /api/v1/claims/:claimId/decision — Approve or reject a claim

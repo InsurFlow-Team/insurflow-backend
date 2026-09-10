@@ -103,15 +103,25 @@ const updateLocationSchema = Joi.object({
 
 const listClaimsQuerySchema = Joi.object({
   status: Joi.string()
-    .valid('NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CLOSED')
+    .valid('NEW', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED')
     .optional()
     .messages({
-      'any.only': 'status must be one of: NEW, ASSIGNED, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, CLOSED',
+      'any.only': 'status must be one of: NEW, ASSIGNED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, CORRECTION_REQUIRED, APPROVED, REJECTED, CLOSED',
     }),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(50),
 });
 
+/**
+ * Validation schema for POST /claims/:claimId/review/request-correction
+ * Transitions: UNDER_REVIEW → CORRECTION_REQUIRED
+ */
+const requestCorrectionSchema = Joi.object({
+  notes: Joi.string().trim().required().messages({
+    'string.empty': 'Notes are required',
+    'any.required': 'Notes are required',
+  }),
+});
 
 /**
  * Validation schema for POST /claims/:claimId/decision
@@ -144,6 +154,7 @@ module.exports = {
   updateAccidentSchema,
   updateLocationSchema,
   listClaimsQuerySchema,
+  requestCorrectionSchema,
   decisionSchema,
   closeClaimSchema,
 };

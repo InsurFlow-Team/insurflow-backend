@@ -50,6 +50,12 @@ const getClaimById = async (req, res) => {
   return res.status(200).json(successResponse('Claim retrieved successfully', claim));
 };
 
+const startInspection = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.startInspection(claimId, req.user);
+  return res.status(200).json(successResponse('Inspection started successfully', result));
+};
+
 const updateVehicle = async (req, res) => {
   const { claimId } = req.params;
   const result = await claimService.updateVehicle(claimId, req.body, req.user);
@@ -80,6 +86,12 @@ const startReview = async (req, res) => {
   return res.status(200).json(successResponse('Review started successfully', result));
 };
 
+const requestCorrection = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.requestCorrection(claimId, req.body, req.user);
+  return res.status(200).json(successResponse('Correction requested successfully', result));
+};
+
 /**
  * POST /api/v1/claims/:claimId/decision
  * Makes a decision (APPROVED/REJECTED) on a claim. Authorized: CLAIMS_OFFICER, ADMIN.
@@ -105,11 +117,13 @@ module.exports = {
   assignClaim: asyncWrapper(assignClaim),
   getClaims: asyncWrapper(getClaims),
   getClaimById: asyncWrapper(getClaimById),
+  startInspection: asyncWrapper(startInspection),
   updateVehicle: asyncWrapper(updateVehicle),
   updateAccident: asyncWrapper(updateAccident),
   updateLocation: asyncWrapper(updateLocation),
   submitInspection: asyncWrapper(submitInspection),
   startReview: asyncWrapper(startReview),
+  requestCorrection: asyncWrapper(requestCorrection),
   decideClaim: asyncWrapper(decideClaim),
   closeClaim: asyncWrapper(closeClaim),
 };

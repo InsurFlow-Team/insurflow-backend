@@ -27,6 +27,9 @@ const createClaim = async (body, authUser) => {
     timeline: [
       {
         action: 'Claim Created',
+        previousStatus: null,
+        newStatus: null,
+        notes: null,
         performedBy: authUser.userId,
         role: authUser.role,
         timestamp: new Date(),
@@ -144,6 +147,9 @@ const assignClaim = async (claimId, body, authUser) => {
   // 3. Atomically assign the claim (query checks org + status:'NEW')
   const timelineEvent = {
     action: 'Claim Assigned',
+    previousStatus: 'NEW',
+    newStatus: 'ASSIGNED',
+    notes: notes || null,
     performedBy: userId,
     role,
     timestamp: new Date(),
@@ -182,6 +188,49 @@ const assignClaim = async (claimId, body, authUser) => {
   };
 };
 
+const startInspection = async (claimId, authUser) => {
+  const { userId, role, organizationId } = authUser;
+
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  const assignedToId = claim.assignedTo?._id?.toString() ?? claim.assignedTo?.toString();
+  if (assignedToId !== userId.toString()) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  if (!['ASSIGNED', 'CORRECTION_REQUIRED'].includes(claim.status)) {
+    throw new AppError('Claim is not in ASSIGNED or CORRECTION_REQUIRED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const isCorrection = claim.status === 'CORRECTION_REQUIRED';
+  const action = isCorrection ? 'Inspection Resumed' : 'Inspection Started';
+  const previousStatus = claim.status;
+
+  const timelineEvent = {
+    action,
+    previousStatus,
+    newStatus: 'IN_PROGRESS',
+    notes: null,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.startInspection(claimId, organizationId, userId, timelineEvent);
+  if (!updatedClaim) {
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    throw new AppError('Claim is not in ASSIGNED or CORRECTION_REQUIRED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return { status: updatedClaim.status };
+};
+
 const getOwnedAssignedClaim = async (claimId, authUser) => {
   const claim = await claimRepository.findByIdAndOrganization(claimId, authUser.organizationId);
 
@@ -194,8 +243,8 @@ const getOwnedAssignedClaim = async (claimId, authUser) => {
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
   }
 
-  if (claim.status !== 'ASSIGNED') {
-    throw new AppError('Claim is not in ASSIGNED status', 409, 'INVALID_STATUS_TRANSITION');
+  if (claim.status !== 'IN_PROGRESS') {
+    throw new AppError('Claim is not in IN_PROGRESS status', 409, 'INVALID_STATUS_TRANSITION');
   }
 
   return claim;
@@ -222,13 +271,16 @@ const updateVehicle = async (claimId, body, authUser) => {
 
   const updatedClaim = await claimRepository.updateVehicle(claimId, authUser.organizationId, authUser.userId, vehicleData, {
     action: 'Vehicle Confirmed',
+    previousStatus: null,
+    newStatus: null,
+    notes: null,
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
 
   if (!updatedClaim) {
-    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+    throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
   }
 
   return { status: updatedClaim.status, vehicle: updatedClaim.vehicle };
@@ -239,13 +291,16 @@ const updateAccident = async (claimId, body, authUser) => {
 
   const updatedClaim = await claimRepository.updateAccident(claimId, authUser.organizationId, authUser.userId, body, {
     action: 'Accident Details Recorded',
+    previousStatus: null,
+    newStatus: null,
+    notes: null,
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
 
   if (!updatedClaim) {
-    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+    throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
   }
 
   return { status: updatedClaim.status, accident: updatedClaim.accident };
@@ -256,13 +311,16 @@ const updateLocation = async (claimId, body, authUser) => {
 
   const updatedClaim = await claimRepository.updateLocation(claimId, authUser.organizationId, authUser.userId, body, {
     action: 'Location Captured',
+    previousStatus: null,
+    newStatus: null,
+    notes: null,
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
 
   if (!updatedClaim) {
-    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+    throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
   }
 
   return { status: updatedClaim.status, location: updatedClaim.location };
@@ -286,13 +344,16 @@ const submitInspection = async (claimId, authUser) => {
 
   const updatedClaim = await claimRepository.submitInspection(claimId, authUser.organizationId, authUser.userId, {
     action: 'Inspection Submitted',
+    previousStatus: 'IN_PROGRESS',
+    newStatus: 'SUBMITTED',
+    notes: null,
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
   });
 
   if (!updatedClaim) {
-    throw new AppError('Claim is not in ASSIGNED status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+    throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
   }
 
   return { status: updatedClaim.status };
@@ -301,6 +362,9 @@ const submitInspection = async (claimId, authUser) => {
 const startReview = async (claimId, authUser) => {
   const updatedClaim = await claimRepository.startReview(claimId, authUser.organizationId, {
     action: 'Review Started',
+    previousStatus: 'SUBMITTED',
+    newStatus: 'UNDER_REVIEW',
+    notes: null,
     performedBy: authUser.userId,
     role: authUser.role,
     timestamp: new Date(),
@@ -318,12 +382,43 @@ const startReview = async (claimId, authUser) => {
   return { status: updatedClaim.status };
 };
 
+const requestCorrection = async (claimId, body, authUser) => {
+  const { notes } = body;
+  const { userId, role, organizationId } = authUser;
+
+  const timelineEvent = {
+    action: 'Correction Requested',
+    previousStatus: 'UNDER_REVIEW',
+    newStatus: 'CORRECTION_REQUIRED',
+    notes,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.requestCorrection(claimId, organizationId, timelineEvent);
+
+  if (!updatedClaim) {
+    // Atomic query failed: check if claim exists to give specific error
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return { status: updatedClaim.status };
+};
+
 const decideClaim = async (claimId, body, authUser) => {
   const { decision, notes } = body;
   const { userId, role, organizationId } = authUser;
 
   const timelineEvent = {
     action: decision === 'APPROVED' ? 'Claim Approved' : 'Claim Rejected',
+    previousStatus: 'UNDER_REVIEW',
+    newStatus: decision,
+    notes: notes || null,
     performedBy: userId,
     role,
     timestamp: new Date(),
@@ -360,6 +455,9 @@ const closeClaim = async (claimId, body, authUser) => {
 
   const timelineEvent = {
     action: 'Claim Closed',
+    previousStatus: 'APPROVED',
+    newStatus: 'CLOSED',
+    notes: closingNotes || null,
     performedBy: userId,
     role,
     timestamp: new Date(),
@@ -397,11 +495,13 @@ module.exports = {
   getClaims,
   getClaimById,
   assignClaim,
+  startInspection,
   updateVehicle,
   updateAccident,
   updateLocation,
   submitInspection,
   startReview,
+  requestCorrection,
   decideClaim,
   closeClaim,
 };

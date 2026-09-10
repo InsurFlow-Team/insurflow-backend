@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const User = require('./user.model');
+const Claim = require('../claims/claim.model');
 
 
 const findAdjustersByOrganization = async (organizationId) => {
@@ -86,7 +87,7 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
               $expr: {
                 $and: [
                   { $eq: ['$assignedTo', '$$adjusterId'] },
-                  { $eq: ['$status', 'ASSIGNED'] },
+                  { $in: ['$status', Claim.ACTIVE_ADJUSTER_STATUSES] },
                   { $eq: ['$organizationId', orgObjectId] },
                 ],
               },

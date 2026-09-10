@@ -22,6 +22,18 @@ const timelineEventSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    previousStatus: {
+      type: String,
+      default: null,
+    },
+    newStatus: {
+      type: String,
+      default: null,
+    },
+    notes: {
+      type: String,
+      default: null,
+    },
   },
   { _id: false }
 );
@@ -48,7 +60,7 @@ const claimSchema = new mongoose.Schema(
     // ── Status & Lifecycle ──────────────────────────────────────────
     status: {
       type: String,
-      enum: ['NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CLOSED'],
+      enum: ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED'],
       default: 'NEW',
       required: true,
     },
@@ -217,4 +229,7 @@ claimSchema.pre('save', async function () {
   this.claimNumber = `CLM-${org.code}-${String(counter.seq).padStart(4, '0')}`;
 });
 
-module.exports = mongoose.model('Claim', claimSchema);
+const Claim = mongoose.model('Claim', claimSchema);
+Claim.ACTIVE_ADJUSTER_STATUSES = ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'];
+
+module.exports = Claim;
