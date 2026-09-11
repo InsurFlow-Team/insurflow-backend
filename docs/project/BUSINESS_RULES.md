@@ -129,6 +129,9 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-INSPECT-1 (Assigned Adjuster Exclusive):** Inspection draft modifications (`PUT /vehicle`, `PUT /accident`, `PUT /location`) can **only** be executed by the specific `FIELD_ADJUSTER` to whom the claim is assigned.
 - **Rule BR-INSPECT-2 (State Invariant):** Inspection draft modifications can only occur while the claim is in status **`IN_PROGRESS`**.
 - **Rule BR-INSPECT-3 (Drafting Freedom):** An adjuster may update vehicle, accident, or location data in any order and multiple times prior to final submission.
+- **Rule BR-INSPECT-4 (Evidence Additive vs. Signature Overwritable Persistence):**
+  - **Evidence Photos are Additive (`$push`):** On-site accident inspection requires comprehensive visual documentation from multiple angles (`VEHICLE_FRONT`, `VEHICLE_REAR`, `VEHICLE_SIDE`, `DAMAGE_CLOSEUP`, `DRIVER_LICENSE`, `OTHER`). Each photo upload appends a new item to the `claim.evidence` array with `$push`, preserving all visual records.
+  - **Digital Signature is Overwritable (`$set`):** The inspection holds exactly one active signature sign-off. If a signature needs to be re-drawn (e.g., due to touchscreen inaccuracies or customer revision), subsequent uploads cleanly overwrite the `claim.signature` object with `$set`, preventing orphan records and ensuring legal clarity.
 - **Rule BR-INSPECT-EVIDENCE (Photo Evidence Capture):** The adjuster uploads scene photographs to Cloudinary via `POST /claims/:claimId/evidence`.
   - Repeatable, additive array (`$push`).
   - Categorized by `imageType`: `['VEHICLE_FRONT', 'VEHICLE_REAR', 'VEHICLE_SIDE', 'DAMAGE_CLOSEUP', 'DRIVER_LICENSE', 'OTHER']`.
@@ -143,12 +146,12 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 
 ### 2.6 Inspection Submission
 - **Rule BR-SUBMIT-1 (Submission Authority):** Only the assigned `FIELD_ADJUSTER` can submit the inspection.
-- **Rule BR-SUBMIT-2 (Five Mandatory Pillars of Inspection):** Submission is **rejected** with `HTTP 422 Unprocessable Entity` (`INSPECTION_INCOMPLETE`) unless all five sections are present:
-  1. **Vehicle Verified:** `claim.vehicle.vehicleId` must not be null.
-  2. **Accident Recorded:** `claim.accident.accidentType` must not be null.
-  3. **Location Captured:** `claim.location.latitude` and `claim.location.longitude` must not be null. *(Note: Coordinate `0` is a valid mathematical value and must not be treated as null).*
-  4. **Evidence Photos Uploaded:** `claim.evidence` must contain at least one photo (`claim.evidence.length >= 1`).
-  5. **Digital Signature Captured:** `claim.signature.url` must not be null.
+- **Rule BR-SUBMIT-2 (Five Mandatory Pillars of Inspection):** Submission is **rejected** with `HTTP 422 Unprocessable Entity` (`INSPECTION_INCOMPLETE`) unless all five mandatory pillars are present:
+  1. **Vehicle:** `claim.vehicle.vehicleId` must not be null.
+  2. **Accident:** `claim.accident.accidentType` must not be null.
+  3. **Location:** `claim.location.latitude` and `claim.location.longitude` must not be null. *(Note: Coordinate `0` is a valid mathematical value and must not be treated as null).*
+  4. **Evidence (at least 1 photo):** `claim.evidence` must contain at least one photo (`claim.evidence.length >= 1`).
+  5. **Signature:** `claim.signature.url` must not be null.
 - **Rule BR-SUBMIT-3 (Submission State Transition):** A valid submission atomically transitions status from **`IN_PROGRESS`** to **`SUBMITTED`** and records an `"Inspection Submitted"` timeline entry.
 
 ---

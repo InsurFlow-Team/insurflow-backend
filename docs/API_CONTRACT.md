@@ -362,14 +362,62 @@ Valid status transitions (enforced by the Backend):
         {
           "imageType": "DAMAGE_CLOSEUP",
           "url": "https://res.cloudinary.com/...",
-          "publicId": "...",
-          "uploadedBy": "user-uuid",
+          "publicId": "insurflow/org-1/evidence/...",
+          "uploadedBy": "60d0fe4f5311236168a109d0",
           "uploadedAt": "2026-09-11T08:00:00Z"
         }
       ]
     }
   }
   ```
+- **Error Responses:**
+  - `400 Bad Request` (`VALIDATION_ERROR`):
+    ```json
+    {
+      "success": false,
+      "message": "An image file is required",
+      "errors": [
+        {
+          "code": "VALIDATION_ERROR",
+          "details": "An image file is required"
+        }
+      ]
+    }
+    ```
+    *(Also triggered for invalid `imageType`, files exceeding 10MB limit `"File size exceeds limit of 10MB"`, or unsupported MIME type `"Only JPEG, PNG, and WEBP images are allowed"`)*.
+  - `401 Unauthorized` (`UNAUTHORIZED`):
+    ```json
+    {
+      "success": false,
+      "message": "Unauthorized access",
+      "errors": [{ "code": "UNAUTHORIZED", "details": "Authentication token missing or invalid" }]
+    }
+    ```
+  - `403 Forbidden` (`FORBIDDEN`):
+    ```json
+    {
+      "success": false,
+      "message": "Forbidden",
+      "errors": [{ "code": "FORBIDDEN", "details": "Access restricted to FIELD_ADJUSTER" }]
+    }
+    ```
+  - `404 Not Found` (`CLAIM_NOT_FOUND`):
+    ```json
+    {
+      "success": false,
+      "message": "Claim not found",
+      "errors": [{ "code": "CLAIM_NOT_FOUND", "details": "Resource not found" }]
+    }
+    ```
+    *(Returned when claim does not exist, belongs to another tenant, or is assigned to another adjuster)*.
+  - `409 Conflict` (`INVALID_STATUS_TRANSITION`):
+    ```json
+    {
+      "success": false,
+      "message": "Claim is not in IN_PROGRESS status or not assigned to you",
+      "errors": [{ "code": "INVALID_STATUS_TRANSITION", "details": "Claim is not in IN_PROGRESS status or not assigned to you" }]
+    }
+    ```
 
 ### `POST /claims/:claimId/signature`
 - **Purpose:** Field Adjuster captures or re-captures the digital signature (singular, overwritable).
@@ -389,13 +437,61 @@ Valid status transitions (enforced by the Backend):
       "status": "IN_PROGRESS",
       "signature": {
         "url": "https://res.cloudinary.com/...",
-        "publicId": "...",
-        "capturedBy": "user-uuid",
+        "publicId": "insurflow/org-1/signatures/...",
+        "capturedBy": "60d0fe4f5311236168a109d0",
         "capturedAt": "2026-09-11T08:00:00Z"
       }
     }
   }
   ```
+- **Error Responses:**
+  - `400 Bad Request` (`VALIDATION_ERROR`):
+    ```json
+    {
+      "success": false,
+      "message": "An image file is required",
+      "errors": [
+        {
+          "code": "VALIDATION_ERROR",
+          "details": "An image file is required"
+        }
+      ]
+    }
+    ```
+    *(Also triggered for files exceeding 10MB limit `"File size exceeds limit of 10MB"` or unsupported MIME type `"Only JPEG, PNG, and WEBP images are allowed"`)*.
+  - `401 Unauthorized` (`UNAUTHORIZED`):
+    ```json
+    {
+      "success": false,
+      "message": "Unauthorized access",
+      "errors": [{ "code": "UNAUTHORIZED", "details": "Authentication token missing or invalid" }]
+    }
+    ```
+  - `403 Forbidden` (`FORBIDDEN`):
+    ```json
+    {
+      "success": false,
+      "message": "Forbidden",
+      "errors": [{ "code": "FORBIDDEN", "details": "Access restricted to FIELD_ADJUSTER" }]
+    }
+    ```
+  - `404 Not Found` (`CLAIM_NOT_FOUND`):
+    ```json
+    {
+      "success": false,
+      "message": "Claim not found",
+      "errors": [{ "code": "CLAIM_NOT_FOUND", "details": "Resource not found" }]
+    }
+    ```
+    *(Returned when claim does not exist, belongs to another tenant, or is assigned to another adjuster)*.
+  - `409 Conflict` (`INVALID_STATUS_TRANSITION`):
+    ```json
+    {
+      "success": false,
+      "message": "Claim is not in IN_PROGRESS status or not assigned to you",
+      "errors": [{ "code": "INVALID_STATUS_TRANSITION", "details": "Claim is not in IN_PROGRESS status or not assigned to you" }]
+    }
+    ```
 
 ### `POST /claims/:claimId/inspection/submit`
 - **Purpose:** Submit the completed field inspection.

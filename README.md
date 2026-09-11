@@ -125,7 +125,7 @@ INSURFLOW/
 │           ├── policy.model.js
 │           └── policy.repository.js
 │
-├── tests/                        ← الاختبارات التلقائية (16 Suites / 190 Tests)
+├── tests/                        ← الاختبارات التلقائية (17 Suites / 208 Tests)
 ├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json
@@ -166,10 +166,15 @@ DATABASE_URL=mongodb://localhost:27017/insurflow
 JWT_SECRET=your-super-secret-key-here
 CORS_ORIGIN=http://localhost:5173
 NODE_ENV=development
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+
+# ── Cloudinary Configuration (إلزامية لرفع صور الأدلة والتوقيع الرقمي) ──
+CLOUDINARY_CLOUD_NAME=your_cloud_name      # اسم السحابة / الحساب على Cloudinary
+CLOUDINARY_API_KEY=your_api_key            # مفتاح الـ API العام للربط البرمجي
+CLOUDINARY_API_SECRET=your_api_secret      # المفتاح السري للـ API
 ```
+
+> **ملاحظة حول Cloudinary:**  
+> تُستخدم متغيرات Cloudinary الثلاثة لتهيئة SDK في `src/config/cloudinary.js`. عند تشغيل السيرفر في وضع التطوير أو الإنتاج، يتحقق `src/config/env.js` من وجودها إلزاميًا (Fail-fast). أما في بيئة الاختبار (`NODE_ENV=test`)، يتم عمل Mock كامل لعمليات الرفع بدون الحاجة لبيانات حقيقية.
 
 ### 4. إدخال البيانات التجريبية (مهم!)
 
@@ -288,7 +293,7 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 4. SUBMITTED
    ├── من يفعلها: FIELD_ADJUSTER
    ├── كيف: POST /api/v1/claims/:id/inspection/submit
-   └── ماذا يحدث: يُسلّم التقرير بعد التحقق من الأركان الإلزامية الثلاثة (المركبة، الحادث، الموقع)
+   └── ماذا يحدث: يُسلّم التقرير بعد التحقق من الأركان الإلزامية الخمسة (المركبة، الحادث، الموقع، صور الأدلة، والتوقيع الرقمي)
 
 5. UNDER_REVIEW
    ├── من يفعلها: CLAIMS_OFFICER
@@ -338,7 +343,9 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 | `PUT` | `/claims/:claimId/vehicle` | FIELD_ADJUSTER | ربط بيانات المركبة والوثيقة والعميل |
 | `PUT` | `/claims/:claimId/accident` | FIELD_ADJUSTER | تسجيل تفاصيل وأضرار الحادث |
 | `PUT` | `/claims/:claimId/location` | FIELD_ADJUSTER | تسجيل إحداثيات الموقع (GPS) |
-| `POST` | `/claims/:claimId/inspection/submit` | FIELD_ADJUSTER | إرسال تقرير الفحص المكتمل |
+| `POST` | `/claims/:claimId/evidence` | FIELD_ADJUSTER | رفع صور الأدلة الميدانية مصنفة لسحابة Cloudinary |
+| `POST` | `/claims/:claimId/signature` | FIELD_ADJUSTER | التقاط وحفظ التوقيع الرقمي للمعاينة لسحابة Cloudinary |
+| `POST` | `/claims/:claimId/inspection/submit` | FIELD_ADJUSTER | إرسال تقرير الفحص المكتمل (التحقق من الأركان الـ 5) |
 | `POST` | `/claims/:claimId/review/start` | CLAIMS_OFFICER | بدء تدقيق ومراجعة التقرير |
 | `POST` | `/claims/:claimId/review/request-correction` | CLAIMS_OFFICER | إرجاع المطالبة للمفتش للتصحيح مع ملاحظات |
 | `POST` | `/claims/:claimId/decision` | CLAIMS_OFFICER / ADMIN | اعتماد (`APPROVED`) أو رفض (`REJECTED`) المطالبة |
@@ -597,11 +604,13 @@ CLM-DEMO-0001, CLM-DEMO-0002...
    ├── يبحث برقم اللوحة: GET /vehicles/lookup?plateNumber=ABC-1234
    ├── يربط المركبة والوثيقة والعميل: PUT /claims/:id/vehicle
    ├── يُسجّل تفاصيل وأضرار الحادث: PUT /claims/:id/accident
-   └── يُسجّل إحداثيات الـ GPS: PUT /claims/:id/location
+   ├── يُسجّل إحداثيات الـ GPS: PUT /claims/:id/location
+   ├── يرفع صور الأدلة مصنفة: POST /claims/:id/evidence
+   └── يلتقط التوقيع الرقمي للمعاينة: POST /claims/:id/signature
 
 5. المفتش يُرسل تقرير الفحص
    └── POST /claims/:id/inspection/submit
-       النظام يتحقق من اكتمال الأركان الثلاثة (مركبة، حادث، موقع)
+       النظام يتحقق من اكتمال الأركان الخمسة (مركبة، حادث، موقع، صور الأدلة، توقيع رقمي)
        → status: SUBMITTED
 
 6. موظف المطالبات يراجع التقرير
@@ -644,7 +653,8 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] بدء واستئناف المعاينة الميدانية والانتقال لـ `IN_PROGRESS`
 - [x] فحص المركبة والوثيقة مع تنبيه انتهاء الوثيقة
 - [x] حفظ مسودات المعاينة (مركبة، حادث، موقع GPS)
-- [x] إرسال التقرير مع تحقق إلزامي من الأركان الثلاثة (422 Unprocessable Entity)
+- [x] رفع صور الأدلة الميدانية والتوقيع الرقمي إلى Cloudinary مع عزل كامل لكل شركة تأمين
+- [x] إرسال التقرير مع تحقق إلزامي من الأركان الخمسة (422 Unprocessable Entity)
 - [x] بدء تدقيق المراجعة من موظف المطالبات (`UNDER_REVIEW`)
 - [x] حلقة طلب التصحيح مع الملاحظات الإلزامية (`CORRECTION_REQUIRED`)
 - [x] محرك القرارات بالاعتماد أو الرفض (`APPROVED` / `REJECTED`)
@@ -652,18 +662,18 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] سجل تدقيق تاريخي ذري وشامل (Timeline) يوثق كل حالة وملاحظة ومستخدم
 
 ### ✅ الاختبارات والتوثيق المعتمد
-- [x] اجتياز 100% من الاختبارات التلقائية (16 Test Suites / 190 Tests Passed)
+- [x] اجتياز 100% من الاختبارات التلقائية (17 Test Suites / 208 Tests Passed)
 - [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
 - [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
 - [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)
-- [x] وثائق تفصيلية لجميع الميزات الـ 14 في مجلد `docs/features/`
+- [x] وثائق تفصيلية لجميع الميزات الـ 15 في مجلد `docs/features/`
 
 ---
 
 ## 🔮 خارطة العمل المستقبلية (Sprint 3 القادم)
 
-- [ ] رفع وتخزين الصور والأدلة عالية الدقة على السحابة (Cloud Object Storage مثل AWS S3 / Cloudinary)
-- [ ] جمع التوقيع الرقمي للمفتش والعميل على تطبيق الموبايل (Digital Signatures)
+- [x] رفع وتخزين الصور والأدلة عالية الدقة على السحابة (تم تنفيذه عبر Cloudinary مع عزل مسارات المستأجرين)
+- [x] جمع التوقيع الرقمي للمفتش والعميل وتخزينه سحابيًا (Digital Signatures)
 - [ ] نظام الإشعارات اللحظية (Push Notifications / WebSockets)
 - [ ] التكامل مع ورش الصيانة وتقديرات التكاليف وبوابات الصرف البنكية
 

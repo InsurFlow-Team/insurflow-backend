@@ -17,13 +17,21 @@
 | **06** | [06-claim-assignment.md](./06-claim-assignment.md) | Dispatching claims to available adjusters, `NEW` → `ASSIGNED` transition, atomic concurrency protection | `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/assign` |
 | **07** | [07-vehicle-and-policy-lookup.md](./07-vehicle-and-policy-lookup.md) | License plate lookup, underwriting policy resolution, customer details, expired policy warning | `FIELD_ADJUSTER` | `GET /api/v1/vehicles/lookup?plateNumber=...` |
 | **08** | [08-field-inspection-workflow.md](./08-field-inspection-workflow.md) | Partial draft updates (Vehicle, Accident narrative, GPS coordinates & address) in `IN_PROGRESS`, assigned adjuster write locks | Assigned `FIELD_ADJUSTER` | `PUT /api/v1/claims/:id/vehicle`<br>`PUT /api/v1/claims/:id/accident`<br>`PUT /api/v1/claims/:id/location` |
-| **09** | [09-inspection-submission-and-review.md](./09-inspection-submission-and-review.md) | Three-pillar validation, `IN_PROGRESS` → `SUBMITTED` transition, `SUBMITTED` → `UNDER_REVIEW` transition | `FIELD_ADJUSTER`<br>`CLAIMS_OFFICER` | `POST /api/v1/claims/:id/inspection/submit`<br>`POST /api/v1/claims/:id/review/start` |
+| **09** | [09-inspection-submission-and-review.md](./09-inspection-submission-and-review.md) | Five-pillar validation (Vehicle, Accident, Location, Evidence, Signature), `IN_PROGRESS` → `SUBMITTED` transition, `SUBMITTED` → `UNDER_REVIEW` transition | `FIELD_ADJUSTER`<br>`CLAIMS_OFFICER` | `POST /api/v1/claims/:id/inspection/submit`<br>`POST /api/v1/claims/:id/review/start` |
 | **10** | [10-claim-decision-engine.md](./10-claim-decision-engine.md) | Final adjudication, `UNDER_REVIEW` → `APPROVED` \| `REJECTED`, atomic state mutation, 409 conflict handling | `CLAIMS_OFFICER`, `ADMIN` | `POST /api/v1/claims/:claimId/decision` |
 | **11** | [11-claim-closure.md](./11-claim-closure.md) | Administrative case closure, `APPROVED` → `CLOSED`, closedBy & closingNotes tracking, audit trail logging | `ADMIN` only | `POST /api/v1/claims/:claimId/close` |
 | **12** | [12-pagination-and-query-limits.md](./12-pagination-and-query-limits.md) | Standardized listing pagination, default 50 / max 100, HTTP response headers (`X-Total-Count`, etc.), CORS exposure | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims`<br>`GET /api/v1/users` |
 | **13** | [13-rate-limiting-and-security.md](./13-rate-limiting-and-security.md) | Multi-tiered rate limiting (`loginLimiter` & `apiLimiter`), production override protection, trust proxy, error masking | Global Infrastructure | Applied across all `/api/v1` routes |
 | **14** | [14-status-machine-expansion.md](./14-status-machine-expansion.md) | 9-status lifecycle, IN_PROGRESS state, correction loop, audit trail metadata (previousStatus, newStatus, notes) | `FIELD_ADJUSTER`, `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/inspection/start`<br>`POST /api/v1/claims/:claimId/review/request-correction` |
 | **15** | [15-evidence-photos-and-digital-signature.md](./15-evidence-photos-and-digital-signature.md) | Photo evidence capture (additive array, categorized imageType), digital signature sign-off, Cloudinary storage, 5-pillar inspection completeness | Assigned `FIELD_ADJUSTER` | `POST /api/v1/claims/:claimId/evidence`<br>`POST /api/v1/claims/:claimId/signature` |
+
+---
+
+## Test Suite Status
+
+All 15 features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances and Cloudinary streaming mocks:
+* **Test Suites:** 17 passed, 17 total
+* **Tests:** 208 passed, 208 total (0 failures)
 
 ---
 

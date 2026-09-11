@@ -51,29 +51,19 @@ signature: {
 },
 ```
 
-### 2.3 Atomic Repository Layer ([src/modules/claims/claim.repository.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.repository.js))
-Write operations strictly enforce tenant boundaries, assigned ownership, and the `IN_PROGRESS` status invariant in a single atomic MongoDB query:
-```javascript
-// Additive Evidence Upload ($push)
-Claim.findOneAndUpdate(
-  { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
-  { $push: { evidence: evidenceItem, timeline: timelineEvent } },
-  { returnDocument: 'after' }
-).lean();
+### 2.3 Design Rationale: Evidence-Additive vs. Signature-Overwritable
+From the Stage 0 architectural design check, the persistence models for evidence photos and digital signatures differ fundamentally by domain intent:
+* **Evidence Photos (Additive — `$push`):** On-site accident inspection requires comprehensive visual documentation from multiple angles (`VEHICLE_FRONT`, `VEHICLE_REAR`, `VEHICLE_SIDE`, `DAMAGE_CLOSEUP`, `DRIVER_LICENSE`, `OTHER`). Field adjusters upload photos incrementally as they walk around the scene. Each upload must preserve existing photos rather than replace them, appending to the `claim.evidence` array.
+* **Digital Signature (Overwritable — `$set`):** The inspection requires a single, legally binding customer/adjuster confirmation sign-off. If a signature capture is smudged, inaccurate, or drawn incorrectly on mobile devices, the adjuster re-captures it. Rather than maintaining confusing duplicate signature records or ambiguous historical arrays, subsequent uploads cleanly overwrite the singular `claim.signature` object.
 
-// Singular Overwritable Signature ($set)
-Claim.findOneAndUpdate(
-  { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
-  { $set: { signature: signatureData }, $push: { timeline: timelineEvent } },
-  { returnDocument: 'after' }
-).lean();
-```
+### 2.4 Atomic Invariant Convention
+Write operations for evidence and signature enforce multi-tenancy, ownership, and status preconditions atomically at the database level. For the full binding definition and query patterns, refer to [ARCHITECTURE.md (Sections 5.3 & 5.4)](file:///c:/Users/HP/Desktop/INSURFLOW/docs/project/ARCHITECTURE.md) and [BUSINESS_RULES.md (Rule BR-TENANT-4 & Rule BR-INSPECT-4)](file:///c:/Users/HP/Desktop/INSURFLOW/docs/project/BUSINESS_RULES.md).
 
 ---
 
 ## 3. API Contract & Endpoints
 
-### 3.1 POST `/api/v1/claims/:claimId/evidence`
+### 3.1 POST `/claims/:claimId/evidence`
 Uploads a single categorized inspection photo.
 
 * **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
@@ -88,6 +78,7 @@ Uploads a single categorized inspection photo.
     * `DAMAGE_CLOSEUP`
     * `DRIVER_LICENSE`
     * `OTHER`
+* **Storage Path:** Stored in Cloudinary under `insurflow/${organizationId}/evidence`.
 * **Middleware Chain Order:** `upload.single('file')` precedes `validate(uploadEvidenceSchema)` so `req.body` text fields are populated prior to Joi validation.
 * **Timeline Event:**
   * `action`: `'Evidence Uploaded'`
@@ -105,7 +96,7 @@ Uploads a single categorized inspection photo.
         {
           "imageType": "VEHICLE_FRONT",
           "url": "https://res.cloudinary.com/...",
-          "publicId": "...",
+          "publicId": "insurflow/org-1/evidence/...",
           "uploadedBy": "60d0fe4f5311236168a109d0",
           "uploadedAt": "2026-09-11T08:00:00.000Z"
         }
@@ -113,10 +104,20 @@ Uploads a single categorized inspection photo.
     }
   }
   ```
+* **Observed Status Codes & Errors:**
+  * `200 OK`: Photo uploaded and appended to `claim.evidence`.
+  * `400 Bad Request (`VALIDATION_ERROR`)`:
+    * Missing file: `"An image file is required"`
+    * Invalid or missing `imageType`: `"imageType must be one of [VEHICLE_FRONT, VEHICLE_REAR, VEHICLE_SIDE, DAMAGE_CLOSEUP, DRIVER_LICENSE, OTHER]"`
+    * File size exceeds 10MB: `"File size exceeds limit of 10MB"`
+    * Unsupported MIME type: `"Only JPEG, PNG, and WEBP images are allowed"`
+  * `403 Forbidden (`FORBIDDEN`)`: Caller token has role other than `FIELD_ADJUSTER` (e.g. `CLAIMS_OFFICER` token).
+  * `404 Not Found (`CLAIM_NOT_FOUND`)`: Claim not found, belongs to another organization (cross-tenant), or assigned to another adjuster (stealth 404-before-409).
+  * `409 Conflict (`INVALID_STATUS_TRANSITION`)`: Claim exists and is assigned to caller, but is not in `IN_PROGRESS` status (e.g., `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`).
 
 ---
 
-### 3.2 POST `/api/v1/claims/:claimId/signature`
+### 3.2 POST `/claims/:claimId/signature`
 Uploads or re-captures the digital signature.
 
 * **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
@@ -124,6 +125,7 @@ Uploads or re-captures the digital signature.
 * **Content-Type:** `multipart/form-data`
 * **Form Fields:**
   * `file`: Binary image file (JPEG, PNG, WEBP, $\le$ 10MB). Required.
+* **Storage Path:** Stored in Cloudinary under `insurflow/${organizationId}/signatures`.
 * **Timeline Event:**
   * `action`: `'Signature Captured'`
   * `previousStatus`: `null`
@@ -138,13 +140,22 @@ Uploads or re-captures the digital signature.
       "status": "IN_PROGRESS",
       "signature": {
         "url": "https://res.cloudinary.com/...",
-        "publicId": "...",
+        "publicId": "insurflow/org-1/signatures/...",
         "capturedBy": "60d0fe4f5311236168a109d0",
         "capturedAt": "2026-09-11T08:00:00.000Z"
       }
     }
   }
   ```
+* **Observed Status Codes & Errors:**
+  * `200 OK`: Signature uploaded and saved to `claim.signature`. Subsequent uploads overwrite previous signature.
+  * `400 Bad Request (`VALIDATION_ERROR`)`:
+    * Missing file: `"An image file is required"`
+    * File size exceeds 10MB: `"File size exceeds limit of 10MB"`
+    * Unsupported MIME type: `"Only JPEG, PNG, and WEBP images are allowed"`
+  * `403 Forbidden (`FORBIDDEN`)`: Caller token has role other than `FIELD_ADJUSTER` (e.g. `CLAIMS_OFFICER` token).
+  * `404 Not Found (`CLAIM_NOT_FOUND`)`: Claim not found, belongs to another organization (cross-tenant), or assigned to another adjuster (stealth 404-before-409).
+  * `409 Conflict (`INVALID_STATUS_TRANSITION`)`: Claim exists and is assigned to caller, but is not in `IN_PROGRESS` status (e.g., `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`).
 
 ---
 
@@ -163,13 +174,13 @@ If any pillar is missing, submission is rejected with **`422 Unprocessable Entit
 
 ## 5. Security, Multi-Tenancy & Error Handling
 
-* **Stealth Multi-Tenancy:** Calls by an adjuster to a claim belonging to another tenant or assigned to a different adjuster return `404 Not Found` (`CLAIM_NOT_FOUND`).
+* **Stealth Multi-Tenancy (404-before-409):** Calls by an adjuster to a claim belonging to another tenant or assigned to a different adjuster return `404 Not Found` (`CLAIM_NOT_FOUND`) before evaluating status invariants.
 * **Status Invariant (409):** Upload attempts on claims not currently in `IN_PROGRESS` (e.g. `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`) return `409 Conflict` (`INVALID_STATUS_TRANSITION`).
 * **File Validation (400):**
   * Missing file: `400 VALIDATION_ERROR` (`An image file is required`).
   * Oversized file ($>10$MB): `400 VALIDATION_ERROR` (`File size exceeds limit of 10MB`).
   * Invalid MIME type: `400 VALIDATION_ERROR` (`Only JPEG, PNG, and WEBP images are allowed`).
-  * Invalid `imageType`: `400 VALIDATION_ERROR`.
+  * Invalid `imageType`: `400 VALIDATION_ERROR` (e.g. invalid enum value).
 * **RBAC (403):** Access by non-`FIELD_ADJUSTER` roles (e.g. `CLAIMS_OFFICER`, `ADMIN`) returns `403 Forbidden`.
 
 ---

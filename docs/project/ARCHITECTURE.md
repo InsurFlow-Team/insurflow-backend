@@ -196,7 +196,10 @@ Every endpoint in the system complies with the unified structure provided by `sr
 ```
 
 ### 5.6 File Upload & Cloud Storage Architecture
-- **In-Memory Streaming:** Handled by `upload.middleware.js` using `multer.memoryStorage()`, keeping memory consumption bounded (10MB per file limit).
-- **Direct-to-Cloud Uploads:** File buffers are streamed directly to Cloudinary using `cloudinary.uploader.upload_stream` via `src/utils/uploadToCloudinary.js`, avoiding temporary local disk writes.
-- **Tenant Path Isolation:** Media assets are partitioned by tenant: `insurflow/${organizationId}/evidence/` and `insurflow/${organizationId}/signatures/`.
-- **Validation Guardrails:** Restricts uploads to `image/jpeg`, `image/png`, and `image/webp`. Multer size errors (`LIMIT_FILE_SIZE`) are normalized by `errorHandler.js` into standard `400 VALIDATION_ERROR` responses.
+- **In-Memory Buffering (`multer.memoryStorage()`):** Handled by `upload.middleware.js` configured with `multer.memoryStorage()` to buffer incoming files directly in memory as `Buffer` objects, avoiding temporary disk writes on serverless or ephemeral container hosts (bounded by a strict 10MB per file limit).
+- **Direct-to-Cloud Streaming (`upload_stream`):** File buffers are streamed directly to Cloudinary using `cloudinary.uploader.upload_stream` inside `src/utils/uploadToCloudinary.js`.
+- **Tenant-Scoped Folder Structure:** All assets are strictly partitioned by tenant ID within Cloudinary:
+  - Evidence photos: `insurflow/${organizationId}/evidence`
+  - Digital signatures: `insurflow/${organizationId}/signatures`
+- **Layered Placement:** `uploadToCloudinary.js` sits in `src/utils/` as an isolated domain utility. It is **called exclusively from the Service layer (`claim.service.js`) and never directly from the Controller layer**, preserving strict 5-layer architectural separation and allowing complete mocking in tests without invoking external Cloudinary APIs.
+- **Validation Guardrails:** Restricts uploads to `image/jpeg`, `image/png`, and `image/webp`. Multer size errors (`LIMIT_FILE_SIZE`) are caught and normalized by `errorHandler.js` into standard `400 VALIDATION_ERROR` responses.

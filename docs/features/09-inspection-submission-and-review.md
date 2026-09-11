@@ -12,14 +12,14 @@ This feature encompasses two sequential lifecycle transitions:
 ## 2. Business Invariants & Five Mandatory Pillars
 
 ### Rule BR-SUBMIT-2 (Five Pillars Validation)
-Before transitioning from `IN_PROGRESS` to `SUBMITTED`, the backend verifies that all five core pillars of the inspection report have been completed:
-1. **Pillar 1 — Vehicle Verified:** `claim.vehicle.vehicleId` must not be null.
-2. **Pillar 2 — Accident Recorded:** `claim.accident.accidentType` must not be null.
-3. **Pillar 3 — Location Captured:** `claim.location.latitude` and `claim.location.longitude` must not be null. (Note: `0` is a mathematically valid coordinate and is not treated as null).
-4. **Pillar 4 — Evidence Uploaded:** `claim.evidence` must contain at least one photo (`claim.evidence.length >= 1`).
-5. **Pillar 5 — Signature Captured:** `claim.signature.url` must not be null.
+Before transitioning from `IN_PROGRESS` to `SUBMITTED`, the backend verifies that all five mandatory pillars of the inspection report have been completed:
+1. **Vehicle:** `claim.vehicle.vehicleId` must not be null.
+2. **Accident:** `claim.accident.accidentType` must not be null.
+3. **Location:** `claim.location.latitude` and `claim.location.longitude` must not be null. (Note: `0` is a mathematically valid coordinate and is not treated as null).
+4. **Evidence (at least 1 photo):** `claim.evidence` must contain at least one photo (`claim.evidence.length >= 1`).
+5. **Signature:** `claim.signature.url` must not be null.
 
-If any pillar is missing, the submission is rejected with **`422 Unprocessable Entity`** (`INSPECTION_INCOMPLETE`).
+If any of the 5 mandatory pillars is missing, the submission is rejected with **`422 Unprocessable Entity`** (`INSPECTION_INCOMPLETE`) detailing the missing components.
 
 ---
 
