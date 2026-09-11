@@ -1798,7 +1798,141 @@
             "response": []
           },
           {
-            "name": "9. Submit Inspection Report",
+            "name": "9. Upload Evidence Photo",
+            "id": "fc620a38-f771-bd57-1676-d383e9cf8a87",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "body": {
+                "mode": "formdata",
+                "formdata": [
+                  {
+                    "key": "file",
+                    "type": "file",
+                    "description": "Evidence image file (JPEG, PNG, WebP up to 10MB)"
+                  },
+                  {
+                    "key": "imageType",
+                    "value": "DAMAGE_CLOSEUP",
+                    "type": "text",
+                    "description": "Category: VEHICLE_FRONT, VEHICLE_REAR, VEHICLE_SIDE, DAMAGE_CLOSEUP, DRIVER_LICENSE, OTHER"
+                  },
+                  {
+                    "key": "caption",
+                    "value": "Cracked rear bumper and taillight damage",
+                    "type": "text",
+                    "description": "Optional descriptive caption"
+                  }
+                ]
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/evidence",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "evidence"
+                ]
+              },
+              "description": "Upload inspection evidence photo (JPEG, PNG, WebP up to 10MB). Stored securely on Cloudinary. Claim must be in IN_PROGRESS status."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Evidence photo uploaded successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.evidence).to.be.an(\"array\");",
+                    "    pm.expect(jsonData.data.evidence.length).to.be.above(0);",
+                    "    var lastEvidence = jsonData.data.evidence[jsonData.data.evidence.length - 1];",
+                    "    pm.expect(lastEvidence.url).to.be.a(\"string\");",
+                    "    pm.expect(lastEvidence.imageType).to.eql(\"DAMAGE_CLOSEUP\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "10. Upload Digital Signature",
+            "id": "6c9b0c44-c37c-52b5-26b9-48d55bbe05c0",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "body": {
+                "mode": "formdata",
+                "formdata": [
+                  {
+                    "key": "file",
+                    "type": "file",
+                    "description": "Digital signature image file (JPEG, PNG, WebP up to 10MB)"
+                  }
+                ]
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/signature",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "signature"
+                ]
+              },
+              "description": "Upload customer / adjuster digital signature (JPEG, PNG, WebP up to 10MB). Stored on Cloudinary. Overwrites any previous signature. Claim must be in IN_PROGRESS status."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Digital signature uploaded successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.signature).to.be.an(\"object\");",
+                    "    pm.expect(jsonData.data.signature.url).to.be.a(\"string\");",
+                    "    pm.expect(jsonData.data.signature.signedAt).to.be.ok;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "11. Submit Inspection Report",
             "id": "04f3e9ef-d56f-4fb5-91b6-8fae05cf4859",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
