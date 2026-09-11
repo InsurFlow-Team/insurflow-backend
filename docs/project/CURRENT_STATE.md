@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1 & Sprint 2 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (17 Suites / 208 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (17 Suites / 209 Tests)** |
 
 ---
 
@@ -37,7 +37,7 @@
 - [x] **Claims Intake & Assignment:**
   - Claim creation restricted to `CLAIMS_OFFICER` (`POST /api/v1/claims`).
   - Single-query MongoDB `$lookup` aggregation for adjuster availability eliminating N+1 queries.
-  - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`.
+  - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`. Workload counting explicitly scoped by `organizationId`.
   - Adjuster dispatch with atomic assignment checks (`POST /api/v1/claims/:claimId/assign`).
 - [x] **Vehicle & Policy Lookup:**
   - Plate lookup (`GET /api/v1/vehicles/lookup`) with normalization and policy expiration warning (`POLICY_EXPIRED`).

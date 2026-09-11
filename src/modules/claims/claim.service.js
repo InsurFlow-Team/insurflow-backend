@@ -143,7 +143,7 @@ const assignClaim = async (claimId, body, authUser) => {
   }
 
   // 2. Verify adjuster availability (active claims <= 3 is AVAILABLE, > 3 is UNAVAILABLE)
-  const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
+  const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId, organizationId);
   const maxActiveClaims = Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3;
   if (activeTasksCount > maxActiveClaims) {
     throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
