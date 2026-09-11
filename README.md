@@ -36,6 +36,8 @@ InsurFlow هو نظام إدارة مطالبات التأمين على السي
 | **Joi** | v18.x | التحقق من صحة البيانات |
 | **Helmet** | v8.x | أمان الـ HTTP headers |
 | **Morgan** | v1.x | تسجيل الطلبات (logging) |
+| **Multer** | v2.x | معالجة رفع الملفات والوسائط في الذاكرة |
+| **Cloudinary** | v2.x | التخزين السحابي لصور الأدلة والتوقيع الرقمي |
 | **Jest + Supertest** | v29.x | اختبارات تلقائية |
 
 ### الاعتماديات للتطوير فقط
@@ -60,12 +62,14 @@ INSURFLOW/
 │   │
 │   ├── config/                   ← إعدادات المشروع
 │   │   ├── env.js                ← قراءة متغيرات البيئة (.env)
-│   │   └── database.js           ← الاتصال بـ MongoDB
+│   │   ├── database.js           ← الاتصال بـ MongoDB
+│   │   └── cloudinary.js         ← إعداد الربط مع Cloudinary
 │   │
 │   ├── middlewares/              ← وسطاء الطلبات (تُنفَّذ قبل كل endpoint)
 │   │   ├── auth.middleware.js    ← التحقق من الـ JWT token
 │   │   ├── role.middleware.js    ← التحقق من صلاحية الدور
 │   │   ├── validate.middleware.js← التحقق من المدخلات بواسطة Joi
+│   │   ├── upload.middleware.js  ← معالجة رفع الصور في الذاكرة (10MB)
 │   │   ├── rateLimiter.middleware.js ← تحديد معدل الطلبات وحماية الهجمات
 │   │   ├── errorHandler.js       ← معالج الأخطاء العام
 │   │   └── notFound.js           ← معالج الـ 404
@@ -73,7 +77,8 @@ INSURFLOW/
 │   ├── utils/                    ← أدوات مساعدة عامة
 │   │   ├── apiResponse.js        ← تنسيق موحد للردود
 │   │   ├── appError.js           ← كلاس مخصص للأخطاء
-│   │   └── counter.model.js      ← عداد لتوليد أرقام المطالبات
+│   │   ├── counter.model.js      ← عداد لتوليد أرقام المطالبات
+│   │   └── uploadToCloudinary.js ← أداة رفع الملفات عبر Streams لـ Cloudinary
 │   │
 │   ├── scripts/
 │   │   └── seedMockData.js       ← سكريبت لإدخال بيانات تجريبية
@@ -161,6 +166,9 @@ DATABASE_URL=mongodb://localhost:27017/insurflow
 JWT_SECRET=your-super-secret-key-here
 CORS_ORIGIN=http://localhost:5173
 NODE_ENV=development
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 ### 4. إدخال البيانات التجريبية (مهم!)
@@ -223,7 +231,7 @@ npm test
 | الدور | الصلاحيات |
 |-------|-----------|
 | `CLAIMS_OFFICER` | إنشاء مطالبة، تعيين مفتش، بدء المراجعة، طلب تصحيح، اتخاذ قرار الاعتماد/الرفض |
-| `FIELD_ADJUSTER` | عرض المطالبات المُعيّنة له، بدء/استئناف المعاينة، حفظ مسودات الفحص، إرسال التقرير |
+| `FIELD_ADJUSTER` | عرض المطالبات المُعيّنة له، بدء/استئناف المعاينة، حفظ مسودات الفحص، رفع صور الأدلة والتوقيع الرقمي، إرسال التقرير |
 | `ADMIN` | إدارة الموظفين، الرقابة الشاملة، اتخاذ قرار الاعتماد/الرفض، إغلاق المطالبة نهائيًا |
 
 ### JWT Authentication (المصادقة)

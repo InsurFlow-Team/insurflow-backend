@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1 & Sprint 2 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (16 Suites / 190 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (17 Suites / 208 Tests)** |
 
 ---
 
@@ -44,12 +44,19 @@
 - [x] **Field Inspection & 9-Status Lifecycle Machine:**
   - Field inspection start endpoint: `POST /claims/:claimId/inspection/start` (transitions `ASSIGNED` or `CORRECTION_REQUIRED` → `IN_PROGRESS`).
   - Incremental inspection saves while in `IN_PROGRESS` (`PUT /claims/:id/vehicle`, `PUT /claims/:id/accident`, `PUT /claims/:id/location`).
-  - Three-pillar mandatory completeness validation (Vehicle, Accident, Location) on `POST /claims/:id/inspection/submit` (transitions `IN_PROGRESS` → `SUBMITTED`).
+  - Five-pillar mandatory completeness validation (Vehicle, Accident, Location, Evidence Photos $\ge 1$, Digital Signature) on `POST /claims/:id/inspection/submit` (transitions `IN_PROGRESS` → `SUBMITTED`).
   - Claim review initiation by claims officer (`POST /claims/:id/review/start` → `UNDER_REVIEW`).
   - Iterative correction loop: `POST /claims/:claimId/review/request-correction` (transitions `UNDER_REVIEW` → `CORRECTION_REQUIRED` with mandatory notes).
   - Claim adjudication engine: `POST /claims/:claimId/decision` (transitions `UNDER_REVIEW` → `APPROVED` \| `REJECTED`).
   - Admin claim closure: `POST /claims/:claimId/close` (transitions `APPROVED` → `CLOSED`).
   - Timeline audit trail metadata: extended with `previousStatus`, `newStatus`, and `notes`.
+- [x] **Evidence Photos & Digital Signature (Cloudinary Integration):**
+  - Multer memory storage middleware (`src/middlewares/upload.middleware.js`) with 10MB limit and JPEG/PNG/WEBP whitelist.
+  - Cloudinary streaming utility (`src/utils/uploadToCloudinary.js`) with tenant-isolated folders (`insurflow/${orgId}/evidence`, `insurflow/${orgId}/signatures`).
+  - Photo evidence endpoint: `POST /claims/:claimId/evidence` (repeatable, additive array, categorized `imageType`).
+  - Digital signature endpoint: `POST /claims/:claimId/signature` (singular, overwritable).
+  - Global error handler support for Multer's `LIMIT_FILE_SIZE` mapped to `400 VALIDATION_ERROR`.
+  - Comprehensive unit & integration tests (`tests/claim.evidence.test.js`) with Cloudinary fully mocked.
 - [x] **User Administration APIs (`ADMIN` only):**
   - Create staff user (`POST /users`), list users with pagination (`GET /users`), toggle user status (`PATCH /users/:id/status`), administrative password reset (`PATCH /users/:id/reset-password`).
 - [x] **Pagination & Header Exposure:**

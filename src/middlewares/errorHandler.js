@@ -21,6 +21,10 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 404;
     message = 'Resource not found';
     code = 'RESOURCE_NOT_FOUND';
+  } else if (err.code === 'LIMIT_FILE_SIZE') {
+    statusCode = 400;
+    message = 'File size exceeds limit of 10MB';
+    code = 'VALIDATION_ERROR';
   }
 
   // Environment check: identify production mode

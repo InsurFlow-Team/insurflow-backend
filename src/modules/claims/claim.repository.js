@@ -115,6 +115,22 @@ const updateLocation = async (claimId, organizationId, assignedTo, locationData,
   ).lean();
 };
 
+const addEvidence = async (claimId, organizationId, assignedTo, evidenceItem, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
+    { $push: { evidence: evidenceItem, timeline: timelineEvent } },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const setSignature = async (claimId, organizationId, assignedTo, signatureData, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
+    { $set: { signature: signatureData }, $push: { timeline: timelineEvent } },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
 const submitInspection = async (claimId, organizationId, assignedTo, timelineEvent) => {
   return await Claim.findOneAndUpdate(
     { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
@@ -180,6 +196,8 @@ module.exports = {
   updateVehicle,
   updateAccident,
   updateLocation,
+  addEvidence,
+  setSignature,
   submitInspection,
   startReview,
   requestCorrection,

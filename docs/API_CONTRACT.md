@@ -341,11 +341,73 @@ Valid status transitions (enforced by the Backend):
   ```
 - **Business Rules:** Claim must be in `IN_PROGRESS` status.
 
+### `POST /claims/:claimId/evidence`
+- **Purpose:** Field Adjuster uploads an inspection evidence photo (repeatable, additive).
+- **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
+- **Authentication:** Required (JWT).
+- **Preconditions:** Claim must be in `IN_PROGRESS` status.
+- **Content-Type:** `multipart/form-data`
+- **Request Fields:**
+  - `file`: Binary image file (JPEG, PNG, WEBP, max 10MB). Required.
+  - `imageType`: String enum. Required. One of: `VEHICLE_FRONT`, `VEHICLE_REAR`, `VEHICLE_SIDE`, `DAMAGE_CLOSEUP`, `DRIVER_LICENSE`, `OTHER`.
+- **Business Rules:** Files are stored in Cloudinary under `insurflow/${organizationId}/evidence`. Appends a new item to `claim.evidence` array and logs timeline event (`action: 'Evidence Uploaded'`, `notes: imageType`).
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Evidence uploaded successfully",
+    "data": {
+      "status": "IN_PROGRESS",
+      "evidence": [
+        {
+          "imageType": "DAMAGE_CLOSEUP",
+          "url": "https://res.cloudinary.com/...",
+          "publicId": "...",
+          "uploadedBy": "user-uuid",
+          "uploadedAt": "2026-09-11T08:00:00Z"
+        }
+      ]
+    }
+  }
+  ```
+
+### `POST /claims/:claimId/signature`
+- **Purpose:** Field Adjuster captures or re-captures the digital signature (singular, overwritable).
+- **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
+- **Authentication:** Required (JWT).
+- **Preconditions:** Claim must be in `IN_PROGRESS` status.
+- **Content-Type:** `multipart/form-data`
+- **Request Fields:**
+  - `file`: Binary image file (JPEG, PNG, WEBP, max 10MB). Required.
+- **Business Rules:** File is stored in Cloudinary under `insurflow/${organizationId}/signatures`. Overwrites `claim.signature` object and logs timeline event (`action: 'Signature Captured'`).
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Signature captured successfully",
+    "data": {
+      "status": "IN_PROGRESS",
+      "signature": {
+        "url": "https://res.cloudinary.com/...",
+        "publicId": "...",
+        "capturedBy": "user-uuid",
+        "capturedAt": "2026-09-11T08:00:00Z"
+      }
+    }
+  }
+  ```
+
 ### `POST /claims/:claimId/inspection/submit`
 - **Purpose:** Submit the completed field inspection.
 - **Authorized Roles:** `FIELD_ADJUSTER`
 - **Authentication:** Required (JWT).
-- **Business Rules:** Caller must be assigned adjuster and claim must be in `IN_PROGRESS` status. Backend validates required inspection information (Vehicle, Accident, Location). Returns 422 `INSPECTION_INCOMPLETE` if any pillar is missing.
+- **Business Rules:** Caller must be assigned adjuster and claim must be in `IN_PROGRESS` status. Backend validates all Five Mandatory Pillars:
+  1. Vehicle (`claim.vehicle.vehicleId != null`)
+  2. Accident (`claim.accident.accidentType != null`)
+  3. Location (`claim.location.latitude != null && claim.location.longitude != null`)
+  4. Evidence (`claim.evidence.length >= 1`)
+  5. Signature (`claim.signature.url != null`)
+  Returns 422 `INSPECTION_INCOMPLETE` if any pillar is missing.
 - **Success Response (200):**
   ```json
   {

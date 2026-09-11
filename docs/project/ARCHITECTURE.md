@@ -23,6 +23,8 @@ The InsurFlow backend follows a **Modular Layered Architecture** built on Node.j
 | **Security Headers** | `helmet` | 8.3.x | HTTP security header hardening |
 | **CORS** | `cors` | 2.8.x | Cross-Origin Resource Sharing control |
 | **Logging** | `morgan` | 1.11.x | HTTP request logging (dev / combined) |
+| **File Uploads** | `multer` | 2.3.x | In-memory multipart/form-data buffer processing |
+| **Cloud Media Storage** | `cloudinary` | 2.11.x | Cloud asset storage, CDN delivery, tenant-isolated paths |
 | **Test Suite** | Jest + Supertest | 29.7.x / 6.3.x | Integration and unit testing with `mongodb-memory-server` |
 
 ---
@@ -89,11 +91,13 @@ src/
 ├── server.js                # HTTP listener & process lifecycle management
 ├── config/
 │   ├── env.js               # Centralized configuration & fail-fast startup checks
-│   └── database.js          # Mongoose connection management
+│   ├── database.js          # Mongoose connection management
+│   └── cloudinary.js        # Cloudinary SDK client configuration
 ├── middlewares/
 │   ├── auth.middleware.js   # JWT verification & req.user attachment
 │   ├── role.middleware.js   # RBAC permission checks
 │   ├── validate.middleware.js# Joi boundary schema validator
+│   ├── upload.middleware.js # Multer in-memory upload handler (10MB, JPEG/PNG/WEBP)
 │   ├── rateLimiter.middleware.js # Multi-tier rate limiting (loginLimiter & apiLimiter)
 │   ├── errorHandler.js      # Global centralized error response handler
 │   └── notFound.js          # 404 handler for undefined endpoints
@@ -101,10 +105,11 @@ src/
 │   ├── apiResponse.js       # Standardized response envelopes
 │   ├── appError.js          # Custom operational error class
 │   ├── asyncWrapper.js      # Promise rejection forwarding to next()
-│   └── counter.model.js     # Atomic sequence counter model
+│   ├── counter.model.js     # Atomic sequence counter model
+│   └── uploadToCloudinary.js# Cloudinary upload_stream buffer helper
 └── modules/
     ├── auth/                # Login, JWT, password change
-    ├── claims/              # Claims, inspections, lifecycle transitions
+    ├── claims/              # Claims, inspections, evidence, signature, lifecycle
     ├── users/               # Users, adjusters, admin management
     ├── organizations/       # Tenant organization records
     ├── vehicles/            # Vehicle registry & plate lookup
@@ -189,3 +194,9 @@ Every endpoint in the system complies with the unified structure provided by `sr
   ]
 }
 ```
+
+### 5.6 File Upload & Cloud Storage Architecture
+- **In-Memory Streaming:** Handled by `upload.middleware.js` using `multer.memoryStorage()`, keeping memory consumption bounded (10MB per file limit).
+- **Direct-to-Cloud Uploads:** File buffers are streamed directly to Cloudinary using `cloudinary.uploader.upload_stream` via `src/utils/uploadToCloudinary.js`, avoiding temporary local disk writes.
+- **Tenant Path Isolation:** Media assets are partitioned by tenant: `insurflow/${organizationId}/evidence/` and `insurflow/${organizationId}/signatures/`.
+- **Validation Guardrails:** Restricts uploads to `image/jpeg`, `image/png`, and `image/webp`. Multer size errors (`LIMIT_FILE_SIZE`) are normalized by `errorHandler.js` into standard `400 VALIDATION_ERROR` responses.

@@ -2,8 +2,9 @@
 
 You are an expert autonomous software engineer. You have access to specialized skills located in the skills catalog (`SKILL.md` files).
 
-## Core Directive
-Before responding to any prompt, run a silent pre-flight assessment to match the user's intent against the skill routing matrix below. You must activate the appropriate skill workflow automatically without requiring the user to name the skill explicitly.
+## Core Directives
+1. **Skill Routing:** Before responding to any prompt, run a silent pre-flight assessment to match the user's intent against the skill routing matrix below. You must activate the appropriate skill workflow automatically without requiring the user to name the skill explicitly.
+2. **Continuous Markdown Documentation Sync (Mandatory):** Whenever ANY change, code implementation, bug fix, refactor, or architectural update is made in the repository, you MUST directly update all relevant `.md` files (`docs/project/CURRENT_STATE.md`, `docs/features/`, `docs/API_CONTRACT.md`, `README.md`, etc.) as an atomic part of the implementation. Never leave documentation out of sync or defer it.
 
 ---
 

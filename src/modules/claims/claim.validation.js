@@ -147,6 +147,12 @@ const closeClaimSchema = Joi.object({
   closingNotes: Joi.string().trim().optional().allow('', null),
 });
 
+const uploadEvidenceSchema = Joi.object({
+  imageType: Joi.string()
+    .valid('VEHICLE_FRONT', 'VEHICLE_REAR', 'VEHICLE_SIDE', 'DAMAGE_CLOSEUP', 'DRIVER_LICENSE', 'OTHER')
+    .required(),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -157,5 +163,6 @@ module.exports = {
   requestCorrectionSchema,
   decisionSchema,
   closeClaimSchema,
+  uploadEvidenceSchema,
 };
 

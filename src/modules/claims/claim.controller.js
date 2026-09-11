@@ -74,6 +74,19 @@ const updateLocation = async (req, res) => {
   return res.status(200).json(successResponse('Location updated successfully', result));
 };
 
+const uploadEvidence = async (req, res) => {
+  const { claimId } = req.params;
+  const { imageType } = req.body;
+  const result = await claimService.uploadEvidence(claimId, imageType, req.file, req.user);
+  return res.status(200).json(successResponse('Evidence uploaded successfully', result));
+};
+
+const uploadSignature = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.uploadSignature(claimId, req.file, req.user);
+  return res.status(200).json(successResponse('Signature captured successfully', result));
+};
+
 const submitInspection = async (req, res) => {
   const { claimId } = req.params;
   const result = await claimService.submitInspection(claimId, req.user);
@@ -121,6 +134,8 @@ module.exports = {
   updateVehicle: asyncWrapper(updateVehicle),
   updateAccident: asyncWrapper(updateAccident),
   updateLocation: asyncWrapper(updateLocation),
+  uploadEvidence: asyncWrapper(uploadEvidence),
+  uploadSignature: asyncWrapper(uploadSignature),
   submitInspection: asyncWrapper(submitInspection),
   startReview: asyncWrapper(startReview),
   requestCorrection: asyncWrapper(requestCorrection),

@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -22,7 +23,8 @@
     "joi": "^18.2.5",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.3",
-    "morgan": "^1.11.0"
+    "morgan": "^1.11.0",
+    "multer": "^2.3.0"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

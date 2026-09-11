@@ -219,6 +219,24 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       expect(locRes.status).toBe(200);
       expect(locRes.body.data.status).toBe('IN_PROGRESS');
 
+      // Populate evidence and signature for inspection completeness
+      await Claim.findByIdAndUpdate(claimId, {
+        evidence: [
+          {
+            imageType: 'DAMAGE_CLOSEUP',
+            url: 'https://res.cloudinary.com/test/photo.jpg',
+            publicId: 'pid1',
+            uploadedBy: adjuster1._id,
+          },
+        ],
+        signature: {
+          url: 'https://res.cloudinary.com/test/sig.png',
+          publicId: 'sig1',
+          capturedBy: adjuster1._id,
+          capturedAt: new Date(),
+        },
+      });
+
       // Step 4: Submit Inspection -> SUBMITTED
       const submitRes1 = await request(app)
         .post(`/api/v1/claims/${claimId}/inspection/submit`)

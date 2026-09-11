@@ -173,6 +173,30 @@ const claimSchema = new mongoose.Schema(
       capturedAt: { type: Date, default: null },
     },
 
+    // ── Evidence & Signature (populated during inspection) ───────────
+    evidence: {
+      type: [
+        {
+          imageType: {
+            type: String,
+            enum: ['VEHICLE_FRONT', 'VEHICLE_REAR', 'VEHICLE_SIDE', 'DAMAGE_CLOSEUP', 'DRIVER_LICENSE', 'OTHER'],
+            required: true,
+          },
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+          uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+          uploadedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    signature: {
+      url: { type: String, default: null },
+      publicId: { type: String, default: null },
+      capturedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      capturedAt: { type: Date, default: null },
+    },
+
     // ── Admin Closure ────────────────────────────────────────────────
     closedBy: {
       type: mongoose.Schema.Types.ObjectId,

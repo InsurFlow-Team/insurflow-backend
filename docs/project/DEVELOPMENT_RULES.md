@@ -86,3 +86,15 @@
 ### Rule 12: Prefer Minimal, Targeted Changes
 - **Directive:** Strive for the smallest possible diff that completely, safely, and cleanly solves the problem.
 - **Prohibition:** Avoid unnecessary cosmetic line rearrangements, comment stripping, or blanket stylistic rewrites. Preserve existing codebase conventions and comments.
+
+---
+
+### Rule 13: Continuous Documentation Synchronization (Update .md Files Directly)
+- **Directive:** Whenever any change, feature, bug fix, refactoring, or API modification is made in the project, the corresponding Markdown files (`docs/`, `README.md`) MUST be updated immediately as an atomic part of that same task.
+- **Scope of Updates:**
+  - `docs/project/CURRENT_STATE.md`: Update task status, completed milestones, test counts, and immediate priorities.
+  - `docs/features/`: Create or update feature specs for any endpoint or workflow change.
+  - `docs/project/ARCHITECTURE.md` & `docs/project/BUSINESS_RULES.md`: Update if architecture, domain rules, or entity models are affected.
+  - `docs/API_CONTRACT.md` & `docs/ADMIN_API_FOR_FRONTEND.md`: Update request/response schemas or endpoint documentation.
+  - `README.md`: Update overview, setup, or project status if affected.
+- **Prohibition:** Never leave documentation updates as an afterthought or separate manual step. A task is not complete until its documentation is synchronized.

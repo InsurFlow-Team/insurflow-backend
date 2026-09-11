@@ -9,13 +9,15 @@ This feature encompasses two sequential lifecycle transitions:
 
 ---
 
-## 2. Business Invariants & Three Mandatory Pillars
+## 2. Business Invariants & Five Mandatory Pillars
 
-### Rule BR-SUBMIT-2 (Three Pillars Validation)
-Before transitioning from `IN_PROGRESS` to `SUBMITTED`, the backend verifies that all three core pillars of the inspection report have been completed:
+### Rule BR-SUBMIT-2 (Five Pillars Validation)
+Before transitioning from `IN_PROGRESS` to `SUBMITTED`, the backend verifies that all five core pillars of the inspection report have been completed:
 1. **Pillar 1 — Vehicle Verified:** `claim.vehicle.vehicleId` must not be null.
 2. **Pillar 2 — Accident Recorded:** `claim.accident.accidentType` must not be null.
 3. **Pillar 3 — Location Captured:** `claim.location.latitude` and `claim.location.longitude` must not be null. (Note: `0` is a mathematically valid coordinate and is not treated as null).
+4. **Pillar 4 — Evidence Uploaded:** `claim.evidence` must contain at least one photo (`claim.evidence.length >= 1`).
+5. **Pillar 5 — Signature Captured:** `claim.signature.url` must not be null.
 
 If any pillar is missing, the submission is rejected with **`422 Unprocessable Entity`** (`INSPECTION_INCOMPLETE`).
 
@@ -28,7 +30,7 @@ If any pillar is missing, the submission is rejected with **`422 Unprocessable E
 * **Validation & Execution Sequence:**
   1. Verifies caller is assigned to the claim and belongs to the tenant.
   2. Asserts status is `IN_PROGRESS` (409 if not).
-  3. Verifies the Three Mandatory Pillars (422 if incomplete).
+  3. Verifies the Five Mandatory Pillars (422 if incomplete).
   4. Executes atomic update:
      ```javascript
      Claim.findOneAndUpdate(
@@ -89,5 +91,6 @@ If any pillar is missing, the submission is rejected with **`422 Unprocessable E
 ## 5. Automated Testing Suite
 
 Tested in:
-* [tests/claim.inspection.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.inspection.test.js) (Submission tests & 3-pillar validation)
+* [tests/claim.inspection.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.inspection.test.js) (Submission tests & inspection draft validation)
+* [tests/claim.evidence.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.evidence.test.js) (5-pillar completeness verification with photo evidence & signature)
 * [tests/claim.lifecycle.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.lifecycle.test.js) (Review start transition tests)

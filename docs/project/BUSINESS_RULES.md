@@ -40,13 +40,15 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 │    • Vehicle & Policy lookup & confirmation            │
 │    • Accident details & damage description             │
 │    • Real-time GPS location & address                  │
+│    • Categorized evidence photos (Cloudinary)          │
+│    • Inspection digital signature sign-off             │
 │  Status remains: [ IN_PROGRESS ]                       │
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                   5. INSPECTION SUBMISSION             │
-│  Field Adjuster validates 3 pillars and submits        │
+│  Field Adjuster validates 5 pillars and submits        │
 │  Status transitions: [ IN_PROGRESS ] ──▶ [ SUBMITTED ] │
 └───────────────────────────┬────────────────────────────┘
                             │
@@ -127,15 +129,26 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-INSPECT-1 (Assigned Adjuster Exclusive):** Inspection draft modifications (`PUT /vehicle`, `PUT /accident`, `PUT /location`) can **only** be executed by the specific `FIELD_ADJUSTER` to whom the claim is assigned.
 - **Rule BR-INSPECT-2 (State Invariant):** Inspection draft modifications can only occur while the claim is in status **`IN_PROGRESS`**.
 - **Rule BR-INSPECT-3 (Drafting Freedom):** An adjuster may update vehicle, accident, or location data in any order and multiple times prior to final submission.
+- **Rule BR-INSPECT-EVIDENCE (Photo Evidence Capture):** The adjuster uploads scene photographs to Cloudinary via `POST /claims/:claimId/evidence`.
+  - Repeatable, additive array (`$push`).
+  - Categorized by `imageType`: `['VEHICLE_FRONT', 'VEHICLE_REAR', 'VEHICLE_SIDE', 'DAMAGE_CLOSEUP', 'DRIVER_LICENSE', 'OTHER']`.
+  - Max file size 10MB; accepted MIME types: JPEG, PNG, WEBP.
+  - Stored in tenant-isolated folder: `insurflow/${organizationId}/evidence`.
+- **Rule BR-INSPECT-SIG (Digital Signature Sign-Off):** The adjuster captures the inspection sign-off via `POST /claims/:claimId/signature`.
+  - Singular object (`$set`); subsequent uploads cleanly overwrite the previous signature to accommodate retries.
+  - Max file size 10MB; accepted MIME types: JPEG, PNG, WEBP.
+  - Stored in tenant-isolated folder: `insurflow/${organizationId}/signatures`.
 
 ---
 
 ### 2.6 Inspection Submission
 - **Rule BR-SUBMIT-1 (Submission Authority):** Only the assigned `FIELD_ADJUSTER` can submit the inspection.
-- **Rule BR-SUBMIT-2 (Three Mandatory Pillars of Inspection):** Submission is **rejected** with `HTTP 422 Unprocessable Entity` (`INSPECTION_INCOMPLETE`) unless all three sections are present:
+- **Rule BR-SUBMIT-2 (Five Mandatory Pillars of Inspection):** Submission is **rejected** with `HTTP 422 Unprocessable Entity` (`INSPECTION_INCOMPLETE`) unless all five sections are present:
   1. **Vehicle Verified:** `claim.vehicle.vehicleId` must not be null.
   2. **Accident Recorded:** `claim.accident.accidentType` must not be null.
   3. **Location Captured:** `claim.location.latitude` and `claim.location.longitude` must not be null. *(Note: Coordinate `0` is a valid mathematical value and must not be treated as null).*
+  4. **Evidence Photos Uploaded:** `claim.evidence` must contain at least one photo (`claim.evidence.length >= 1`).
+  5. **Digital Signature Captured:** `claim.signature.url` must not be null.
 - **Rule BR-SUBMIT-3 (Submission State Transition):** A valid submission atomically transitions status from **`IN_PROGRESS`** to **`SUBMITTED`** and records an `"Inspection Submitted"` timeline entry.
 
 ---
@@ -175,7 +188,9 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 | When can draft updates occur? | **Only when claim is in `IN_PROGRESS` status** |
 | How does a claim enter `IN_PROGRESS`? | **Adjuster calls `POST /claims/:id/inspection/start`** |
 | What happens if a policy is expired? | **Inspection proceeds, but API returns `POLICY_EXPIRED` warning** |
-| When can an inspection be submitted? | **Only when vehicle, accident, and GPS location are all filled** |
+| When can an inspection be submitted? | **Only when vehicle, accident, GPS location, evidence photo(s), and digital signature are all completed** |
+| Can an adjuster upload multiple evidence photos? | **Yes, additive array up to 10MB per file** |
+| Can an adjuster re-capture or update their signature? | **Yes, subsequent signature uploads overwrite the previous one** |
 | Who initiates review? | **Any `CLAIMS_OFFICER` in the same organization** |
 | Who can request corrections? | **`CLAIMS_OFFICER` on claims in `UNDER_REVIEW`** |
 | Who can approve or reject claims? | **`CLAIMS_OFFICER` and `ADMIN` on claims in `UNDER_REVIEW`** |

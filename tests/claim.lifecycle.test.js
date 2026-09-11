@@ -77,6 +77,20 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
         vehicle: { plateNumber: 'XYZ-123', vehicleId: new mongoose.Types.ObjectId() },
         accident: { accidentType: 'COLLISION' },
         location: { latitude: 24, longitude: 46 },
+        evidence: [
+          {
+            imageType: 'DAMAGE_CLOSEUP',
+            url: 'https://res.cloudinary.com/test/photo.jpg',
+            publicId: 'pid1',
+            uploadedBy: adjuster1._id,
+          },
+        ],
+        signature: {
+          url: 'https://res.cloudinary.com/test/sig.png',
+          publicId: 'sig1',
+          capturedBy: adjuster1._id,
+          capturedAt: new Date(),
+        },
         incidentType: 'COLLISION',
         incidentLocation: 'L'
       });
@@ -347,6 +361,24 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
           capturedAt: new Date().toISOString()
         });
       expect(locationRes.status).toBe(200);
+
+      // Populate evidence and signature for inspection completeness
+      await Claim.findByIdAndUpdate(claimId, {
+        evidence: [
+          {
+            imageType: 'DAMAGE_CLOSEUP',
+            url: 'https://res.cloudinary.com/test/photo.jpg',
+            publicId: 'pid1',
+            uploadedBy: adjuster1._id,
+          },
+        ],
+        signature: {
+          url: 'https://res.cloudinary.com/test/sig.png',
+          publicId: 'sig1',
+          capturedBy: adjuster1._id,
+          capturedAt: new Date(),
+        },
+      });
 
       // 6. Submit -> SUBMITTED
       const submitRes = await request(app)

@@ -5,6 +5,7 @@ const policyRepository = require('../policies/policy.repository');
 const customerRepository = require('../customers/customer.repository');
 const Claim = require('./claim.model');
 const AppError = require('../../utils/appError');
+const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 
 
 const createClaim = async (body, authUser) => {
@@ -122,6 +123,8 @@ const getClaimById = async (claimId, authUser) => {
     },
     accident: claim.accident,
     location: claim.location,
+    evidence: claim.evidence,
+    signature: claim.signature,
     timeline: claim.timeline,
     createdAt: claim.createdAt,
     updatedAt: claim.updatedAt,
@@ -328,6 +331,91 @@ const updateLocation = async (claimId, body, authUser) => {
   return { status: updatedClaim.status, location: updatedClaim.location };
 };
 
+const uploadEvidence = async (claimId, imageType, file, authUser) => {
+  await getOwnedAssignedClaim(claimId, authUser);
+
+  if (!file) {
+    throw new AppError('An image file is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const folder = `insurflow/${authUser.organizationId}/evidence`;
+  const uploadResult = await uploadToCloudinary(file.buffer, folder);
+
+  const evidenceItem = {
+    imageType,
+    url: uploadResult.url,
+    publicId: uploadResult.publicId,
+    uploadedBy: authUser.userId,
+    uploadedAt: new Date(),
+  };
+
+  const timelineEvent = {
+    action: 'Evidence Uploaded',
+    previousStatus: null,
+    newStatus: null,
+    notes: imageType,
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.addEvidence(
+    claimId,
+    authUser.organizationId,
+    authUser.userId,
+    evidenceItem,
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return { status: updatedClaim.status, evidence: updatedClaim.evidence };
+};
+
+const uploadSignature = async (claimId, file, authUser) => {
+  await getOwnedAssignedClaim(claimId, authUser);
+
+  if (!file) {
+    throw new AppError('An image file is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const folder = `insurflow/${authUser.organizationId}/signatures`;
+  const uploadResult = await uploadToCloudinary(file.buffer, folder);
+
+  const signatureData = {
+    url: uploadResult.url,
+    publicId: uploadResult.publicId,
+    capturedBy: authUser.userId,
+    capturedAt: new Date(),
+  };
+
+  const timelineEvent = {
+    action: 'Signature Captured',
+    previousStatus: null,
+    newStatus: null,
+    notes: null,
+    performedBy: authUser.userId,
+    role: authUser.role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.setSignature(
+    claimId,
+    authUser.organizationId,
+    authUser.userId,
+    signatureData,
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return { status: updatedClaim.status, signature: updatedClaim.signature };
+};
+
 const submitInspection = async (claimId, authUser) => {
   const claim = await getOwnedAssignedClaim(claimId, authUser);
 
@@ -335,6 +423,8 @@ const submitInspection = async (claimId, authUser) => {
   if (claim.vehicle?.vehicleId == null) missing.push('vehicle');
   if (claim.accident?.accidentType == null) missing.push('accident');
   if (claim.location?.latitude == null || claim.location?.longitude == null) missing.push('location');
+  if (!claim.evidence || claim.evidence.length === 0) missing.push('evidence');
+  if (!claim.signature || claim.signature.url == null) missing.push('signature');
 
   if (missing.length > 0) {
     throw new AppError(
@@ -501,6 +591,8 @@ module.exports = {
   updateVehicle,
   updateAccident,
   updateLocation,
+  uploadEvidence,
+  uploadSignature,
   submitInspection,
   startReview,
   requestCorrection,

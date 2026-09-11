@@ -3,6 +3,7 @@ const claimController = require('./claim.controller');
 const authenticate = require('../../middlewares/auth.middleware');
 const authorizeRole = require('../../middlewares/role.middleware');
 const { validate, validateObjectId } = require('../../middlewares/validate.middleware');
+const upload = require('../../middlewares/upload.middleware');
 const {
   createClaimSchema,
   assignClaimSchema,
@@ -13,6 +14,7 @@ const {
   requestCorrectionSchema,
   decisionSchema,
   closeClaimSchema,
+  uploadEvidenceSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -80,6 +82,23 @@ router.put(
   validateObjectId('claimId'),
   validate(updateLocationSchema),
   claimController.updateLocation
+);
+
+router.post(
+  '/:claimId/evidence',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  upload.single('file'),
+  validate(uploadEvidenceSchema),
+  claimController.uploadEvidence
+);
+
+router.post(
+  '/:claimId/signature',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  upload.single('file'),
+  claimController.uploadSignature
 );
 
 router.post(
