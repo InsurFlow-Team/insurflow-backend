@@ -4,7 +4,7 @@ const asyncWrapper = require('../../utils/asyncWrapper');
 
 /**
  * POST /api/v1/claims
- * Creates a new claim. Authorized: CLAIMS_OFFICER only.
+ * Creates a new claim. Authorized: CLAIMS_OFFICER, ADMIN.
  */
 const createClaim = async (req, res) => {
   const result = await claimService.createClaim(req.body, req.user);
@@ -125,6 +125,16 @@ const closeClaim = async (req, res) => {
   return res.status(200).json(successResponse('Claim closed', result));
 };
 
+/**
+ * GET /api/v1/claims/stats
+ * Aggregates KPI statistics for the dashboard.
+ * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
+ */
+const getClaimStats = async (req, res) => {
+  const stats = await claimService.getClaimStats(req.user, req.query);
+  return res.status(200).json(successResponse('Claim statistics retrieved successfully', stats));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -141,4 +151,6 @@ module.exports = {
   requestCorrection: asyncWrapper(requestCorrection),
   decideClaim: asyncWrapper(decideClaim),
   closeClaim: asyncWrapper(closeClaim),
+  getClaimStats: asyncWrapper(getClaimStats),
 };
+

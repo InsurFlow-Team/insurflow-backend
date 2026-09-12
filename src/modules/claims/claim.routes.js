@@ -15,6 +15,7 @@ const {
   decisionSchema,
   closeClaimSchema,
   uploadEvidenceSchema,
+  getClaimStatsQuerySchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -25,7 +26,7 @@ router.use(authenticate);
 // POST /api/v1/claims — Create a new claim
 router.post(
   '/',
-  authorizeRole(['CLAIMS_OFFICER']),
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
   validate(createClaimSchema),
   claimController.createClaim
 );
@@ -36,6 +37,14 @@ router.get(
   authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
   validate(listClaimsQuerySchema, 'query'),
   claimController.getClaims
+);
+
+// GET /api/v1/claims/stats — Dashboard KPI statistics (role-filtered)
+router.get(
+  '/stats',
+  authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validate(getClaimStatsQuerySchema, 'query'),
+  claimController.getClaimStats
 );
 
 // GET /api/v1/claims/:claimId — Claim details

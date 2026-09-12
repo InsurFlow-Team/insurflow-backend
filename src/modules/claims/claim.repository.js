@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Claim = require('./claim.model');
 
 
@@ -185,6 +186,48 @@ const closeClaim = async (claimId, organizationId, closedBy, closingNotes, timel
   ).lean();
 };
 
+/**
+ * Aggregates claim status counts scoped by tenant (organizationId), optional assignee, and optional date range on createdAt.
+ * @param {Object} options
+ * @param {string|mongoose.Types.ObjectId} options.organizationId
+ * @param {string|mongoose.Types.ObjectId} [options.assignedTo]
+ * @param {Date} [options.fromDate]
+ * @param {Date} [options.toDate]
+ * @returns {Promise<Array<{ _id: string, count: number }>>}
+ */
+const getClaimStats = async ({ organizationId, assignedTo, fromDate, toDate }) => {
+  const orgObjectId =
+    typeof organizationId === 'string'
+      ? new mongoose.Types.ObjectId(organizationId)
+      : organizationId;
+
+  const match = {
+    organizationId: orgObjectId,
+  };
+
+  if (assignedTo) {
+    match.assignedTo =
+      typeof assignedTo === 'string'
+        ? new mongoose.Types.ObjectId(assignedTo)
+        : assignedTo;
+  }
+
+  if (fromDate || toDate) {
+    match.createdAt = {
+      ...(fromDate && { $gte: fromDate instanceof Date ? fromDate : new Date(fromDate) }),
+      ...(toDate && { $lte: toDate instanceof Date ? toDate : new Date(toDate) }),
+    };
+  }
+
+
+  const pipeline = [
+    { $match: match },
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ];
+
+  return await Claim.aggregate(pipeline);
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -203,4 +246,5 @@ module.exports = {
   requestCorrection,
   makeDecision,
   closeClaim,
+  getClaimStats,
 };

@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1 & Sprint 2 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (18 Suites / 241 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (18 Suites / 243 Tests)** |
 
 ---
 
@@ -35,7 +35,7 @@
   - Compound unique indexes on `{ organizationId, ... }` across Claims, Users, Vehicles, and Policies.
   - Tenant-scoped sequential claim counter (`claimNumber_<orgId>`) generating `CLM-<ORG_CODE>-NNNN`.
 - [x] **Claims Intake & Assignment:**
-  - Claim creation restricted to `CLAIMS_OFFICER` (`POST /api/v1/claims`).
+  - Claim creation authorized for `CLAIMS_OFFICER` and `ADMIN` (`POST /api/v1/claims`).
   - Single-query MongoDB `$lookup` aggregation for adjuster availability eliminating N+1 queries.
   - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`.
   - Adjuster dispatch with atomic assignment checks (`POST /api/v1/claims/:claimId/assign`).
@@ -103,5 +103,6 @@
 | **N+1 Query in `getAdjusters`** | Performance Optimization | ✅ **RESOLVED:** Replaced `Promise.all` loop with single MongoDB `$lookup` aggregation pipeline. |
 | **Pagination on Listings** | Scalability Enhancement | ✅ **RESOLVED:** Header-based pagination (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /claims` and `GET /users`. |
 | **API & Login Rate Limiting** | Security Hardening | ✅ **RESOLVED:** Multi-tiered rate limiting with `loginLimiter` (brute-force defense) and `apiLimiter` (DoS/scraping defense). |
+| **Express 5 Query Validation Masking** | Architectural Defect (Sprint 1) | ✅ **RESOLVED:** Discovered and fixed prototype getter bug in `validate.middleware.js` using `Object.defineProperty` to ensure Joi type casting, trimming, and default values properly populate `req.query`. |
 
 

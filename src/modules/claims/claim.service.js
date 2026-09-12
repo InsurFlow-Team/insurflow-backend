@@ -582,6 +582,126 @@ const closeClaim = async (claimId, body, authUser) => {
   };
 };
 
+/**
+ * GET /api/v1/claims/stats
+ * Aggregates KPI statistics for the dashboard.
+ * Scoped strictly by tenant (organizationId) and role.
+ * - ADMIN / CLAIMS_OFFICER: Organization-wide stats + adjustersWorkload
+ * - FIELD_ADJUSTER: Self-assigned stats + capacity (no adjustersWorkload)
+ */
+const getClaimStats = async (authUser, query = {}) => {
+  const { organizationId, userId, role } = authUser;
+  const { from: fromDate, to: toDate } = query;
+
+  const buildByStatus = (statusCounts) => {
+    const byStatus = {
+      NEW: 0,
+      ASSIGNED: 0,
+      IN_PROGRESS: 0,
+      SUBMITTED: 0,
+      UNDER_REVIEW: 0,
+      CORRECTION_REQUIRED: 0,
+      APPROVED: 0,
+      REJECTED: 0,
+      CLOSED: 0,
+    };
+
+    let total = 0;
+    for (const item of statusCounts) {
+      if (byStatus.hasOwnProperty(item._id)) {
+        byStatus[item._id] = item.count;
+        total += item.count;
+      }
+    }
+
+    return { byStatus, totalClaims: total };
+  };
+
+  if (role === 'FIELD_ADJUSTER') {
+    // Field Adjuster: single aggregation query scoped to their own assigned claims
+    // adjustersWorkload query is skipped entirely
+    const statusCounts = await claimRepository.getClaimStats({
+      organizationId,
+      assignedTo: userId,
+      fromDate,
+      toDate,
+    });
+
+    const { byStatus, totalClaims } = buildByStatus(statusCounts);
+    const pendingActionCount = byStatus.ASSIGNED + byStatus.IN_PROGRESS + byStatus.CORRECTION_REQUIRED;
+
+    return {
+      scope: 'ASSIGNED',
+      totalClaims,
+      byStatus,
+      pendingActionCount,
+      actionableBreakdown: {
+        toStart: byStatus.ASSIGNED,
+        inProgress: byStatus.IN_PROGRESS,
+        needsCorrection: byStatus.CORRECTION_REQUIRED,
+      },
+      capacity: {
+        active: pendingActionCount,
+        max: Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3,
+      },
+    };
+  }
+
+  // ADMIN / CLAIMS_OFFICER: Organization-wide claims aggregation and adjusters workload query run concurrently
+  const [statusCounts, adjusters] = await Promise.all([
+    claimRepository.getClaimStats({
+      organizationId,
+      fromDate,
+      toDate,
+    }),
+    userRepository.findAdjustersWithWorkload(organizationId),
+  ]);
+
+
+  const { byStatus, totalClaims } = buildByStatus(statusCounts);
+  const pendingActionCount = byStatus.NEW + byStatus.SUBMITTED + byStatus.UNDER_REVIEW;
+
+  let totalActive = 0;
+  let available = 0;
+  let nearCapacity = 0;
+  let atCapacity = 0;
+
+  const maxWorkload = Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3;
+
+  for (const adj of adjusters) {
+    if (adj.status === 'ACTIVE') {
+      totalActive++;
+      if (adj.availability === 'AVAILABLE') {
+        available++;
+      }
+      const activeCount = adj.activeTasksCount || 0;
+      if (activeCount === maxWorkload - 1) {
+        nearCapacity++;
+      }
+      if (activeCount >= maxWorkload) {
+        atCapacity++;
+      }
+    }
+  }
+
+  return {
+    scope: 'ORGANIZATION',
+    totalClaims,
+    byStatus,
+    pendingActionCount,
+    actionableBreakdown: {
+      unassigned: byStatus.NEW,
+      readyForReview: byStatus.SUBMITTED + byStatus.UNDER_REVIEW,
+    },
+    adjustersWorkload: {
+      totalActive,
+      available,
+      nearCapacity,
+      atCapacity,
+    },
+  };
+};
+
 module.exports = {
   createClaim,
   getClaims,
@@ -598,4 +718,6 @@ module.exports = {
   requestCorrection,
   decideClaim,
   closeClaim,
+  getClaimStats,
 };
+

@@ -153,6 +153,61 @@ const uploadEvidenceSchema = Joi.object({
     .required(),
 });
 
+const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validation schema for GET /claims/stats query parameters.
+ * Optional query params: from, to
+ * Format: Joi.date().iso(), accepting either YYYY-MM-DD or a full ISO 8601 timestamp.
+ */
+const getClaimStatsQuerySchema = Joi.object({
+  from: Joi.date().iso().optional(),
+  to: Joi.date().iso().optional(),
+}).custom((value, helpers) => {
+  const original = helpers.original || {};
+  const now = new Date();
+
+  // 1. Expand date-only 'from' (Joi date().iso() already converted it to 00:00:00.000Z)
+  // 2. Expand date-only 'to' to 23:59:59.999Z of that day
+  if (original.to && typeof original.to === 'string' && dateOnlyRegex.test(original.to.trim())) {
+    const d = new Date(value.to);
+    d.setUTCHours(23, 59, 59, 999);
+    value.to = d;
+  }
+
+  // If from is in the future
+  if (value.from && value.from > now) {
+    return helpers.message('from date cannot be in the future');
+  }
+
+  // If from > to when to was explicitly supplied
+  if (value.from && value.to && value.from > value.to) {
+    return helpers.message('from date must be before or equal to to date');
+  }
+
+  // If to is in the future, silently cap to to current server timestamp
+  if (value.to && value.to > now) {
+    value.to = now;
+  }
+
+  // If the resolved range exceeds 5 years
+  if (value.from) {
+    const effectiveTo = value.to || now;
+    const maxTo = new Date(value.from);
+    maxTo.setUTCFullYear(maxTo.getUTCFullYear() + 5);
+    const isToDateOnly = original.to && typeof original.to === 'string' && dateOnlyRegex.test(original.to.trim());
+    const isFromDateOnly = original.from && typeof original.from === 'string' && dateOnlyRegex.test(original.from.trim());
+    if (isToDateOnly || (!original.to && isFromDateOnly)) {
+      maxTo.setUTCHours(23, 59, 59, 999);
+    }
+    if (effectiveTo > maxTo) {
+      return helpers.message('date range cannot exceed 5 years');
+    }
+  }
+
+  return value;
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -164,5 +219,7 @@ module.exports = {
   decisionSchema,
   closeClaimSchema,
   uploadEvidenceSchema,
+  getClaimStatsQuerySchema,
 };
+
 
