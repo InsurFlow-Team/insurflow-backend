@@ -4,7 +4,7 @@
 The **Claim Intake & Creation** module provides the front-door entry point for all insurance claim records in InsurFlow. 
 
 When a policyholder calls to report a motor accident or damage:
-1. A **`CLAIMS_OFFICER`** takes intake notes and submits initial incident details through the Web Dashboard.
+1. A **`CLAIMS_OFFICER`** or **`ADMIN`** takes intake notes and submits initial incident details through the Web Dashboard.
 2. The Backend validates inputs, attaches tenant identity, generates the sequential claim number, and sets the initial state to **`NEW`**.
 3. An immutable audit timeline event (`'Claim Created'`) is logged.
 
@@ -14,10 +14,10 @@ When a policyholder calls to report a motor accident or damage:
 
 ### Creation Sequence
 ```
-[Claims Officer]
+[Claims Officer / Admin]
    │
    ▼ POST /api/v1/claims
-[role.middleware(['CLAIMS_OFFICER'])] ──▶ 403 Forbidden for Adjusters/Admins
+[role.middleware(['CLAIMS_OFFICER', 'ADMIN'])] ──▶ 403 Forbidden for Adjusters
    │
    ▼
 [validate(createClaimSchema)] ──▶ 400 Bad Request on invalid fields
@@ -49,7 +49,7 @@ When a policyholder calls to report a motor accident or damage:
 ## 3. API Contract & Endpoints
 
 ### POST `/api/v1/claims`
-* **Authorized Roles:** `CLAIMS_OFFICER` only.
+* **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`.
 * **Authentication:** Required (JWT).
 * **Request Body:**
   ```json
@@ -85,7 +85,7 @@ When a policyholder calls to report a motor accident or damage:
 
 ## 4. Multi-Tenancy & Business Invariants
 
-1. **Rule BR-CLAIM-1 (Role Restriction):** Restricted exclusively to `CLAIMS_OFFICER`. Field Adjusters inspect; they do not intake claims.
+1. **Rule BR-CLAIM-1 (Role Restriction):** Restricted strictly to `CLAIMS_OFFICER` and `ADMIN`. Field Adjusters inspect; they do not intake claims.
 2. **Rule BR-CLAIM-2 (Initial State):** Unconditionally set to `'NEW'`. The client cannot specify or override `status`.
 3. **Rule BR-CLAIM-3 (Tenant Ownership):** `organizationId` is derived exclusively from `req.user.organizationId`.
 4. **Rule BR-CLAIM-4 (Audit Initiation):** Initializes `timeline` with:
@@ -93,7 +93,7 @@ When a policyholder calls to report a motor accident or damage:
    {
      action: 'Claim Created',
      performedBy: authUser.userId,
-     role: 'CLAIMS_OFFICER',
+     role: authUser.role, // 'CLAIMS_OFFICER' or 'ADMIN'
      timestamp: new Date()
    }
    ```
@@ -105,3 +105,4 @@ When a policyholder calls to report a motor accident or damage:
 Tested in:
 * [tests/claim.lifecycle.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.lifecycle.test.js)
 * [tests/claim.numbering.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.numbering.test.js)
+* [tests/claim.statusMachine.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.statusMachine.test.js)

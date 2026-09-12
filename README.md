@@ -237,7 +237,7 @@ npm test
 |-------|-----------|
 | `CLAIMS_OFFICER` | إنشاء مطالبة، تعيين مفتش، بدء المراجعة، طلب تصحيح، اتخاذ قرار الاعتماد/الرفض |
 | `FIELD_ADJUSTER` | عرض المطالبات المُعيّنة له، بدء/استئناف المعاينة، حفظ مسودات الفحص، رفع صور الأدلة والتوقيع الرقمي، إرسال التقرير |
-| `ADMIN` | إدارة الموظفين، الرقابة الشاملة، اتخاذ قرار الاعتماد/الرفض، إغلاق المطالبة نهائيًا |
+| `ADMIN` | إدارة الموظفين، إنشاء مطالبة، الرقابة الشاملة، اتخاذ قرار الاعتماد/الرفض، إغلاق المطالبة نهائيًا |
 
 ### JWT Authentication (المصادقة)
 
@@ -276,7 +276,7 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 
 ```
 1. NEW
-   ├── من يفعلها: CLAIMS_OFFICER
+   ├── من يفعلها: CLAIMS_OFFICER أو ADMIN
    ├── كيف: POST /api/v1/claims
    └── ماذا يحدث: يُنشئ ملف المطالبة بالمعلومات الأساسية (CLM-<ORG>-0001)
 
@@ -335,7 +335,7 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
-| `POST` | `/claims` | CLAIMS_OFFICER | إنشاء مطالبة جديدة |
+| `POST` | `/claims` | CLAIMS_OFFICER / ADMIN | إنشاء مطالبة جديدة |
 | `GET` | `/claims` | الكل* | عرض قائمة المطالبات (مع الهيدرز للـ Pagination) |
 | `GET` | `/claims/:claimId` | الكل* | عرض تفاصيل المطالبة وسجل الـ Timeline |
 | `POST` | `/claims/:claimId/assign` | CLAIMS_OFFICER | تعيين مفتش متاح للمطالبة |

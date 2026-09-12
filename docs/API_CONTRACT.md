@@ -34,7 +34,7 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
 ## 4. Roles & Authorization
-- **ADMIN:** Administrative user management, Oversight of all organization claims, Make Claim decision, Final claim closure.
+- **ADMIN:** Administrative user management, Oversight of all organization claims, Create Claim, Make Claim decision, Final claim closure.
 - **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision.
 - **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
 
@@ -102,8 +102,8 @@ Valid status transitions (enforced by the Backend):
 ## 8. Claims APIs
 
 ### `POST /claims`
-- **Purpose:** Claims Officer creates an initial Claim.
-- **Authorized Roles:** `CLAIMS_OFFICER`
+- **Purpose:** Claims Officer or Admin creates an initial Claim.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
 - **Authentication:** Required (JWT).
 - **Request Body:**
   ```json

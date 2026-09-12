@@ -26,7 +26,7 @@ router.use(authenticate);
 // POST /api/v1/claims — Create a new claim
 router.post(
   '/',
-  authorizeRole(['CLAIMS_OFFICER']),
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
   validate(createClaimSchema),
   claimController.createClaim
 );

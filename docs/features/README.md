@@ -11,7 +11,7 @@
 |---|--------------------------------|----------------------|--------------------|-------------------|
 | **01** | [01-authentication-and-sessions.md](./01-authentication-and-sessions.md) | Multi-tenant login, JWT tokens, bcrypt password hashing, password change, brute-force defense | All Roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`) | `POST /api/v1/auth/login`<br>`PUT /api/v1/auth/change-password` |
 | **02** | [02-user-management-and-rbac.md](./02-user-management-and-rbac.md) | Administrative staff onboarding, user listing, account deactivation, password resets | `ADMIN` only | `POST /api/v1/users`<br>`GET /api/v1/users`<br>`PATCH /api/v1/users/:id/status`<br>`PATCH /api/v1/users/:id/reset-password` |
-| **03** | [03-claim-intake-and-creation.md](./03-claim-intake-and-creation.md) | Claim intake form, customer & incident capture, initial `NEW` status, audit timeline initiation | `CLAIMS_OFFICER` | `POST /api/v1/claims` |
+| **03** | [03-claim-intake-and-creation.md](./03-claim-intake-and-creation.md) | Claim intake form, customer & incident capture, initial `NEW` status, audit timeline initiation | `CLAIMS_OFFICER`, `ADMIN` | `POST /api/v1/claims` |
 | **04** | [04-tenant-scoped-claim-numbering.md](./04-tenant-scoped-claim-numbering.md) | `CLM-<ORG>-0001` format, isolated atomic Counter model, Mongoose pre-save hook, compound unique index | System / All Roles | Automatic on `Claim.create()` |
 | **05** | [05-adjuster-workload-and-availability.md](./05-adjuster-workload-and-availability.md) | Real-time availability calculation, single MongoDB `$lookup` aggregation pipeline, N+1 query elimination | `CLAIMS_OFFICER`, `ADMIN` | `GET /api/v1/users/adjusters?status=available` |
 | **06** | [06-claim-assignment.md](./06-claim-assignment.md) | Dispatching claims to available adjusters, `NEW` → `ASSIGNED` transition, atomic concurrency protection | `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/assign` |
@@ -32,7 +32,7 @@
 
 All 16 features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances and Cloudinary streaming mocks:
 * **Test Suites:** 18 passed, 18 total
-* **Tests:** 241 passed, 241 total (0 failures)
+* **Tests:** 243 passed, 243 total (0 failures)
 
 ---
 
