@@ -356,4 +356,162 @@ describe('User Management API (ADMIN only)', () => {
       expect(res.body.errors[0].details).toMatch(/Invalid ID format/i);
     });
   });
+
+  describe('PATCH /api/v1/users/:userId', () => {
+    it('should allow ADMIN to update both name and employeeCode', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Updated Adjuster Name',
+          employeeCode: 'FA-003',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('User updated successfully');
+      expect(res.body.data.id).toBe(adjusterUserId.toString());
+      expect(res.body.data.name).toBe('Updated Adjuster Name');
+      expect(res.body.data.employeeCode).toBe('FA-003');
+      expect(res.body.data.role).toBe('FIELD_ADJUSTER');
+      expect(res.body.data.status).toBe('INACTIVE');
+      expect(res.body.data).not.toHaveProperty('password');
+
+      // Verify in DB
+      const updatedDb = await User.findById(adjusterUserId);
+      expect(updatedDb.name).toBe('Updated Adjuster Name');
+      expect(updatedDb.employeeCode).toBe('FA-003');
+    });
+
+    it('should allow ADMIN to update only name', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Sole Name Update',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.name).toBe('Sole Name Update');
+      expect(res.body.data.employeeCode).toBe('FA-003');
+    });
+
+    it('should allow ADMIN to update only employeeCode', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          employeeCode: 'FA-999',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.name).toBe('Sole Name Update');
+      expect(res.body.data.employeeCode).toBe('FA-999');
+    });
+
+    it('should return 400 Bad Request when empty body is provided', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should return 400 Bad Request when disallowed fields are provided', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Attempted Role Escalation',
+          role: 'ADMIN',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should return 400 Bad Request when invalid ObjectId format is provided in URL', async () => {
+      const res = await request(app)
+        .patch('/api/v1/users/not-a-valid-id')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Test',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toMatch(/Invalid ID format/i);
+    });
+
+    it('should return 401 Unauthorized when unauthenticated', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .send({
+          name: 'Anonymous',
+        });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 403 Forbidden for CLAIMS_OFFICER', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          name: 'Unauthorized Officer Edit',
+        });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 404 USER_NOT_FOUND when user does not exist', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId();
+      const res = await request(app)
+        .patch(`/api/v1/users/${nonExistentId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Ghost User',
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('USER_NOT_FOUND');
+    });
+
+    it('should return 404 USER_NOT_FOUND for user belonging to different org (multi-tenant protection)', async () => {
+      const org2User = await User.findOne({ organizationId: orgId2 });
+
+      const res = await request(app)
+        .patch(`/api/v1/users/${org2User._id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Cross Org Update Attempt',
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('USER_NOT_FOUND');
+    });
+
+    it('should return 409 EMPLOYEE_CODE_TAKEN when employeeCode already exists in same organization', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/users/${adjusterUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          employeeCode: 'AD-001', // Admin's employeeCode in Org 1
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('EMPLOYEE_CODE_TAKEN');
+      expect(res.body.message).toMatch(/already exists/i);
+    });
+  });
 });

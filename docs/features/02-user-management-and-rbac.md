@@ -115,7 +115,44 @@ Lists users belonging to the administrator's organization with pagination and op
 
 ---
 
-### 3.3 PATCH `/api/v1/users/:userId/status`
+### 3.3 PATCH `/api/v1/users/:userId`
+Updates user profile attributes (`name` and/or `employeeCode`).
+
+* **Authorized Roles:** `ADMIN` only.
+* **Request Body:**
+  ```json
+  {
+    "name": "الاسم الجديد",
+    "employeeCode": "FA-003"
+  }
+  ```
+* **Validation & Business Invariants:**
+  * `name`: Optional string, trimmed, non-empty.
+  * `employeeCode`: Optional string, trimmed, non-empty (must be unique within the tenant).
+  * At least one field required (`.min(1)`).
+  * Unknown/disallowed fields (`role`, `password`, `status`, `organizationId`) are strictly rejected (`400 VALIDATION_ERROR`).
+  * If `employeeCode` is already in use by another user in the organization, returns `409 EMPLOYEE_CODE_TAKEN`.
+  * If the target user does not exist or belongs to another organization, returns `404 USER_NOT_FOUND`.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "User updated successfully",
+    "data": {
+      "id": "60d0fe4f5311236168a109cb",
+      "name": "الاسم الجديد",
+      "employeeCode": "FA-003",
+      "role": "FIELD_ADJUSTER",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-01T10:00:00.000Z",
+      "updatedAt": "2026-09-12T12:40:00.000Z"
+    }
+  }
+  ```
+
+---
+
+### 3.4 PATCH `/api/v1/users/:userId/status`
 Activates or deactivates an employee account.
 
 * **Authorized Roles:** `ADMIN` only.
@@ -132,7 +169,7 @@ Activates or deactivates an employee account.
 
 ---
 
-### 3.4 PATCH `/api/v1/users/:userId/reset-password`
+### 3.5 PATCH `/api/v1/users/:userId/reset-password`
 Administrative password override for an employee.
 
 * **Authorized Roles:** `ADMIN` only.
@@ -164,5 +201,5 @@ Administrative password override for an employee.
 ## 5. Automated Testing Suite
 
 Tested in:
-* [tests/user.management.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/user.management.test.js) (19 tests)
+* [tests/user.management.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/user.management.test.js) (30 tests)
 * [tests/pagination.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/pagination.test.js) (User listing pagination tests)

@@ -696,6 +696,46 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 
+### `PATCH /users/:userId`
+- **Purpose:** Update user details (`name` and/or `employeeCode`).
+- **Authorized Roles:** `ADMIN`
+- **Authentication:** Required (JWT).
+- **Path Parameters:** `:userId` (valid 24-character hex ObjectId).
+- **Request Body:**
+  ```json
+  {
+    "name": "Updated Name",
+    "employeeCode": "FA-003"
+  }
+  ```
+- **Validation Rules:**
+  - `name`: Optional string, trimmed, non-empty.
+  - `employeeCode`: Optional string, trimmed, non-empty (must be unique within the organization).
+  - At least one field must be provided. Empty body `{}` is rejected.
+  - Unknown/disallowed fields (`role`, `password`, `status`, `organizationId`) return `400 VALIDATION_ERROR`.
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "User updated successfully",
+    "data": {
+      "id": "user-uuid",
+      "name": "Updated Name",
+      "employeeCode": "FA-003",
+      "role": "FIELD_ADJUSTER",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-07T12:00:00Z",
+      "updatedAt": "2026-09-12T12:40:00Z"
+    }
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: Invalid ID format, empty body, or invalid/disallowed fields.
+  - `401 Unauthorized`: Missing or invalid authentication token.
+  - `403 Forbidden`: Non-admin role attempting the update.
+  - `404 Not Found`: User not found in this organization (tenant isolation).
+  - `409 Conflict`: `EMPLOYEE_CODE_TAKEN` if the new employee code is already taken in this organization.
+
 ### `PATCH /users/:userId/status`
 - **Purpose:** Activate or deactivate a user account.
 - **Authorized Roles:** `ADMIN`

@@ -5,6 +5,7 @@ const authorizeRole = require('../../middlewares/role.middleware');
 const { validate, validateObjectId } = require('../../middlewares/validate.middleware');
 const {
   createUserSchema,
+  updateUserSchema,
   updateStatusSchema,
   resetPasswordSchema,
   getAdjustersQuerySchema,
@@ -27,6 +28,7 @@ router.get(
 // ADMIN user management routes
 router.post('/', authorizeRole(['ADMIN']), validate(createUserSchema), userController.createUser);
 router.get('/', authorizeRole(['ADMIN']), validate(listUsersQuerySchema, 'query'), userController.listUsers);
+router.patch('/:userId', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(updateUserSchema), userController.updateUser);
 router.patch('/:userId/status', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(updateStatusSchema), userController.updateUserStatus);
 router.patch('/:userId/reset-password', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(resetPasswordSchema), userController.resetUserPassword);
 

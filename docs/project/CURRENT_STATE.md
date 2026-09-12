@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1 & Sprint 2 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (17 Suites / 208 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (18 Suites / 241 Tests)** |
 
 ---
 
@@ -58,7 +58,7 @@
   - Global error handler support for Multer's `LIMIT_FILE_SIZE` mapped to `400 VALIDATION_ERROR`.
   - Comprehensive unit & integration tests (`tests/claim.evidence.test.js`) with Cloudinary fully mocked.
 - [x] **User Administration APIs (`ADMIN` only):**
-  - Create staff user (`POST /api/v1/users`), list users with pagination (`GET /api/v1/users`), toggle user status (`PATCH /api/v1/users/:id/status`), administrative password reset (`PATCH /api/v1/users/:id/reset-password`).
+  - Create staff user (`POST /api/v1/users`), list users with pagination (`GET /api/v1/users`), update user details (`PATCH /api/v1/users/:id`), toggle user status (`PATCH /api/v1/users/:id/status`), administrative password reset (`PATCH /api/v1/users/:id/reset-password`).
 - [x] **Pagination & Header Exposure:**
   - Standardized pagination headers (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /api/v1/claims` and `GET /api/v1/users`.
 - [x] **Integration Artifacts & Frontend Guides:**

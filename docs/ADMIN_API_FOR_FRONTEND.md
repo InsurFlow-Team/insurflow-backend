@@ -164,7 +164,46 @@
 
 ---
 
-### 2.3 تفعيل أو تعطيل حساب موظف (Toggle User Status)
+### 2.3 تعديل بيانات موظف (Update User Details)
+* **المسار (Endpoint):** `PATCH /api/v1/users/:userId`
+* **Headers:** 
+  ```http
+  Authorization: Bearer <ADMIN_TOKEN>
+  Content-Type: application/json
+  ```
+* **المكان في الواجهة:** زر "تعديل" (Edit) بجانب الموظف في جدول إدارة الموظفين، يفتح نافذة Modal لتعديل الاسم و/أو كود الموظف.
+* **Request Body:**
+  ```json
+  {
+    "name": "الاسم الجديد",
+    "employeeCode": "FA-003"
+  }
+  ```
+  *(ملاحظة: كلا الحقلين اختياري ولكن يجب إرسال حقل واحد على الأقل، وأي حقول غير مصرح بها مثل `role` أو `password` سيتم رفضها بـ `400 Bad Request`).*
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "User updated successfully",
+    "data": {
+      "id": "6aa27838cda4d3dca00b83ee",
+      "name": "الاسم الجديد",
+      "employeeCode": "FA-003",
+      "role": "FIELD_ADJUSTER",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-10T10:15:00.000Z",
+      "updatedAt": "2026-09-12T12:40:00.000Z"
+    }
+  }
+  ```
+* **أخطاء محتملة:**
+  * كود الموظف الجديد مستخدم مسبقاً لدى موظف آخر في نفس الشركة: `409 Conflict` (`EMPLOYEE_CODE_TAKEN`).
+  * الموظف غير موجود أو يتبع لشركة أخرى (حماية Multi-tenancy): `404 Not Found` (`USER_NOT_FOUND`).
+  * صيغة المعرف `userId` غير صالحة أو الـ Body فارغ: `400 Bad Request` (`VALIDATION_ERROR`).
+
+---
+
+### 2.4 تفعيل أو تعطيل حساب موظف (Toggle User Status)
 * **المسار (Endpoint):** `PATCH /api/v1/users/:userId/status`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **المكان في الواجهة:** زر تفعيل/تعطيل بجانب كل موظف في الجدول.
@@ -189,7 +228,7 @@
 
 ---
 
-### 2.4 إعادة تعيين كلمة مرور موظف (Admin Reset Password)
+### 2.5 إعادة تعيين كلمة مرور موظف (Admin Reset Password)
 * **المسار (Endpoint):** `PATCH /api/v1/users/:userId/reset-password`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **المكان في الواجهة:** نافذة "إعادة تعيين كلمة المرور" عند نسيان الموظف لباسورده (لا يلزم معرفة الباسورد القديم).

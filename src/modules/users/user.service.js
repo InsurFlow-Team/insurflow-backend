@@ -67,10 +67,34 @@ const resetUserPassword = async (userId, newPassword, authUser) => {
   return { id: updated._id, message: 'Password reset successfully' };
 };
 
+const updateUser = async (userId, updateData, authUser) => {
+  try {
+    const updated = await userRepository.updateUser(userId, authUser.organizationId, updateData);
+    if (!updated) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+    return {
+      id: updated._id,
+      name: updated.name,
+      employeeCode: updated.employeeCode,
+      role: updated.role,
+      status: updated.status,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  } catch (err) {
+    if (err.code === 11000) {
+      throw new AppError('An employee with this code already exists in your organization', 409, 'EMPLOYEE_CODE_TAKEN');
+    }
+    throw err;
+  }
+};
+
 module.exports = {
   getAdjusters,
   createUser,
   listUsers,
+  updateUser,
   updateUserStatus,
   resetUserPassword,
 };

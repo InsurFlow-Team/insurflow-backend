@@ -558,7 +558,65 @@
             "uid": "48167372-6a084416-f4e2-4555-ab51-f4873a66f86e"
           },
           {
-            "name": "6. Update User Status - Deactivate to INACTIVE (Admin)",
+            "name": "6. Update User Details - Name & EmployeeCode (Admin)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"User updated successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.name).to.eql(\"Updated Adjuster Name\");",
+                    "    pm.expect(jsonData.data.employeeCode).to.eql(\"FA-003\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Updated Adjuster Name\",\n  \"employeeCode\": \"FA-003\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/6aa280c2ff3ba88a24c4e5dc",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "6aa280c2ff3ba88a24c4e5dc"
+                ]
+              }
+            },
+            "response": [],
+            "id": "f4eb74fe-aff7-7937-ef56-1f11aac7c3e2",
+            "uid": "48167372-f4eb74fe-aff7-7937-ef56-1f11aac7c3e2"
+          },
+          {
+            "name": "7. Update User Status - Deactivate to INACTIVE (Admin)",
             "event": [
               {
                 "listen": "test",
@@ -624,7 +682,7 @@
             "uid": "48167372-244b14c6-07b3-4176-a50f-7e54879af124"
           },
           {
-            "name": "7. Reset User Password (Admin)",
+            "name": "8. Reset User Password (Admin)",
             "event": [
               {
                 "listen": "test",
@@ -690,7 +748,7 @@
             "uid": "48167372-76212e7b-6142-4565-9919-8ff57fada803"
           },
           {
-            "name": "8. Update User Status - Reactivate to ACTIVE (Admin)",
+            "name": "9. Update User Status - Reactivate to ACTIVE (Admin)",
             "event": [
               {
                 "listen": "test",
@@ -756,7 +814,7 @@
             "uid": "48167372-67acdc01-8b3f-4638-b90c-e1f84e71ffcd"
           },
           {
-            "name": "9. Login with Newly Reset Password (Adjuster)",
+            "name": "10. Login with Newly Reset Password (Adjuster)",
             "event": [
               {
                 "listen": "test",
@@ -814,7 +872,7 @@
             "uid": "48167372-c4ab00d1-5bee-4787-8e31-19c0afc0e353"
           },
           {
-            "name": "10. [Negative Test] Create User with Invalid Role (Expect 400)",
+            "name": "11. [Negative Test] Create User with Invalid Role (Expect 400)",
             "event": [
               {
                 "listen": "test",
@@ -875,7 +933,7 @@
             "uid": "48167372-8b6d6201-cefd-41e1-9943-03d8416cbde5"
           },
           {
-            "name": "11. [Negative Test] Create User Forbidden for Claims Officer (Expect 403)",
+            "name": "12. [Negative Test] Create User Forbidden for Claims Officer (Expect 403)",
             "event": [
               {
                 "listen": "test",
@@ -935,7 +993,7 @@
             "uid": "48167372-057f38d7-21c2-4080-9a3c-cbf23a857ccd"
           },
           {
-            "name": "12. [Negative Test] Update Status with Invalid ObjectId (Expect 400)",
+            "name": "13. [Negative Test] Update Status with Invalid ObjectId (Expect 400)",
             "event": [
               {
                 "listen": "test",
@@ -997,6 +1055,63 @@
             "createdAt": "2026-09-09T13:41:23.000Z",
             "updatedAt": "2026-09-09T13:41:23.000Z",
             "uid": "48167372-4af8b916-811a-4f90-823c-64be91c37673"
+          },
+          {
+            "name": "14. [Negative Test] Update User with Empty Body (Expect 400)",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                    "    pm.response.to.have.status(400);",
+                    "});",
+                    "pm.test(\"Validation error returned\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.errors[0].code).to.eql(\"VALIDATION_ERROR\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/users/6aa280c2ff3ba88a24c4e5dc",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "6aa280c2ff3ba88a24c4e5dc"
+                ]
+              }
+            },
+            "response": [],
+            "id": "bf29884b-f505-3c29-feaf-598cdd061e88",
+            "uid": "48167372-bf29884b-f505-3c29-feaf-598cdd061e88"
           }
         ],
         "id": "1c372911-672a-4205-929c-e82c036e7a2c",

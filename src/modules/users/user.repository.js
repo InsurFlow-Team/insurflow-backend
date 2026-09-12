@@ -60,6 +60,16 @@ const updateStatus = async (userId, organizationId, status) => {
   ).lean();
 };
 
+const updateUser = async (userId, organizationId, updateData) => {
+  return await User.findOneAndUpdate(
+    { _id: userId, organizationId },
+    { $set: updateData },
+    { returnDocument: 'after', runValidators: true }
+  )
+    .select('name employeeCode role status createdAt updatedAt')
+    .lean();
+};
+
 /**
  * Aggregates field adjusters in an organization along with their active claim workload in a single query.
  * Eliminates the N+1 query loop.
@@ -158,5 +168,6 @@ module.exports = {
   findAllByOrganization,
   resetPassword,
   updateStatus,
+  updateUser,
 };
 

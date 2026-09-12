@@ -32,6 +32,12 @@ const listUsers = async (req, res) => {
 };
 
 
+const updateUser = async (req, res) => {
+  const { userId } = req.params;
+  const updatedUser = await userService.updateUser(userId, req.body, req.user);
+  return res.status(200).json(successResponse('User updated successfully', updatedUser));
+};
+
 const updateUserStatus = async (req, res) => {
   const { userId } = req.params;
   const updatedUser = await userService.updateUserStatus(userId, req.body.status, req.user);
@@ -48,6 +54,7 @@ module.exports = {
   getAdjusters: asyncWrapper(getAdjusters),
   createUser: asyncWrapper(createUser),
   listUsers: asyncWrapper(listUsers),
+  updateUser: asyncWrapper(updateUser),
   updateUserStatus: asyncWrapper(updateUserStatus),
   resetUserPassword: asyncWrapper(resetUserPassword),
 };

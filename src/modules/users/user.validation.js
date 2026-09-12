@@ -36,8 +36,14 @@ const listUsersQuerySchema = Joi.object({
 });
 
 
+const updateUserSchema = Joi.object({
+  name: Joi.string().trim().min(1).optional(),
+  employeeCode: Joi.string().trim().min(1).optional(),
+}).min(1);
+
 module.exports = {
   createUserSchema,
+  updateUserSchema,
   updateStatusSchema,
   resetPasswordSchema,
   getAdjustersQuerySchema,
