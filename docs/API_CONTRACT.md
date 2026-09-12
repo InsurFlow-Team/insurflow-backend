@@ -201,6 +201,93 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 
+### `GET /claims/stats`
+- **Purpose:** Retrieve aggregated KPI statistics and workload metrics for the dashboard.
+- **Authorized Roles:** `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`
+- **Authentication:** Required (JWT).
+- **Request Parameters (Query):**
+  - `from`: Optional ISO 8601 string or `YYYY-MM-DD` date. Expanded to `00:00:00.000Z`. Rejects if in the future.
+  - `to`: Optional ISO 8601 string or `YYYY-MM-DD` date. Expanded to `23:59:59.999Z`. Silently capped to current server time if in the future.
+- **Validation Rules & Error Messages (400 Bad Request):**
+  - `from` date cannot be in the future (`from date cannot be in the future`).
+  - `from` date must be before or equal to `to` date when `to` is explicitly supplied (`from date must be before or equal to to date`).
+  - Resolved date range cannot exceed 5 years (`date range cannot exceed 5 years`).
+  - Invalid ISO format triggers Joi date parsing error.
+  - Unknown/unrecognized query parameters rejected (`VALIDATION_ERROR`).
+- **Response Shapes by Role:**
+  - **`ADMIN` / `CLAIMS_OFFICER` (Organization Scope):**
+    ```json
+    {
+      "success": true,
+      "message": "Claim statistics retrieved successfully",
+      "data": {
+        "scope": "ORGANIZATION",
+        "totalClaims": 13,
+        "byStatus": {
+          "NEW": 2,
+          "ASSIGNED": 3,
+          "IN_PROGRESS": 2,
+          "SUBMITTED": 1,
+          "UNDER_REVIEW": 1,
+          "CORRECTION_REQUIRED": 1,
+          "APPROVED": 1,
+          "REJECTED": 1,
+          "CLOSED": 1
+        },
+        "pendingActionCount": 4,
+        "actionableBreakdown": {
+          "unassigned": 2,
+          "readyForReview": 2
+        },
+        "adjustersWorkload": {
+          "totalActive": 3,
+          "available": 3,
+          "nearCapacity": 1,
+          "atCapacity": 1
+        }
+      }
+    }
+    ```
+    *Non-Mutually Exclusive Note:* In `adjustersWorkload`, `available` ($\le 3$ active tasks) and `atCapacity` ($\ge 3$ active tasks) overlap. An adjuster with exactly 3 active claims is counted in both metrics.
+  - **`FIELD_ADJUSTER` (Assigned Scope):**
+    ```json
+    {
+      "success": true,
+      "message": "Claim statistics retrieved successfully",
+      "data": {
+        "scope": "ASSIGNED",
+        "totalClaims": 6,
+        "byStatus": {
+          "NEW": 0,
+          "ASSIGNED": 2,
+          "IN_PROGRESS": 1,
+          "SUBMITTED": 1,
+          "UNDER_REVIEW": 0,
+          "CORRECTION_REQUIRED": 1,
+          "APPROVED": 1,
+          "REJECTED": 0,
+          "CLOSED": 0
+        },
+        "pendingActionCount": 4,
+        "actionableBreakdown": {
+          "toStart": 2,
+          "inProgress": 1,
+          "needsCorrection": 1
+        },
+        "capacity": {
+          "active": 4,
+          "max": 3
+        }
+      }
+    }
+    ```
+- **Status Codes:**
+  - `200 OK`: Statistics retrieved successfully.
+  - `400 Bad Request`: Query parameter validation error (`VALIDATION_ERROR`).
+  - `401 Unauthorized`: Missing or invalid JWT token.
+  - `403 Forbidden`: Authenticated user role is not authorized.
+  - `500 Internal Server Error`: Generic internal server error (`INTERNAL_ERROR`).
+
 ## 9. Field Adjuster APIs
 
 ### `GET /users/adjusters`

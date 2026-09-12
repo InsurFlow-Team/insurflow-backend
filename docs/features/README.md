@@ -24,14 +24,15 @@
 | **13** | [13-rate-limiting-and-security.md](./13-rate-limiting-and-security.md) | Multi-tiered rate limiting (`loginLimiter` & `apiLimiter`), production override protection, trust proxy, error masking | Global Infrastructure | Applied across all `/api/v1` routes |
 | **14** | [14-status-machine-expansion.md](./14-status-machine-expansion.md) | 9-status lifecycle, IN_PROGRESS state, correction loop, audit trail metadata (previousStatus, newStatus, notes) | `FIELD_ADJUSTER`, `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/inspection/start`<br>`POST /api/v1/claims/:claimId/review/request-correction` |
 | **15** | [15-evidence-photos-and-digital-signature.md](./15-evidence-photos-and-digital-signature.md) | Photo evidence capture (additive array, categorized imageType), digital signature sign-off, Cloudinary storage, 5-pillar inspection completeness | Assigned `FIELD_ADJUSTER` | `POST /api/v1/claims/:claimId/evidence`<br>`POST /api/v1/claims/:claimId/signature` |
+| **16** | [16-dashboard-kpi-aggregation.md](./16-dashboard-kpi-aggregation.md) | Dashboard KPI metrics, role-scoped envelopes (`ORGANIZATION` vs `ASSIGNED`), adjuster workload distribution, date-filtered aggregation | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims/stats` |
 
 ---
 
 ## Test Suite Status
 
-All 15 features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances and Cloudinary streaming mocks:
-* **Test Suites:** 17 passed, 17 total
-* **Tests:** 208 passed, 208 total (0 failures)
+All 16 features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances and Cloudinary streaming mocks:
+* **Test Suites:** 18 passed, 18 total
+* **Tests:** 241 passed, 241 total (0 failures)
 
 ---
 

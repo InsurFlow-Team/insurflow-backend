@@ -1461,6 +1461,132 @@
             "createdAt": "2026-09-10T09:39:47.000Z",
             "updatedAt": "2026-09-10T10:09:18.000Z",
             "uid": "48167372-bc79307d-9cb9-2f44-aef4-931c35fbdfcd"
+          },
+          {
+            "name": "Get Claim Stats (Admin - Organization Scope)",
+            "id": "d4682cc1-dc54-43f7-a123-5aac57a1f58d",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adminToken}}",
+                  "type": "text"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/stats?from=2026-01-01&to=2026-12-31",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "stats"
+                ],
+                "query": [
+                  {
+                    "key": "from",
+                    "value": "2026-01-01",
+                    "description": "Optional start date (ISO 8601 or YYYY-MM-DD)"
+                  },
+                  {
+                    "key": "to",
+                    "value": "2026-12-31",
+                    "description": "Optional end date (ISO 8601 or YYYY-MM-DD)"
+                  }
+                ]
+              },
+              "description": "Aggregates tenant-wide claim KPIs across all 9 statuses and field adjuster workload distribution for ADMIN."
+            },
+            "response": []
+          },
+          {
+            "name": "Get Claim Stats (Claims Officer - Organization Scope)",
+            "id": "68e20a57-cce1-45fc-ba11-a99142eeec31",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{claimsOfficerToken}}",
+                  "type": "text"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/stats?from=2026-01-01&to=2026-12-31",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "stats"
+                ],
+                "query": [
+                  {
+                    "key": "from",
+                    "value": "2026-01-01",
+                    "description": "Optional start date (ISO 8601 or YYYY-MM-DD)"
+                  },
+                  {
+                    "key": "to",
+                    "value": "2026-12-31",
+                    "description": "Optional end date (ISO 8601 or YYYY-MM-DD)"
+                  }
+                ]
+              },
+              "description": "Aggregates tenant-wide claim KPIs across all 9 statuses, review queues, and field adjuster workload distribution for CLAIMS_OFFICER."
+            },
+            "response": []
+          },
+          {
+            "name": "Get Claim Stats (Field Adjuster - Assigned Scope)",
+            "id": "33b550bb-aafe-4d5c-a5c5-f750f2e4858a",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{fieldAdjusterToken}}",
+                  "type": "text"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/stats?from=2026-01-01&to=2026-12-31",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "stats"
+                ],
+                "query": [
+                  {
+                    "key": "from",
+                    "value": "2026-01-01",
+                    "description": "Optional start date (ISO 8601 or YYYY-MM-DD)"
+                  },
+                  {
+                    "key": "to",
+                    "value": "2026-12-31",
+                    "description": "Optional end date (ISO 8601 or YYYY-MM-DD)"
+                  }
+                ]
+              },
+              "description": "Aggregates self-assigned claim metrics across all statuses, actionable tasks, and active capacity limit for FIELD_ADJUSTER."
+            },
+            "response": []
           }
         ],
         "id": "75fd566b-96d7-41ec-8e40-7be35cb40b24",
@@ -2093,6 +2219,42 @@
                 }
               }
             ],
+            "response": []
+          },
+          {
+            "name": "12. Get My KPI Stats (Field Adjuster - Assigned Scope)",
+            "id": "ff33b5b3-43e0-4ab1-bd4f-ad64097715c2",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/stats?from=2026-01-01&to=2026-12-31",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "stats"
+                ],
+                "query": [
+                  {
+                    "key": "from",
+                    "value": "2026-01-01",
+                    "description": "Optional start date (ISO 8601 or YYYY-MM-DD)"
+                  },
+                  {
+                    "key": "to",
+                    "value": "2026-12-31",
+                    "description": "Optional end date (ISO 8601 or YYYY-MM-DD)"
+                  }
+                ]
+              },
+              "description": "Fetches active inspection caseload, pending action breakdown, and capacity bar metrics for the logged-in field adjuster."
+            },
             "response": []
           }
         ]

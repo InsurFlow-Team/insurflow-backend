@@ -57,6 +57,12 @@
   - Digital signature endpoint: `POST /api/v1/claims/:claimId/signature` (singular, overwritable).
   - Global error handler support for Multer's `LIMIT_FILE_SIZE` mapped to `400 VALIDATION_ERROR`.
   - Comprehensive unit & integration tests (`tests/claim.evidence.test.js`) with Cloudinary fully mocked.
+- [x] **Dashboard KPI Aggregation (Feature 16):**
+  - Consolidated metrics endpoint: `GET /api/v1/claims/stats` with strict tenant isolation (`req.user.organizationId`).
+  - Role-scoped envelopes: `ORGANIZATION` scope (`ADMIN`, `CLAIMS_OFFICER`) with 9-status breakdown, review queues, and adjuster workload counts; `ASSIGNED` scope (`FIELD_ADJUSTER`) with self-assigned workload and active capacity tracking (`max: 3`).
+  - Date range filtering (`from`, `to`) supporting ISO 8601 timestamps and `YYYY-MM-DD` expansion, with future `to` auto-capping and 5-year maximum window validation.
+  - High-efficiency MongoDB aggregation pipeline and compound indexes (`{ organizationId: 1, createdAt: -1, status: 1 }`, `{ organizationId: 1, assignedTo: 1, createdAt: -1 }`).
+  - Fully tested (`tests/claim.stats.test.js`) across 6 test suites covering RBAC, envelopes, multi-tenancy, date filtering, and validation error branches.
 - [x] **User Administration APIs (`ADMIN` only):**
   - Create staff user (`POST /api/v1/users`), list users with pagination (`GET /api/v1/users`), update user details (`PATCH /api/v1/users/:id`), toggle user status (`PATCH /api/v1/users/:id/status`), administrative password reset (`PATCH /api/v1/users/:id/reset-password`).
 - [x] **Pagination & Header Exposure:**
@@ -88,6 +94,7 @@
    - Claim approval/rejection decision buttons (`POST /claims/:id/decision`).
    - Admin claim final closure (`POST /claims/:id/close`).
    - Admin user administration screen (`/users`).
+   - Dashboard KPI overview cards and workload distribution charts (`GET /claims/stats`).
 
 ---
 
@@ -104,5 +111,6 @@
 | **Pagination on Listings** | Scalability Enhancement | ✅ **RESOLVED:** Header-based pagination (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /claims` and `GET /users`. |
 | **API & Login Rate Limiting** | Security Hardening | ✅ **RESOLVED:** Multi-tiered rate limiting with `loginLimiter` (brute-force defense) and `apiLimiter` (DoS/scraping defense). |
 | **Express 5 Query Validation Masking** | Architectural Defect (Sprint 1) | ✅ **RESOLVED:** Discovered and fixed prototype getter bug in `validate.middleware.js` using `Object.defineProperty` to ensure Joi type casting, trimming, and default values properly populate `req.query`. |
+| **Dashboard KPI Aggregation** | Functional Scope / Analytics | ✅ **RESOLVED:** Implemented `GET /claims/stats` with role-scoped envelopes (`ORGANIZATION` vs `ASSIGNED`), date filtering, and workload distribution metrics. |
 
 

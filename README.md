@@ -350,8 +350,9 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 | `POST` | `/claims/:claimId/review/request-correction` | CLAIMS_OFFICER | إرجاع المطالبة للمفتش للتصحيح مع ملاحظات |
 | `POST` | `/claims/:claimId/decision` | CLAIMS_OFFICER / ADMIN | اعتماد (`APPROVED`) أو رفض (`REJECTED`) المطالبة |
 | `POST` | `/claims/:claimId/close` | ADMIN | إغلاق وأرشفة المطالبة المعتمدة نهائيًا |
+| `GET` | `/claims/stats` | الكل* | تجميع إحصائيات ومؤشرات الأداء للوحة التحكم (مفلترة بالدور وتاريخ الإنشاء) |
 
-*مع فلترة حسب الدور: FIELD_ADJUSTER يرى فقط ما عُيّن له.
+*مع فلترة حسب الدور: يرى ADMIN و CLAIMS_OFFICER إحصائيات المؤسسة بالكامل وأحمال المعاينين، بينما يرى FIELD_ADJUSTER فقط إحصائيات المطالبات المعينة له وسعته التشغيلية.
 
 ---
 
@@ -626,6 +627,11 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 
 9. إغلاق وأرشفة الملف
    └── POST /claims/:id/close (خاص بالمدير ADMIN فقط) → status: CLOSED
+
+10. متابعة مؤشرات الأداء والعبء التشغيلي
+    └── GET /claims/stats?from=2026-01-01&to=2026-12-31
+        ├── لوحة تحكم الإدارة: إجمالي المطالبات، طابور المراجعة، وتوزيع أحمال المفتشين
+        └── تطبيق المعاين: الحالات النشطة، المهام المعلقة، وشريط السعة الاستيعابية (الحد الأقصى 3)
 ```
 
 ---
@@ -659,14 +665,15 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] حلقة طلب التصحيح مع الملاحظات الإلزامية (`CORRECTION_REQUIRED`)
 - [x] محرك القرارات بالاعتماد أو الرفض (`APPROVED` / `REJECTED`)
 - [x] إغلاق وأرشفة المطالبة من قِبل المدير (`CLOSED`)
+- [x] تجميع مؤشرات الأداء (KPIs) للوحة التحكم عبر Aggregation ذري وفهارس مركبة (`GET /claims/stats`)
 - [x] سجل تدقيق تاريخي ذري وشامل (Timeline) يوثق كل حالة وملاحظة ومستخدم
 
 ### ✅ الاختبارات والتوثيق المعتمد
-- [x] اجتياز 100% من الاختبارات التلقائية (17 Test Suites / 208 Tests Passed)
+- [x] اجتياز 100% من الاختبارات التلقائية (18 Test Suites / 241 Tests Passed)
 - [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
 - [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
 - [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)
-- [x] وثائق تفصيلية لجميع الميزات الـ 15 في مجلد `docs/features/`
+- [x] وثائق تفصيلية لجميع الميزات الـ 16 في مجلد `docs/features/`
 
 ---
 

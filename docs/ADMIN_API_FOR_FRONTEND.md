@@ -280,7 +280,108 @@
 
 ## 3. إدارة ومراقبة المطالبات (Claims Operations)
 
-### 3.1 استعراض ومراقبة جميع المطالبات (All Claims Oversight)
+### 3.1 إحصائيات ومؤشرات لوحة التحكم الرئيسية (Dashboard KPIs & Analytics)
+* **المسار (Endpoint):** `GET /api/v1/claims/stats`
+* **Headers:** `Authorization: Bearer <TOKEN>`
+* **الأدوار المصرح لها:** `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`.
+* **المكان في الواجهة الأمامية (Where this lives in UI):**
+  1. **لوحة تحكم الويب للمدير وموظف المطالبات (Web Dashboard Overview):**
+     - بطاقات مؤشرات الأداء العلوية (KPI Cards): إجمالي المطالبات (`totalClaims`)، المطالبات المعلقة التي تتطلب إجراءً إداريًا (`pendingActionCount`)، المطالبات غير المعينة (`unassigned`)، والمطالبات الجاهزة للمراجعة والتدقيق (`readyForReview`).
+     - قسم أعباء عمل المعاينين (Adjusters Workload Cards): إجمالي المعاينين النشطين، المعاينين المتاحين، المعاينين القريبين من السعة القصوى، والمعاينين الذين بلغوا الحد الأقصى.
+     - رسم بياني لحالات المطالبات التسع (`byStatus`).
+     - فلتر التاريخ بالأعلى (`from` و `to`) لتحديد الفترة الزمنية للتقرير (أسبوع، شهر، سنة، أو مخصص).
+  2. **تطبيق الجوال للمفتش الميداني (Mobile App Home Screen):**
+     - يعرض إحصائيات المعاين الشخصية (`scope: ASSIGNED`): عدد المهام بانتظار البدء (`toStart`)، قيد المعاينة (`inProgress`)، بانتظار التصحيح (`needsCorrection`).
+     - شريط السعة والعبء التشغيلي (`capacity: { active, max: 3 }`) لتنبيه المعاين عند امتلاء طاقته الاستيعابية.
+
+* **Query Parameters (اختيارية):**
+  * `from`: تاريخ البداية بتنسيق ISO أو `YYYY-MM-DD` (يتم تمديده تلقائيًا إلى بداية اليوم `00:00:00.000Z`). يمنع إدخال تاريخ في المستقبل.
+  * `to`: تاريخ النهاية بتنسيق ISO أو `YYYY-MM-DD` (يتم تمديده تلقائيًا إلى نهاية اليوم `23:59:59.999Z`). إذا كان في المستقبل يتم تقييده تلقائيًا إلى التوقيت الحالي لسيرفر.
+  * **شروط التحقق:** يرجع خطأ `400 Bad Request` برمز `VALIDATION_ERROR` إذا كان `from > to` أو كان التاريخ المستقبلي في `from` أو تجاوزت الفترة 5 سنوات.
+
+---
+
+#### أشكال الاستجابة (Both Response Shapes):
+
+##### الشكل 1: نطاق المؤسسة بالكامل — `ORGANIZATION` Scope (خاص بالمدير وموظف المطالبات)
+```json
+{
+  "success": true,
+  "message": "Claim statistics retrieved successfully",
+  "data": {
+    "scope": "ORGANIZATION",
+    "totalClaims": 13,
+    "byStatus": {
+      "NEW": 2,
+      "ASSIGNED": 3,
+      "IN_PROGRESS": 2,
+      "SUBMITTED": 1,
+      "UNDER_REVIEW": 1,
+      "CORRECTION_REQUIRED": 1,
+      "APPROVED": 1,
+      "REJECTED": 1,
+      "CLOSED": 1
+    },
+    "pendingActionCount": 4,
+    "actionableBreakdown": {
+      "unassigned": 2,
+      "readyForReview": 2
+    },
+    "adjustersWorkload": {
+      "totalActive": 3,
+      "available": 3,
+      "nearCapacity": 1,
+      "atCapacity": 1
+    }
+  }
+}
+```
+
+##### الشكل 2: نطاق المعاين الشخصي — `ASSIGNED` Scope (خاص بالمعاين الميداني)
+```json
+{
+  "success": true,
+  "message": "Claim statistics retrieved successfully",
+  "data": {
+    "scope": "ASSIGNED",
+    "totalClaims": 6,
+    "byStatus": {
+      "NEW": 0,
+      "ASSIGNED": 2,
+      "IN_PROGRESS": 1,
+      "SUBMITTED": 1,
+      "UNDER_REVIEW": 0,
+      "CORRECTION_REQUIRED": 1,
+      "APPROVED": 1,
+      "REJECTED": 0,
+      "CLOSED": 0
+    },
+    "pendingActionCount": 4,
+    "actionableBreakdown": {
+      "toStart": 2,
+      "inProgress": 1,
+      "needsCorrection": 1
+    },
+    "capacity": {
+      "active": 4,
+      "max": 3
+    }
+  }
+}
+```
+
+---
+
+> [!WARNING]
+> **ملاحظة معمارية وحسابية حاسمة لمن يبني بطاقات ورسوم الواجهة (KPI Cards Note):**
+> في كائن أعباء عمل المعاينين `adjustersWorkload`، المقياسان **`available`** و **`atCapacity`** **ليسا مانعين لبعضهما (Non-mutually exclusive)**.
+> - **سبب القاعدة في الباك إند:** وفقاً لقواعد عمل النظام ([BUSINESS_RULES.md](../project/BUSINESS_RULES.md) القاعدة Rule BR-ASSIGN-4)، يعتبر المعاين متاحاً (`AVAILABLE`) طالما أن مهامه النشطة $\le 3$. وفي الوقت ذاته، يعتبر المعاين قد وصل كامل سعته (`atCapacity`) إذا كانت مهامه النشطة $\ge 3$.
+> - **النتيجة الحسابية:** المعاين الذي لديه **3 مهام نشطة بالضبط** يُحتسب ضمن المعاينين المتاحين `available` ($3 \le 3$) وأيضاً ضمن من بلغوا السعة القصوى `atCapacity` ($3 \ge 3$).
+> - **إرشادات تصميم الواجهة (UI Directive):** **لا** تعرض هذه الأرقام كأجزاء من مخطط دائري (Pie Chart) نسبته 100%، لأن مجموعها قد يتجاوز `totalActive`. بدلاً من ذلك، اعرضها كـ **بطاقات إحصائية منفصلة ومستقلة (KPI Metric Cards)**.
+
+---
+
+### 3.2 استعراض ومراقبة جميع المطالبات (All Claims Oversight)
 * **المسار (Endpoint):** `GET /api/v1/claims?status=UNDER_REVIEW&page=1&limit=20`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **ملاحظة:** الأدمن يستطيع رؤية **جميع** مطالبات المؤسسة بمختلف حالاتها.
@@ -312,14 +413,14 @@
 
 ---
 
-### 3.2 تفاصيل المطالبة بالكامل (Claim Details & Timeline)
+### 3.3 تفاصيل المطالبة بالكامل (Claim Details & Timeline)
 * **المسار (Endpoint):** `GET /api/v1/claims/:claimId`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **الوظيفة:** يعرض بيانات العميل، المركبة، صور وأضرار الحادث، والموقع الجغرافي، وسجل التايم لاين (`timeline`) الكامل بالأحداث ومن قام بها.
 
 ---
 
-### 3.3 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision)
+### 3.4 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decision`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **الشرط البرمجي:** تظهر أزرار الاعتماد/الرفض في الواجهة **فقط عندما تكون حالة المطالبة `UNDER_REVIEW`**.
@@ -347,7 +448,7 @@
 
 ---
 
-### 3.4 إغلاق المطالبة نهائياً (Close Claim) — *صلاحية حصرية للمدير فقط*
+### 3.5 إغلاق المطالبة نهائياً (Close Claim) — *صلاحية حصرية للمدير فقط*
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/close`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **الشرط البرمجي:** يظهر زر "إغلاق المطالبة" **فقط عندما تكون حالة المطالبة `APPROVED`**.
