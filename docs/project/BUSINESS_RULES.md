@@ -93,7 +93,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 ---
 
 ### 2.2 Claim Creation
-- **Rule BR-CLAIM-1 (Creator Role):** Claim creation is restricted to users with role **`CLAIMS_OFFICER`** and **`ADMIN`** (per frontend operations requirement). Field Adjusters do **not** create claims in the backend; they inspect claims dispatched to them.
+- **Rule BR-CLAIM-1 (Creator Role):** Claim creation is restricted strictly to users with role **`CLAIMS_OFFICER`**. Field Adjusters do **not** create claims in the backend; they inspect claims dispatched to them.
 - **Rule BR-CLAIM-2 (Initial Status):** Every newly created claim is unconditionally assigned status **`NEW`**.
 - **Rule BR-CLAIM-3 (Audit Log Initiation):** Every new claim initializes an immutable timeline array with an initial event: `action: 'Claim Created'`, recording the creator's user ID, role, and current timestamp.
 - **Rule BR-CLAIM-4 (Tenant-Scoped Claim Number):** Every claim receives a unique, sequential human-readable identifier formatted as `CLM-<ORG_CODE>-NNNN` via an atomic tenant-scoped Counter model.

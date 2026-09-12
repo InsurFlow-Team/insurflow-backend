@@ -102,8 +102,8 @@ Valid status transitions (enforced by the Backend):
 ## 8. Claims APIs
 
 ### `POST /claims`
-- **Purpose:** Claims Officer or Admin creates an initial Claim.
-- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
+- **Purpose:** Claims Officer creates an initial Claim.
+- **Authorized Roles:** `CLAIMS_OFFICER`
 - **Authentication:** Required (JWT).
 - **Request Body:**
   ```json

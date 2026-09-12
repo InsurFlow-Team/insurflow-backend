@@ -280,47 +280,7 @@
 
 ## 3. إدارة ومراقبة المطالبات (Claims Operations)
 
-### 3.1 إنشاء مطالبة جديدة (Create Claim)
-* **المسار (Endpoint):** `POST /api/v1/claims`
-* **Headers:**
-  ```http
-  Authorization: Bearer <ADMIN_TOKEN>
-  Content-Type: application/json
-  ```
-* **الهدف:** إتاحة إنشاء مطالبة جديدة مباشرة من لوحة تحكم المدير وتعيين الحالة تلقائياً كـ `NEW`.
-* **Request Body:**
-  ```json
-  {
-    "customerName": "سارة أحمد",
-    "customerPhone": "0501234567",
-    "initialPlateNumber": "أ ب ج 1234",
-    "incidentType": "COLLISION",
-    "incidentLocation": "الرياض - طريق الملك فهد"
-  }
-  ```
-  * القيم المتاحة لـ `incidentType`:
-    `["COLLISION", "REAR_END_COLLISION", "SIDE_IMPACT", "PARKING_DAMAGE", "OTHER"]`
-* **Success Response (201 Created):**
-  ```json
-  {
-    "success": true,
-    "message": "Claim created successfully",
-    "data": {
-      "id": "6a91ab09c9ff1dc54fabf15b",
-      "claimNumber": "CLM-ORG1-0001",
-      "status": "NEW",
-      "createdAt": "2026-09-12T12:00:00.000Z"
-    }
-  }
-  ```
-* **إجراءات الفرونت:**
-  1. فتح نافذة إنشاء مطالبة جديدة (Modal / Form).
-  2. إرسال البيانات واستلام رقم المطالبة `claimNumber` والحالة `NEW`.
-  3. تحديث جدول المطالبات وإشعار المستخدم بنجاح الإنشاء.
-
----
-
-### 3.2 استعراض ومراقبة جميع المطالبات (All Claims Oversight)
+### 3.1 استعراض ومراقبة جميع المطالبات (All Claims Oversight)
 * **المسار (Endpoint):** `GET /api/v1/claims?status=UNDER_REVIEW&page=1&limit=20`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **ملاحظة:** الأدمن يستطيع رؤية **جميع** مطالبات المؤسسة بمختلف حالاتها.
@@ -352,14 +312,14 @@
 
 ---
 
-### 3.3 تفاصيل المطالبة بالكامل (Claim Details & Timeline)
+### 3.2 تفاصيل المطالبة بالكامل (Claim Details & Timeline)
 * **المسار (Endpoint):** `GET /api/v1/claims/:claimId`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **الوظيفة:** يعرض بيانات العميل، المركبة، صور وأضرار الحادث، والموقع الجغرافي، وسجل التايم لاين (`timeline`) الكامل بالأحداث ومن قام بها.
 
 ---
 
-### 3.4 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision)
+### 3.3 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decision`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **الشرط البرمجي:** تظهر أزرار الاعتماد/الرفض في الواجهة **فقط عندما تكون حالة المطالبة `UNDER_REVIEW`**.
@@ -387,7 +347,7 @@
 
 ---
 
-### 3.5 إغلاق المطالبة نهائياً (Close Claim) — *صلاحية حصرية للمدير فقط*
+### 3.4 إغلاق المطالبة نهائياً (Close Claim) — *صلاحية حصرية للمدير فقط*
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/close`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **الشرط البرمجي:** يظهر زر "إغلاق المطالبة" **فقط عندما تكون حالة المطالبة `APPROVED`**.

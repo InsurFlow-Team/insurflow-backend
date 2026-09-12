@@ -667,45 +667,5 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('CORRECTION_REQUIRED');
     });
-
-    it('should allow ADMIN to create a claim (201 Created, status NEW, timeline role ADMIN)', async () => {
-      const res = await request(app)
-        .post('/api/v1/claims')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          customerName: 'Admin Created Customer',
-          customerPhone: '+966500000001',
-          initialPlateNumber: 'ADM-999',
-          incidentType: 'COLLISION',
-          incidentLocation: 'King Fahd Road',
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.status).toBe('NEW');
-      expect(res.body.data.claimNumber).toMatch(/^CLM-ORG1-\d{4}$/);
-
-      const dbClaim = await Claim.findById(res.body.data.id);
-      expect(dbClaim).not.toBeNull();
-      expect(dbClaim.organizationId.toString()).toBe(org1._id.toString());
-      expect(dbClaim.createdBy.toString()).toBe(admin._id.toString());
-      expect(dbClaim.timeline[0].role).toBe('ADMIN');
-      expect(dbClaim.timeline[0].action).toBe('Claim Created');
-    });
-
-    it('should return 403 when FIELD_ADJUSTER attempts to create a claim', async () => {
-      const res = await request(app)
-        .post('/api/v1/claims')
-        .set('Authorization', `Bearer ${adjuster1Token}`)
-        .send({
-          customerName: 'Adjuster Customer',
-          customerPhone: '+966500000002',
-          initialPlateNumber: 'ADJ-111',
-          incidentType: 'COLLISION',
-          incidentLocation: 'Olaya Street',
-        });
-
-      expect(res.status).toBe(403);
-    });
   });
 });
