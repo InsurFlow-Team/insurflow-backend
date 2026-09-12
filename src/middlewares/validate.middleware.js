@@ -37,7 +37,16 @@ const validate = (schema, property = 'body') => {
     }
     
     // Replace the request property with the validated and transformed value
-    req[property] = value;
+    if (property === 'query') {
+      Object.defineProperty(req, 'query', {
+        value,
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
+    } else {
+      req[property] = value;
+    }
     next();
   };
 };
