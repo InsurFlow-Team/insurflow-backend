@@ -34,7 +34,7 @@ Key operational requirements:
 [claimService.assignClaim]
    ├── 1. Query adjuster in tenant: User.findOne({ _id: adjusterId, organizationId })
    │      └── Throws 404 ADJUSTER_NOT_FOUND if invalid, wrong role, or inactive
-   ├── 2. Query adjuster active workload: countActiveClaimsByAssignee(adjusterId, organizationId)
+   ├── 2. Query adjuster active workload: countActiveClaimsByAssignee(adjusterId)
    │      └── Throws 409 ADJUSTER_UNAVAILABLE if activeTasksCount > 3
    └── 3. Atomic Assignment Query:
           Claim.findOneAndUpdate(

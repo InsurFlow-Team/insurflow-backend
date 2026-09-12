@@ -56,9 +56,8 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
 };
 
 
-const countActiveClaimsByAssignee = async (userId, organizationId) => {
+const countActiveClaimsByAssignee = async (userId) => {
   return await Claim.countDocuments({
-    organizationId,
     assignedTo: userId,
     status: { $in: Claim.ACTIVE_ADJUSTER_STATUSES || ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'] },
   });
