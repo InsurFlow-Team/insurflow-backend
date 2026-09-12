@@ -1,6 +1,6 @@
 # InsurFlow — Current Project State & Progress Tracking
 
-> **Last Updated:** 2026-09-11  
+> **Last Updated:** 2026-09-12  
 > **Document Purpose:** Single source of truth for current project status, completed work, active blockers, and immediate next steps. Consult this document at the start of any new session or task.
 
 ---
@@ -42,25 +42,25 @@
 - [x] **Vehicle & Policy Lookup:**
   - Plate lookup (`GET /api/v1/vehicles/lookup`) with normalization and policy expiration warning (`POLICY_EXPIRED`).
 - [x] **Field Inspection & 9-Status Lifecycle Machine:**
-  - Field inspection start endpoint: `POST /claims/:claimId/inspection/start` (transitions `ASSIGNED` or `CORRECTION_REQUIRED` → `IN_PROGRESS`).
-  - Incremental inspection saves while in `IN_PROGRESS` (`PUT /claims/:id/vehicle`, `PUT /claims/:id/accident`, `PUT /claims/:id/location`).
-  - Five-pillar mandatory completeness validation (Vehicle, Accident, Location, Evidence Photos $\ge 1$, Digital Signature) on `POST /claims/:id/inspection/submit` (transitions `IN_PROGRESS` → `SUBMITTED`).
-  - Claim review initiation by claims officer (`POST /claims/:id/review/start` → `UNDER_REVIEW`).
-  - Iterative correction loop: `POST /claims/:claimId/review/request-correction` (transitions `UNDER_REVIEW` → `CORRECTION_REQUIRED` with mandatory notes).
-  - Claim adjudication engine: `POST /claims/:claimId/decision` (transitions `UNDER_REVIEW` → `APPROVED` \| `REJECTED`).
-  - Admin claim closure: `POST /claims/:claimId/close` (transitions `APPROVED` → `CLOSED`).
+  - Field inspection start endpoint: `POST /api/v1/claims/:claimId/inspection/start` (transitions `ASSIGNED` or `CORRECTION_REQUIRED` → `IN_PROGRESS`).
+  - Incremental inspection saves while in `IN_PROGRESS` (`PUT /api/v1/claims/:id/vehicle`, `PUT /api/v1/claims/:id/accident`, `PUT /api/v1/claims/:id/location`).
+  - Five-pillar mandatory completeness validation (Vehicle, Accident, Location, Evidence Photos $\ge 1$, Digital Signature) on `POST /api/v1/claims/:id/inspection/submit` (transitions `IN_PROGRESS` → `SUBMITTED`).
+  - Claim review initiation by claims officer (`POST /api/v1/claims/:id/review/start` → `UNDER_REVIEW`).
+  - Iterative correction loop: `POST /api/v1/claims/:claimId/review/request-correction` (transitions `UNDER_REVIEW` → `CORRECTION_REQUIRED` with mandatory notes).
+  - Claim adjudication engine: `POST /api/v1/claims/:claimId/decision` (transitions `UNDER_REVIEW` → `APPROVED` \| `REJECTED`).
+  - Admin claim closure: `POST /api/v1/claims/:claimId/close` (transitions `APPROVED` → `CLOSED`).
   - Timeline audit trail metadata: extended with `previousStatus`, `newStatus`, and `notes`.
 - [x] **Evidence Photos & Digital Signature (Cloudinary Integration):**
   - Multer memory storage middleware (`src/middlewares/upload.middleware.js`) with 10MB limit and JPEG/PNG/WEBP whitelist.
   - Cloudinary streaming utility (`src/utils/uploadToCloudinary.js`) with tenant-isolated folders (`insurflow/${orgId}/evidence`, `insurflow/${orgId}/signatures`).
-  - Photo evidence endpoint: `POST /claims/:claimId/evidence` (repeatable, additive array, categorized `imageType`).
-  - Digital signature endpoint: `POST /claims/:claimId/signature` (singular, overwritable).
+  - Photo evidence endpoint: `POST /api/v1/claims/:claimId/evidence` (repeatable, additive array, categorized `imageType`).
+  - Digital signature endpoint: `POST /api/v1/claims/:claimId/signature` (singular, overwritable).
   - Global error handler support for Multer's `LIMIT_FILE_SIZE` mapped to `400 VALIDATION_ERROR`.
   - Comprehensive unit & integration tests (`tests/claim.evidence.test.js`) with Cloudinary fully mocked.
 - [x] **User Administration APIs (`ADMIN` only):**
-  - Create staff user (`POST /users`), list users with pagination (`GET /users`), toggle user status (`PATCH /users/:id/status`), administrative password reset (`PATCH /users/:id/reset-password`).
+  - Create staff user (`POST /api/v1/users`), list users with pagination (`GET /api/v1/users`), toggle user status (`PATCH /api/v1/users/:id/status`), administrative password reset (`PATCH /api/v1/users/:id/reset-password`).
 - [x] **Pagination & Header Exposure:**
-  - Standardized pagination headers (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /claims` and `GET /users`.
+  - Standardized pagination headers (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /api/v1/claims` and `GET /api/v1/users`.
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
   - Complete, updated Postman collection (`InsurFlow.postman_collection.json`) covering all auth, claim lifecycle, inspection, decision, and admin flows.

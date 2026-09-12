@@ -129,16 +129,12 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-INSPECT-1 (Assigned Adjuster Exclusive):** Inspection draft modifications (`PUT /vehicle`, `PUT /accident`, `PUT /location`) can **only** be executed by the specific `FIELD_ADJUSTER` to whom the claim is assigned.
 - **Rule BR-INSPECT-2 (State Invariant):** Inspection draft modifications can only occur while the claim is in status **`IN_PROGRESS`**.
 - **Rule BR-INSPECT-3 (Drafting Freedom):** An adjuster may update vehicle, accident, or location data in any order and multiple times prior to final submission.
-- **Rule BR-INSPECT-4 (Evidence Additive vs. Signature Overwritable Persistence):**
-  - **Evidence Photos are Additive (`$push`):** On-site accident inspection requires comprehensive visual documentation from multiple angles (`VEHICLE_FRONT`, `VEHICLE_REAR`, `VEHICLE_SIDE`, `DAMAGE_CLOSEUP`, `DRIVER_LICENSE`, `OTHER`). Each photo upload appends a new item to the `claim.evidence` array with `$push`, preserving all visual records.
-  - **Digital Signature is Overwritable (`$set`):** The inspection holds exactly one active signature sign-off. If a signature needs to be re-drawn (e.g., due to touchscreen inaccuracies or customer revision), subsequent uploads cleanly overwrite the `claim.signature` object with `$set`, preventing orphan records and ensuring legal clarity.
-- **Rule BR-INSPECT-EVIDENCE (Photo Evidence Capture):** The adjuster uploads scene photographs to Cloudinary via `POST /claims/:claimId/evidence`.
-  - Repeatable, additive array (`$push`).
-  - Categorized by `imageType`: `['VEHICLE_FRONT', 'VEHICLE_REAR', 'VEHICLE_SIDE', 'DAMAGE_CLOSEUP', 'DRIVER_LICENSE', 'OTHER']`.
+- **Rule BR-INSPECT-EVIDENCE (Photo Evidence Capture & Additive Persistence):** The adjuster uploads scene photographs to Cloudinary via `POST /api/v1/claims/:claimId/evidence`.
+  - **Additive Persistence (`$push`):** On-site accident inspection requires comprehensive visual documentation from multiple angles (`VEHICLE_FRONT`, `VEHICLE_REAR`, `VEHICLE_SIDE`, `DAMAGE_CLOSEUP`, `DRIVER_LICENSE`, `OTHER`). Each photo upload appends a new item to the `claim.evidence` array with `$push`, preserving all visual records.
   - Max file size 10MB; accepted MIME types: JPEG, PNG, WEBP.
   - Stored in tenant-isolated folder: `insurflow/${organizationId}/evidence`.
-- **Rule BR-INSPECT-SIG (Digital Signature Sign-Off):** The adjuster captures the inspection sign-off via `POST /claims/:claimId/signature`.
-  - Singular object (`$set`); subsequent uploads cleanly overwrite the previous signature to accommodate retries.
+- **Rule BR-INSPECT-SIG (Digital Signature Sign-Off & Overwritable Persistence):** The adjuster captures the inspection sign-off via `POST /api/v1/claims/:claimId/signature`.
+  - **Overwritable Persistence (`$set`):** The inspection holds exactly one active signature sign-off. If a signature needs to be re-drawn (e.g., due to touchscreen inaccuracies or customer revision), subsequent uploads cleanly overwrite the `claim.signature` object with `$set`, preventing orphan records and ensuring legal clarity.
   - Max file size 10MB; accepted MIME types: JPEG, PNG, WEBP.
   - Stored in tenant-isolated folder: `insurflow/${organizationId}/signatures`.
 

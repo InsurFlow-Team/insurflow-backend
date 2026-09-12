@@ -5,7 +5,7 @@ During on-site accident assessment, a **`FIELD_ADJUSTER`** collects visual proof
 1. **Photo Evidence Capture:** Repeatable, categorized image uploads stored in Cloudinary under tenant-isolated folders. Multiple photos can be uploaded incrementally and additively.
 2. **Digital Signature Sign-Off:** A singular digital signature capturing the sign-off for the inspection, stored in Cloudinary. Subsequent uploads cleanly overwrite previous signatures to handle retries without orphan records.
 
-Both components are mandatory pillars verified before an inspection can be submitted (`POST /claims/:claimId/inspection/submit`).
+Both components are mandatory pillars verified before an inspection can be submitted (`POST /api/v1/claims/:claimId/inspection/submit`).
 
 For lifecycle transitions and prerequisites, refer to the authoritative [Status Machine Expansion Specification](./14-status-machine-expansion.md).
 
@@ -14,18 +14,18 @@ For lifecycle transitions and prerequisites, refer to the authoritative [Status 
 ## 2. Technical Architecture & Component Structure
 
 ### 2.1 File Upload & Cloud Storage Infrastructure
-- **Multer Memory Storage ([src/middlewares/upload.middleware.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/middlewares/upload.middleware.js)):**
+- **Multer Memory Storage ([src/middlewares/upload.middleware.js](../../src/middlewares/upload.middleware.js)):**
   - Configured with `multer.memoryStorage()` to buffer files in memory as `Buffer` objects, avoiding temporary disk writes on serverless or ephemeral container hosts.
-  - File size limit enforced at **10MB** (`limits: { fileSize: 10 * 1024 * 1024 }`). Oversized files emit `LIMIT_FILE_SIZE`, mapped by [src/middlewares/errorHandler.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/middlewares/errorHandler.js) to `400 VALIDATION_ERROR`.
+  - File size limit enforced at **10MB** (`limits: { fileSize: 10 * 1024 * 1024 }`). Oversized files emit `LIMIT_FILE_SIZE`, mapped by [src/middlewares/errorHandler.js](../../src/middlewares/errorHandler.js) to `400 VALIDATION_ERROR`.
   - File MIME whitelist: strictly `image/jpeg`, `image/png`, and `image/webp`. Disallowed types return `400 VALIDATION_ERROR` via `AppError`.
-- **Cloudinary Streaming Uploader ([src/utils/uploadToCloudinary.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/utils/uploadToCloudinary.js)):**
+- **Cloudinary Streaming Uploader ([src/utils/uploadToCloudinary.js](../../src/utils/uploadToCloudinary.js)):**
   - Streams raw file buffers directly to Cloudinary using `cloudinary.uploader.upload_stream(...)`.
   - Tenant-scoped storage pathing:
     - Evidence: `insurflow/${authUser.organizationId}/evidence`
     - Signature: `insurflow/${authUser.organizationId}/signatures`
   - Encapsulated in an isolated utility function to allow complete mocking during unit and integration testing without invoking the real Cloudinary API.
 
-### 2.2 Data Model ([src/modules/claims/claim.model.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.model.js))
+### 2.2 Data Model ([src/modules/claims/claim.model.js](../../src/modules/claims/claim.model.js))
 ```javascript
 evidence: {
   type: [
@@ -57,13 +57,13 @@ From the Stage 0 architectural design check, the persistence models for evidence
 * **Digital Signature (Overwritable — `$set`):** The inspection requires a single, legally binding customer/adjuster confirmation sign-off. If a signature capture is smudged, inaccurate, or drawn incorrectly on mobile devices, the adjuster re-captures it. Rather than maintaining confusing duplicate signature records or ambiguous historical arrays, subsequent uploads cleanly overwrite the singular `claim.signature` object.
 
 ### 2.4 Atomic Invariant Convention
-Write operations for evidence and signature enforce multi-tenancy, ownership, and status preconditions atomically at the database level. For the full binding definition and query patterns, refer to [ARCHITECTURE.md (Sections 5.3 & 5.4)](file:///c:/Users/HP/Desktop/INSURFLOW/docs/project/ARCHITECTURE.md) and [BUSINESS_RULES.md (Rule BR-TENANT-4 & Rule BR-INSPECT-4)](file:///c:/Users/HP/Desktop/INSURFLOW/docs/project/BUSINESS_RULES.md).
+Write operations for evidence and signature enforce multi-tenancy, ownership, and status preconditions atomically at the database level. For the full binding definition and query patterns, refer to [ARCHITECTURE.md (Sections 5.3 & 5.4)](../project/ARCHITECTURE.md) and [BUSINESS_RULES.md (Rule BR-TENANT-4, Rule BR-INSPECT-EVIDENCE & Rule BR-INSPECT-SIG)](../project/BUSINESS_RULES.md).
 
 ---
 
 ## 3. API Contract & Endpoints
 
-### 3.1 POST `/claims/:claimId/evidence`
+### 3.1 POST `/api/v1/claims/:claimId/evidence`
 Uploads a single categorized inspection photo.
 
 * **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
@@ -117,7 +117,7 @@ Uploads a single categorized inspection photo.
 
 ---
 
-### 3.2 POST `/claims/:claimId/signature`
+### 3.2 POST `/api/v1/claims/:claimId/signature`
 Uploads or re-captures the digital signature.
 
 * **Authorized Roles:** `FIELD_ADJUSTER` (assigned adjuster only).
@@ -161,7 +161,7 @@ Uploads or re-captures the digital signature.
 
 ## 4. Five Mandatory Pillars of Inspection Submission
 
-The submission endpoint (`POST /claims/:claimId/inspection/submit`) enforces five mandatory inspection pillars:
+The submission endpoint (`POST /api/v1/claims/:claimId/inspection/submit`) enforces five mandatory inspection pillars:
 1. **Vehicle Verified:** `claim.vehicle.vehicleId != null`
 2. **Accident Recorded:** `claim.accident.accidentType != null`
 3. **Location Captured:** `claim.location.latitude != null && claim.location.longitude != null`
@@ -187,7 +187,7 @@ If any pillar is missing, submission is rejected with **`422 Unprocessable Entit
 
 ## 6. Automated Testing Suite
 
-Tested and verified in [tests/claim.evidence.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.evidence.test.js) (11 tests):
+Tested and verified in [tests/claim.evidence.test.js](../../tests/claim.evidence.test.js) (11 tests):
 * Evidence upload happy path with timeline event recording (200).
 * Additive persistence across multiple evidence photo uploads.
 * Rejection on missing file (400).
