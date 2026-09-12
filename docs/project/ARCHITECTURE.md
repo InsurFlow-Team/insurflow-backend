@@ -203,3 +203,20 @@ Every endpoint in the system complies with the unified structure provided by `sr
   - Digital signatures: `insurflow/${organizationId}/signatures`
 - **Layered Placement:** `uploadToCloudinary.js` sits in `src/utils/` as an isolated domain utility. It is **called exclusively from the Service layer (`claim.service.js`) and never directly from the Controller layer**, preserving strict 5-layer architectural separation and allowing complete mocking in tests without invoking external Cloudinary APIs.
 - **Validation Guardrails:** Restricts uploads to `image/jpeg`, `image/png`, and `image/webp`. Multer size errors (`LIMIT_FILE_SIZE`) are caught and normalized by `errorHandler.js` into standard `400 VALIDATION_ERROR` responses.
+
+### 5.7 Request Validation Architecture & Express 5 Query Property Shadowing
+- **Schema-Driven Boundaries:** All external inputs entering the system are validated at the Route layer using Joi schemas via `src/middlewares/validate.middleware.js`.
+- **The Express 5 `req.query` Prototype Getter Bug (Sprint 1 Architectural Debt):**
+  - *Root Cause:* In Express 5.x, `req.query` is implemented as an inherited getter on `IncomingMessage.prototype` without a setter (`{ get: [Function: query], set: undefined }`).
+  - *Impact:* Standard assignment `req[property] = value` executed when `property === 'query'` failed silently in non-strict mode. As a result, Joi type transformations (such as string to integer/number, string to Date object, string trimming) and default values (such as `page: 1`, `limit: 50`) were silently discarded, leaving `req.query` with raw strings or `undefined`.
+  - *Masking in Legacy Endpoints:* This architectural issue was previously masked in Sprint 1/2 endpoints (`GET /api/v1/users`, `GET /api/v1/claims`) because service layers implemented defensive manual fallback destructuring (`const { page = 1, limit = 50 } = pagination;`) and JavaScript arithmetic coercion (`(page - 1) * limit`).
+  - *Resolution:* `validate.middleware.js` explicitly checks `if (property === 'query')` and invokes:
+    ```javascript
+    Object.defineProperty(req, 'query', {
+      value,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+    ```
+    This defines an own, writable property on the `req` instance, properly shadowing the prototype getter and guaranteeing that Joi-transformed data types, trimmed values, and injected defaults propagate seamlessly to Controllers and Services.
