@@ -34,8 +34,8 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
 ## 4. Roles & Authorization
-- **ADMIN:** Administrative user management, Oversight of all organization claims, Create Claim, Make Claim decision, Final claim closure.
-- **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision.
+- **ADMIN:** Administrative user management, Oversight of all organization claims, Create Claim, Make Claim decision, Final claim closure, Download Final Claim Report.
+- **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision, Download Final Claim Report.
 - **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
 
 *(No additional permissions are invented outside of these scopes).*
@@ -713,7 +713,51 @@ Valid status transitions (enforced by the Backend):
   ```
 - **Status Transition:** `APPROVED` → `CLOSED`
 
-## 14. User Administration APIs (`ADMIN` only)
+## 14. Final Claim Report API
+
+### `GET /claims/:claimId/report`
+- **Purpose:** Download the publication-grade formatted PDF dossier for a finalized claim.
+- **Authorized Roles:** `ADMIN`, `CLAIMS_OFFICER`
+- **Authentication:** Required (JWT via `Authorization: Bearer <TOKEN>` or httpOnly cookie).
+- **Path Parameters:**
+  - `:claimId` (required): 24-character hexadecimal MongoDB ObjectId. Rejects malformed IDs with `400 VALIDATION_ERROR`.
+- **Preconditions & Precedence:**
+  - **404-before-409 Precedence:** Claim lookup is scoped strictly by caller's organization (`{ _id: claimId, organizationId: authUser.organizationId }`). If the claim does not exist or belongs to another organization, returns `404 CLAIM_NOT_FOUND` before validating lifecycle status.
+  - **Terminal Status Invariant:** Claim must have reached a terminal decision status: `APPROVED`, `REJECTED`, or `CLOSED`. Any request on an in-flight status (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`) returns `409 INVALID_STATUS_TRANSITION`.
+- **Success Response (200 OK):**
+  - **Content Type:** `application/pdf` (binary buffer, starting with `%PDF` magic bytes).
+  - **Headers:**
+    - `Content-Type: application/pdf`
+    - `Content-Disposition: attachment; filename="<claimNumber>-report.pdf"`
+  - *Note: On success, the response body contains the raw PDF byte stream, not the standard JSON envelope.*
+- **Error Responses (Standard JSON Envelope):**
+  - `400 Bad Request` (`VALIDATION_ERROR`):
+    ```json
+    {
+      "success": false,
+      "message": "Validation error",
+      "errors": [{ "code": "VALIDATION_ERROR", "details": "\"claimId\" with value \"...\" fails to match the required pattern" }]
+    }
+    ```
+  - `401 Unauthorized` (`UNAUTHORIZED`): Missing, invalid, or expired JWT.
+  - `403 Forbidden` (`FORBIDDEN_RESOURCE`): Authenticated user lacks access (e.g. `FIELD_ADJUSTER`).
+  - `404 Not Found` (`CLAIM_NOT_FOUND`): Claim not found within caller's organization.
+  - `409 Conflict` (`INVALID_STATUS_TRANSITION`):
+    ```json
+    {
+      "success": false,
+      "message": "Report is only available for claims with a final decision (APPROVED, REJECTED, or CLOSED).",
+      "errors": [
+        {
+          "code": "INVALID_STATUS_TRANSITION",
+          "details": "Report is only available for claims with a final decision (APPROVED, REJECTED, or CLOSED)."
+        }
+      ]
+    }
+    ```
+  - `500 Internal Server Error` (`INTERNAL_ERROR`): Internal generation error (safe generic masking in production).
+
+## 15. User Administration APIs (`ADMIN` only)
 
 ### `POST /users`
 - **Purpose:** Create a new user (Officer or Adjuster) within the admin's organization.
@@ -877,19 +921,19 @@ Valid status transitions (enforced by the Backend):
   - `400 Bad Request`: Invalid ID format or password too short.
   - `404 Not Found`: User not found in this organization.
 
-## 15. Request/Response Models
+## 16. Request/Response Models
 *Conceptual entities represented in the APIs. Not meant to map exactly 1:1 to database schema.*
 - **User:** `id`, `name`, `employeeCode`, `role`, `organizationId`, `status`.
 - **Organization:** `id`, `name`, `code`.
 - **Claim:** `id`, `claimNumber`, `status`, `organizationId`, `createdBy`, `assignedTo`, `assignedBy`, `assignedAt`, `closedBy`, `closedAt`, `customer`, `vehicle`, `policy`, `accident`, `location`, `evidence`, `signature`.
 - **TimelineEvent:** `action`, `performedBy`, `role`, `timestamp`.
 
-## 15. Error Contract
+## 17. Error Contract
 - Error responses align with the utility found in `src/utils/apiResponse.js`.
 - Common HTTP Status Codes: `400`, `401`, `403`, `404`, `409`, `422`, `429`, `500`.
 - Common Error Codes: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `FORBIDDEN`, `CLAIM_NOT_FOUND`, `ADJUSTER_NOT_FOUND`, `ADJUSTER_UNAVAILABLE`, `INVALID_STATUS_TRANSITION`, `CLAIM_NOT_ASSIGNED`, `POLICY_EXPIRED`, `TOO_MANY_REQUESTS`.
 
-## 16. Status Transitions
+## 18. Status Transitions
 The backend is the sole authority enforcing these transitions:
 - `NEW` → `ASSIGNED` (by Claims Officer)
 - `ASSIGNED` → `SUBMITTED` (by Field Adjuster)
@@ -897,17 +941,17 @@ The backend is the sole authority enforcing these transitions:
 - `UNDER_REVIEW` → `APPROVED` (by Claims Officer)
 - `APPROVED` → `CLOSED` (by Admin)
 
-## 17. Mobile/Web Responsibilities
-- **WEB Dashboard:** Login, Create Claim, View Claims, View Adjusters, Assign Adjuster, Start Review, Make Decision, Admin Close.
+## 19. Mobile/Web Responsibilities
+- **WEB Dashboard:** Login, Create Claim, View Claims, View Adjusters, Assign Adjuster, Start Review, Make Decision, Admin Close, Download Final Claim Report.
 - **MOBILE App:** Login, View assigned Claims, Open Claim, Perform inspection, Vehicle/Policy lookup, Accident data, Location, Evidence, Signature, Submit inspection.
-- **BACKEND System:** Authentication, Authorization, Organization isolation, Business validation, Claim lifecycle, Assignment, Data persistence, Mock lookup, Status transitions, Audit events.
+- **BACKEND System:** Authentication, Authorization, Organization isolation, Business validation, Claim lifecycle, Assignment, Data persistence, Mock lookup, Status transitions, Audit events, PDF Report generation.
 
-## 18. Mock Data Rules
+## 20. Mock Data Rules
 - Mock insurance data is accessed **through Backend APIs** (`GET /vehicles/lookup`).
 - Flutter never communicates directly with a future insurance-company database.
 - Backend resolves and merges the data.
 
-## 19. Open Decisions / Requires Team Decision // out of the sprint 1
+## 21. Open Decisions / Requires Team Decision // out of the sprint 1
 - **Location Payload Definition:** The system supports "Accident Location" and "Inspection Location". The current `PUT /claims/:claimId/location` contract assumes a single location object. The team needs to decide if these will be separate nested objects or separate endpoints.
 - **Digital Signature Flow:** How the signature is uploaded/persisted (e.g., base64 vs. file upload) is not strictly defined in this document yet.
 - **Evidence Formatting:** The exact validation rules for required evidence files.

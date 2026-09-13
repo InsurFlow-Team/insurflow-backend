@@ -148,4 +148,12 @@ router.post(
   claimController.closeClaim
 );
 
+// GET /api/v1/claims/:claimId/report — Download final claim PDF report
+router.get(
+  '/:claimId/report',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.getClaimReport
+);
+
 module.exports = router;

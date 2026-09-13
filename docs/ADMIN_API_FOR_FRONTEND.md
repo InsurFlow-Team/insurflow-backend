@@ -478,6 +478,68 @@
 
 ---
 
+### 3.6 تحميل التقرير النهائي للمطالبة بصيغة PDF (Download Final Claim Report)
+* **المسار (Endpoint):** `GET /api/v1/claims/:claimId/report`
+* **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
+* **الأدوار المصرح لها:** `ADMIN`, `CLAIMS_OFFICER`.
+* **المكان في الواجهة وتجربة المستخدم (UI Placement & State Rules):**
+  * في صفحة تفاصيل المطالبة (Claim Details Screen) أو قائمة الإجراءات السريعة (Action Menu).
+  * **شرط الظهور في الواجهة:** يظهر زر **"تحميل التقرير النهائي (PDF)"** أو **"Download Report"** **فقط وحصرياً** عندما تكون المطالبة قد وصلت إلى قرار نهائي:
+    * `APPROVED` (معتمدة)
+    * `REJECTED` (مرفوضة)
+    * `CLOSED` (مغلقة)
+  * **في الحالات غير النهائية** (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`): يجب إخفاء الزر تماماً أو تعطيله (Disabled) لمنع طلب تقارير غير مكتملة.
+
+> [!CAUTION]
+> **تنبيه تقني حاسم لمطور الفرونت إند (Authentication & Blob Download Requirement):**
+> - **لا يمكن** استخدام رابط مباشر أو وسم HTML عادي مثل `<a href="/api/v1/claims/:claimId/report">`، لأن المتصفح لن يُرفق هيدر المصادقة الإجباري `Authorization: Bearer <TOKEN>`، مما يتسبب في رفض الطلب بـ `401 Unauthorized`.
+> - **طريقة التنفيذ الصحيحة:** يجب طلب الـ Endpoint عبر `fetch` أو `axios` مع إرسال الـ Authorization Header، واستلام الاستجابة كـ **`Blob`**، ثم توليد رابط تنزيل محلي عبر `window.URL.createObjectURL(blob)`.
+
+#### كود جاهز للاستخدام في الواجهة الأمامية (React / Vue / Vanilla JS):
+```javascript
+async function downloadClaimReport(claimId, claimNumber, token) {
+  try {
+    const response = await fetch(`/api/v1/claims/${claimId}/report`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      // في حالة الخطأ يرجع الباك إند كائن JSON عادي بالخطأ
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to download report');
+    }
+
+    // استلام الرد كـ Blob ثنائي (Binary PDF)
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `${claimNumber || 'claim'}-report.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  } catch (error) {
+    console.error('Error downloading claim report:', error);
+    // إظهار تنبيه أو Toast للمستخدم بالخطأ
+  }
+}
+```
+
+* **الاستجابة الناجحة (200 OK):**
+  * نوع المحتوى: `Content-Type: application/pdf`
+  * الهيدر: `Content-Disposition: attachment; filename="<claimNumber>-report.pdf"`
+  * محتوى الرد: مصفوفة بايتات ثنائية للـ PDF تبدأ بتوقيع `%PDF`.
+* **أخطاء محتملة (ترجع في مغلف JSON القياسي):**
+  * `403 Forbidden`: إذا حاول دور غير مصرح له (مثل `FIELD_ADJUSTER`) تحميل التقرير.
+  * `404 Not Found`: المطالبة غير موجودة أو تابعة لمؤسسة أخرى.
+  * `409 Conflict`: محاولة تحميل التقرير لمطالبة لم يصدر فيها قرار نهائي بعد (الرسالة: `"Report is only available for claims with a final decision (APPROVED, REJECTED, or CLOSED)."`).
+
+---
+
 ## 4. جدول أكواد الاستجابة السريعة (HTTP Status Codes Guide)
 
 | الكود | المعنى | طريقة التعامل في الواجهة الأمامية |

@@ -25,14 +25,15 @@
 | **14** | [14-status-machine-expansion.md](./14-status-machine-expansion.md) | 9-status lifecycle, IN_PROGRESS state, correction loop, audit trail metadata (previousStatus, newStatus, notes) | `FIELD_ADJUSTER`, `CLAIMS_OFFICER` | `POST /api/v1/claims/:claimId/inspection/start`<br>`POST /api/v1/claims/:claimId/review/request-correction` |
 | **15** | [15-evidence-photos-and-digital-signature.md](./15-evidence-photos-and-digital-signature.md) | Photo evidence capture (additive array, categorized imageType), digital signature sign-off, Cloudinary storage, 5-pillar inspection completeness | Assigned `FIELD_ADJUSTER` | `POST /api/v1/claims/:claimId/evidence`<br>`POST /api/v1/claims/:claimId/signature` |
 | **16** | [16-dashboard-kpi-aggregation.md](./16-dashboard-kpi-aggregation.md) | Dashboard KPI metrics, role-scoped envelopes (`ORGANIZATION` vs `ASSIGNED`), adjuster workload distribution, date-filtered aggregation | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims/stats` |
+| **17** | [17-final-claim-report.md](./17-final-claim-report.md) | Final claim PDF dossier, full domain hydration, Cloudinary transform & graceful degradation, in-memory buffering | `CLAIMS_OFFICER`, `ADMIN` | `GET /api/v1/claims/:claimId/report` |
 
 ---
 
 ## Test Suite Status
 
-All 16 features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances and Cloudinary streaming mocks:
-* **Test Suites:** 18 passed, 18 total
-* **Tests:** 243 passed, 243 total (0 failures)
+All 17 features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances and Cloudinary streaming mocks:
+* **Test Suites:** 19 passed, 19 total
+* **Tests:** 252 passed, 252 total (0 failures)
 
 ---
 

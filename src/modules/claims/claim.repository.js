@@ -56,6 +56,18 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
     .lean();
 };
 
+const findForReport = async (claimId, organizationId) => {
+  return await Claim.findOne({ _id: claimId, organizationId })
+    .populate('createdBy', 'name employeeCode role')
+    .populate('assignedTo', 'name employeeCode role')
+    .populate('assignedBy', 'name employeeCode role')
+    .populate('closedBy', 'name employeeCode role')
+    .populate('signature.capturedBy', 'name employeeCode role')
+    .populate('evidence.uploadedBy', 'name employeeCode role')
+    .populate('timeline.performedBy', 'name employeeCode role')
+    .lean();
+};
+
 
 const countActiveClaimsByAssignee = async (userId) => {
   return await Claim.countDocuments({
@@ -247,4 +259,5 @@ module.exports = {
   makeDecision,
   closeClaim,
   getClaimStats,
+  findForReport,
 };

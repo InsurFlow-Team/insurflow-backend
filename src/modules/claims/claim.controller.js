@@ -135,6 +135,20 @@ const getClaimStats = async (req, res) => {
   return res.status(200).json(successResponse('Claim statistics retrieved successfully', stats));
 };
 
+/**
+ * GET /api/v1/claims/:claimId/report
+ * Generates and downloads the final claim PDF report.
+ * Authorized: CLAIMS_OFFICER, ADMIN.
+ */
+const getClaimReport = async (req, res) => {
+  const { claimId } = req.params;
+  const { buffer, claimNumber } = await claimService.getClaimReport(claimId, req.user);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${claimNumber}-report.pdf"`);
+  return res.status(200).send(buffer);
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -152,5 +166,6 @@ module.exports = {
   decideClaim: asyncWrapper(decideClaim),
   closeClaim: asyncWrapper(closeClaim),
   getClaimStats: asyncWrapper(getClaimStats),
+  getClaimReport: asyncWrapper(getClaimReport),
 };
 

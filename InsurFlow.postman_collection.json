@@ -1587,6 +1587,56 @@
               "description": "Aggregates self-assigned claim metrics across all statuses, actionable tasks, and active capacity limit for FIELD_ADJUSTER."
             },
             "response": []
+          },
+          {
+            "name": "Download Final Claim Report (PDF)",
+            "id": "e2a4b81c-0f91-4d32-bc18-8f59d09a1234",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Content-Type is application/pdf\", function () {",
+                    "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/pdf\");",
+                    "});",
+                    "pm.test(\"Content-Disposition includes attachment and filename\", function () {",
+                    "    pm.expect(pm.response.headers.get(\"Content-Disposition\")).to.include(\"attachment; filename=\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{claimsOfficerToken}}",
+                  "type": "text"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/report",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "report"
+                ]
+              },
+              "description": "Download publication-grade final claim report PDF. Authorized roles: ADMIN, CLAIMS_OFFICER. Precondition: Claim must have a final decision (APPROVED, REJECTED, or CLOSED)."
+            },
+            "response": []
           }
         ],
         "id": "75fd566b-96d7-41ec-8e40-7be35cb40b24",

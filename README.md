@@ -38,6 +38,7 @@ InsurFlow هو نظام إدارة مطالبات التأمين على السي
 | **Morgan** | v1.x | تسجيل الطلبات (logging) |
 | **Multer** | v2.x | معالجة رفع الملفات والوسائط في الذاكرة |
 | **Cloudinary** | v2.x | التخزين السحابي لصور الأدلة والتوقيع الرقمي |
+| **pdfmake** | v0.3.x | توليد تقارير المطالبات النهائية بصيغة PDF عالية الدقة |
 | **Jest + Supertest** | v29.x | اختبارات تلقائية |
 
 ### الاعتماديات للتطوير فقط
@@ -314,6 +315,11 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
    ├── من يفعلها: ADMIN حصرًا
    ├── كيف: POST /api/v1/claims/:id/close
    └── ماذا يحدث: بعد تسوية التعويضات، تغلق الإدارة الملف نهائيًا وتؤرشفه
+
+9. Final Claim Report (تقرير المطالبة النهائي PDF)
+   ├── من يفعلها: CLAIMS_OFFICER أو ADMIN
+   ├── كيف: GET /api/v1/claims/:id/report
+   └── ماذا يحدث: استخراج وتنزيل تقرير PDF عالي الجودة مع صور الأدلة والتوقيع وسجل التدقيق (متاح فقط بعد صدور قرار: APPROVED أو REJECTED أو CLOSED)
 ```
 
 ---
@@ -350,6 +356,7 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 | `POST` | `/claims/:claimId/review/request-correction` | CLAIMS_OFFICER | إرجاع المطالبة للمفتش للتصحيح مع ملاحظات |
 | `POST` | `/claims/:claimId/decision` | CLAIMS_OFFICER / ADMIN | اعتماد (`APPROVED`) أو رفض (`REJECTED`) المطالبة |
 | `POST` | `/claims/:claimId/close` | ADMIN | إغلاق وأرشفة المطالبة المعتمدة نهائيًا |
+| `GET` | `/claims/:claimId/report` | CLAIMS_OFFICER / ADMIN | تحميل التقرير النهائي للمطالبة كملف PDF عالي الدقة (متاح لـ APPROVED/REJECTED/CLOSED) |
 | `GET` | `/claims/stats` | الكل* | تجميع إحصائيات ومؤشرات الأداء للوحة التحكم (مفلترة بالدور وتاريخ الإنشاء) |
 
 *مع فلترة حسب الدور: يرى ADMIN و CLAIMS_OFFICER إحصائيات المؤسسة بالكامل وأحمال المعاينين، بينما يرى FIELD_ADJUSTER فقط إحصائيات المطالبات المعينة له وسعته التشغيلية.
@@ -628,7 +635,13 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 9. إغلاق وأرشفة الملف
    └── POST /claims/:id/close (خاص بالمدير ADMIN فقط) → status: CLOSED
 
-10. متابعة مؤشرات الأداء والعبء التشغيلي
+10. إصدار وتحميل تقرير المطالبة النهائي (PDF)
+    └── GET /claims/:id/report
+        ├── متاح للأدوار: ADMIN و CLAIMS_OFFICER
+        ├── الشرط: صدور قرار نهائي (APPROVED أو REJECTED أو CLOSED)
+        └── يُرجع ملف PDF ثنائي عالي الدقة متضمناً صور الأدلة والتوقيع وسجل التدقيق
+
+11. متابعة مؤشرات الأداء والعبء التشغيلي
     └── GET /claims/stats?from=2026-01-01&to=2026-12-31
         ├── لوحة تحكم الإدارة: إجمالي المطالبات، طابور المراجعة، وتوزيع أحمال المفتشين
         └── تطبيق المعاين: الحالات النشطة، المهام المعلقة، وشريط السعة الاستيعابية (الحد الأقصى 3)
@@ -665,15 +678,16 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] حلقة طلب التصحيح مع الملاحظات الإلزامية (`CORRECTION_REQUIRED`)
 - [x] محرك القرارات بالاعتماد أو الرفض (`APPROVED` / `REJECTED`)
 - [x] إغلاق وأرشفة المطالبة من قِبل المدير (`CLOSED`)
+- [x] توليد وتحميل تقرير المطالبة النهائي بصيغة PDF عالية الدقة مع الصور والتوقيع وسجل التدقيق (Feature 17)
 - [x] تجميع مؤشرات الأداء (KPIs) للوحة التحكم عبر Aggregation ذري وفهارس مركبة (`GET /claims/stats`)
 - [x] سجل تدقيق تاريخي ذري وشامل (Timeline) يوثق كل حالة وملاحظة ومستخدم
 
 ### ✅ الاختبارات والتوثيق المعتمد
-- [x] اجتياز 100% من الاختبارات التلقائية (18 Test Suites / 241 Tests Passed)
+- [x] اجتياز 100% من الاختبارات التلقائية (19 Test Suites / 252 Tests Passed)
 - [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
 - [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
 - [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)
-- [x] وثائق تفصيلية لجميع الميزات الـ 16 في مجلد `docs/features/`
+- [x] وثائق تفصيلية لجميع الميزات الـ 17 في مجلد `docs/features/`
 
 ---
 

@@ -4,8 +4,10 @@ const vehicleRepository = require('../vehicles/vehicle.repository');
 const policyRepository = require('../policies/policy.repository');
 const customerRepository = require('../customers/customer.repository');
 const Claim = require('./claim.model');
+const Organization = require('../organizations/organization.model');
 const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
+const { generateClaimReportPdf } = require('./claim.report.builder');
 
 
 const createClaim = async (body, authUser) => {
@@ -702,6 +704,66 @@ const getClaimStats = async (authUser, query = {}) => {
   };
 };
 
+/**
+ * GET /api/v1/claims/:claimId/report
+ * Generates and returns an in-memory PDF buffer of the final claim report.
+ * Scoped strictly by tenant (organizationId).
+ * Preconditions:
+ * - Role must be ADMIN or CLAIMS_OFFICER (FIELD_ADJUSTER is 403)
+ * - Claim must exist in caller's organization (404 checked before 409)
+ * - Claim status must be in ['APPROVED', 'REJECTED', 'CLOSED'] (otherwise 409 INVALID_STATUS_TRANSITION)
+ */
+const getClaimReport = async (claimId, authUser) => {
+  const { organizationId, role } = authUser;
+
+  // 1. Role verification (defense in depth; route middleware restricts to ADMIN / CLAIMS_OFFICER)
+  if (!['ADMIN', 'CLAIMS_OFFICER'].includes(role)) {
+    throw new AppError('Forbidden', 403, 'FORBIDDEN_RESOURCE');
+  }
+
+  // 2. Tenant-scoped claim lookup (404-before-409 convention)
+  const claim = await claimRepository.findForReport(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // 3. Status precondition check
+  const TERMINAL_STATUSES = ['APPROVED', 'REJECTED', 'CLOSED'];
+  if (!TERMINAL_STATUSES.includes(claim.status)) {
+    throw new AppError(
+      'Report is only available for claims with a final decision (APPROVED, REJECTED, or CLOSED).',
+      409,
+      'INVALID_STATUS_TRANSITION'
+    );
+  }
+
+  // 4. Full domain hydration: Vehicle, Policy, Organization
+  let vehicle = null;
+  if (claim.vehicle?.vehicleId) {
+    vehicle = await vehicleRepository.findByIdAndOrganization(claim.vehicle.vehicleId, organizationId);
+  }
+
+  let policy = null;
+  if (claim.vehicle?.policyId) {
+    policy = await policyRepository.findByIdAndOrganization(claim.vehicle.policyId, organizationId);
+  }
+
+  const organization = await Organization.findById(organizationId).lean();
+
+  // 5. Generate PDF in-memory buffer
+  const buffer = await generateClaimReportPdf({
+    claim,
+    organization,
+    vehicle,
+    policy,
+  });
+
+  return {
+    buffer,
+    claimNumber: claim.claimNumber,
+  };
+};
+
 module.exports = {
   createClaim,
   getClaims,
@@ -719,5 +781,6 @@ module.exports = {
   decideClaim,
   closeClaim,
   getClaimStats,
+  getClaimReport,
 };
 

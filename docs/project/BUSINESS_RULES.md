@@ -175,6 +175,14 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 
 ---
 
+### 2.9 Final Claim Report Generation
+- **Rule BR-REPORT-ROLES (Authorized Report Roles):** Generation of the final claim report (`GET /api/v1/claims/:claimId/report`) is restricted strictly to users with role **`ADMIN`** and **`CLAIMS_OFFICER`**. Field Adjusters (`FIELD_ADJUSTER`) are rejected unconditionally with `HTTP 403 Forbidden` (`FORBIDDEN_RESOURCE`).
+- **Rule BR-REPORT-STATUS (Terminal Decision Status Precondition):** A claim report can **only** be generated after a claim has reached a final decision status: **`APPROVED`**, **`REJECTED`**, or **`CLOSED`**. Requests on any in-flight or non-terminal status (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`) are blocked with `HTTP 409 Conflict` (`INVALID_STATUS_TRANSITION`) with detail: `"Report is only available for claims with a final decision (APPROVED, REJECTED, or CLOSED)."`.
+- **Rule BR-REPORT-PRECEDENCE (404-Before-409 Existence Precedence):** Tenant-scoped existence verification strictly precedes status validation. If a claim does not exist or belongs to another tenant, the system responds with `HTTP 404 Not Found` (`CLAIM_NOT_FOUND`), preventing information leakage regarding the status of out-of-scope resources.
+- **Rule BR-REPORT-DELIVERY (Buffer-Then-Send & Asset Resilience):** Embedded images (evidence photos and signature) are transformed via Cloudinary (`w_800,c_limit,q_auto:good,f_jpg`) and gracefully degrade into visual placeholder blocks upon network failure. The PDF is assembled completely in memory as a `Buffer` before setting HTTP 200 headers, guaranteeing that unexpected generation errors preserve the standard JSON error envelope.
+
+---
+
 ## 3. Summary Decision Matrix
 
 | Question | Authoritative Answer |
@@ -194,4 +202,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 | Who can request corrections? | **`CLAIMS_OFFICER` on claims in `UNDER_REVIEW`** |
 | Who can approve or reject claims? | **`CLAIMS_OFFICER` and `ADMIN` on claims in `UNDER_REVIEW`** |
 | Who closes claims? | **`ADMIN` only on claims in `APPROVED` status** |
+| Who can download the final claim report? | **`ADMIN` and `CLAIMS_OFFICER` only** |
+| When can the final claim report be generated? | **Only after a final decision: `APPROVED`, `REJECTED`, or `CLOSED`** |
+| Can Field Adjusters download the claim report? | **No (`HTTP 403 Forbidden`)** |
 
