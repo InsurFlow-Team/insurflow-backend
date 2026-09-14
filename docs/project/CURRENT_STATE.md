@@ -1,6 +1,6 @@
 # InsurFlow — Current Project State & Progress Tracking
 
-> **Last Updated:** 2026-09-12  
+> **Last Updated:** 2026-09-14  
 > **Document Purpose:** Single source of truth for current project status, completed work, active blockers, and immediate next steps. Consult this document at the start of any new session or task.
 
 ---
@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
-| **Current Sprint** | **Sprint 1 & Sprint 2 Completed & Verified** |
+| **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (19 Suites / 252 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (20 Suites / 263 Tests)** |
 
 ---
 
@@ -75,6 +75,12 @@
   - Create staff user (`POST /api/v1/users`), list users with pagination (`GET /api/v1/users`), update user details (`PATCH /api/v1/users/:id`), toggle user status (`PATCH /api/v1/users/:id/status`), administrative password reset (`PATCH /api/v1/users/:id/reset-password`).
 - [x] **Pagination & Header Exposure:**
   - Standardized pagination headers (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `GET /api/v1/claims` and `GET /api/v1/users`.
+- [x] **Map-Based Adjuster Dispatch & Location Tracking (Feature 18):**
+  - Passive GPS capture for Field Adjusters via `X-Latitude` / `X-Longitude` HTTP headers handled by non-blocking `adjusterLocation.middleware.js`.
+  - Incident GPS capture at creation in `claim.incidentCoordinates: { latitude, longitude, capturedAt }` (optional `latitude`/`longitude` in `POST /claims`), preserving required text address `claim.incidentLocation` and strictly separated from inspection GPS `claim.location`. Resolves Section 21 of `docs/API_CONTRACT.md`.
+  - Geodesic proximity sorting via server-side Haversine engine (`src/utils/geo.utils.js`) on `GET /api/v1/users/adjusters` supporting `claimId` or direct coordinates.
+  - Advisory capacity enforcement (3 active tasks max) with explicit `overrideCapacity: true` and `[CAPACITY OVERRIDE]` timeline notation on `POST /claims/:claimId/assign`.
+  - 11 new integration tests in `tests/adjusterMapDispatch.test.js`, bringing suite to 20 suites / 263 tests (100% pass).
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
   - Complete, updated Postman collection (`InsurFlow.postman_collection.json`) covering all auth, claim lifecycle, inspection, decision, and admin flows.

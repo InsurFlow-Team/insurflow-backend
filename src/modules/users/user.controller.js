@@ -7,10 +7,9 @@ const asyncWrapper = require('../../utils/asyncWrapper');
  * Returns adjusters belonging to the authenticated user's organization.
  */
 const getAdjusters = async (req, res) => {
-  const { status } = req.query;
   const { organizationId } = req.user;
 
-  const adjusters = await userService.getAdjusters(organizationId, status);
+  const adjusters = await userService.getAdjusters(organizationId, req.query);
   return res.status(200).json(successResponse('Adjusters retrieved successfully', adjusters));
 };
 

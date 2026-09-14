@@ -551,3 +551,90 @@ async function downloadClaimReport(claimId, claimNumber, token) {
 | `403` | صلاحيات غير كافية (Forbidden) | المستخدم لا يملك الصلاحية (مثلاً غير الأدمن يحاول الدخول للوحة) |
 | `404` | غير موجود (Not Found) | إظهار صفحة أو رسالة "المستخدم أو المطالبة غير موجودة" |
 | `409` | تعارض (Conflict) | إظهار رسالة واضحة للمستخدم (مثل: كود الموظف مكرر، أو حالة المطالبة لا تسمح) |
+
+---
+
+## 5. واجهات توزيع المعاينين والخريطة (Map-Based Adjuster Dispatch — Feature 18)
+
+### 5.1 جلب قائمة المعاينين مع المسافات الأقرب لمكان الحادث (List Adjusters with Proximity)
+* **المسار (Endpoint):** `GET /api/v1/users/adjusters`
+* **Headers:** `Authorization: Bearer <OFFICER_OR_ADMIN_TOKEN>`
+* **Query Parameters (اختيارية للفرونت إند والخريطة):**
+  * `claimId`: معرف المطالبة المراد تعيينها. يقوم الباك إند تلقائياً باستخراج إحداثيات الحادث (`claim.incidentCoordinates`) وحساب مسافة كل معاين عنها بالكيلومتر عبر معادلة Haversine.
+  * `latitude` & `longitude`: تمرير إحداثيات مرجعية مباشرة لحساب المسافة بدلاً من معرف المطالبة.
+  * `status`: `available` لجلب المتاحين فقط، أو `all` (الافتراضي) لجلب جميع المعاينين النشطين.
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "6aa27838cda4d3dca00b83ab",
+        "name": "Ahmad Adjuster",
+        "employeeCode": "FA-001",
+        "role": "FIELD_ADJUSTER",
+        "status": "ACTIVE",
+        "availability": "AVAILABLE",
+        "activeTasksCount": 1,
+        "location": {
+          "latitude": 31.9038,
+          "longitude": 35.2034,
+          "updatedAt": "2026-09-14T07:25:00.000Z"
+        },
+        "distanceKm": 0.15
+      },
+      {
+        "id": "6aa27838cda4d3dca00b83ac",
+        "name": "Khaled Adjuster",
+        "employeeCode": "FA-002",
+        "role": "FIELD_ADJUSTER",
+        "status": "ACTIVE",
+        "availability": "UNAVAILABLE",
+        "activeTasksCount": 4,
+        "location": {
+          "latitude": 31.9200,
+          "longitude": 35.2200,
+          "updatedAt": "2026-09-14T07:15:00.000Z"
+        },
+        "distanceKm": 2.34
+      },
+      {
+        "id": "6aa27838cda4d3dca00b83ad",
+        "name": "Omar Adjuster",
+        "employeeCode": "FA-003",
+        "role": "FIELD_ADJUSTER",
+        "status": "ACTIVE",
+        "availability": "AVAILABLE",
+        "activeTasksCount": 0,
+        "location": {
+          "latitude": null,
+          "longitude": null,
+          "updatedAt": null
+        },
+        "distanceKm": null
+      }
+    ]
+  }
+  ```
+* **ملاحظات للفرونت والخريطة:**
+  * الترتيب يرجع تصاعدياً حسب `distanceKm` (الأقرب للحادث أولاً).
+  * المعاين الذي لم يرسل موقعه بعد يظهر في نهاية القائمة وتكون قيمة `distanceKm: null`.
+
+### 5.2 تعيين المعاين مع تجاوز حد السعة الاستيعابية (Assign Adjuster with Capacity Override)
+* **المسار (Endpoint):** `POST /api/v1/claims/:claimId/assign`
+* **Headers:** `Authorization: Bearer <OFFICER_TOKEN>`
+* **Request Body:**
+  ```json
+  {
+    "adjusterId": "6aa27838cda4d3dca00b83ac",
+    "priority": "HIGH",
+    "notes": "Urgent VIP inspection",
+    "overrideCapacity": true
+  }
+  ```
+* **سلوك الواجهة (UI Flow):**
+  1. إذا أرسل الفرونت الطلب بدون `overrideCapacity: true` وكان لدى المعاين أكثر من 3 مهام نشطة، يرجع الباك إند خطأ `409 Conflict` بكود `ADJUSTER_UNAVAILABLE`.
+  2. يقوم الفرونت بإظهار مربع حوار تأكيدي للمسؤول (Modal): *"المعاين لديه أكثر من 3 مهام حالياً، هل تود تأكيد التعيين وتجاوز السعة؟"*.
+  3. عند ضغط المستخدم "نعم / تأكيد التجاوز"، يعيد الفرونت إرسال نفس الطلب مع إضافة `"overrideCapacity": true`.
+  4. ينجح التعيين ويقوم الباك إند تلقائياً بإضافة بادئة في سجل الملاحظات:
+     `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.

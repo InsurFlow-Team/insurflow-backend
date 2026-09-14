@@ -1,6 +1,7 @@
 const express = require('express');
 const claimController = require('./claim.controller');
 const authenticate = require('../../middlewares/auth.middleware');
+const adjusterLocationMiddleware = require('../../middlewares/adjusterLocation.middleware');
 const authorizeRole = require('../../middlewares/role.middleware');
 const { validate, validateObjectId } = require('../../middlewares/validate.middleware');
 const upload = require('../../middlewares/upload.middleware');
@@ -22,6 +23,7 @@ const router = express.Router();
 
 // All claim routes require authentication
 router.use(authenticate);
+router.use(adjusterLocationMiddleware);
 
 // POST /api/v1/claims — Create a new claim
 router.post(

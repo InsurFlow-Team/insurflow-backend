@@ -1,6 +1,7 @@
 const express = require('express');
 const userController = require('./user.controller');
 const authenticate = require('../../middlewares/auth.middleware');
+const adjusterLocationMiddleware = require('../../middlewares/adjusterLocation.middleware');
 const authorizeRole = require('../../middlewares/role.middleware');
 const { validate, validateObjectId } = require('../../middlewares/validate.middleware');
 const {
@@ -16,6 +17,7 @@ const router = express.Router();
 
 // All user routes require authentication
 router.use(authenticate);
+router.use(adjusterLocationMiddleware);
 
 // GET /api/v1/users/adjusters — List available adjusters
 router.get(

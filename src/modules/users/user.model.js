@@ -32,6 +32,24 @@ const userSchema = new mongoose.Schema({
     enum: ['ACTIVE', 'INACTIVE'],
     default: 'ACTIVE',
   },
+  location: {
+    latitude: {
+      type: Number,
+      min: -90,
+      max: 90,
+      default: null,
+    },
+    longitude: {
+      type: Number,
+      min: -180,
+      max: 180,
+      default: null,
+    },
+    updatedAt: {
+      type: Date,
+      default: null,
+    },
+  },
 }, { timestamps: true });
 
 userSchema.index({ organizationId: 1, employeeCode: 1 }, { unique: true });

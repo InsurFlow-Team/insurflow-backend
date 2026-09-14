@@ -144,6 +144,12 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         status: 1,
         availability: 1,
         activeTasksCount: 1,
+        location: {
+          $ifNull: [
+            '$location',
+            { latitude: null, longitude: null, updatedAt: null },
+          ],
+        },
       },
     },
   ];

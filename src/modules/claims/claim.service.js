@@ -11,7 +11,24 @@ const { generateClaimReportPdf } = require('./claim.report.builder');
 
 
 const createClaim = async (body, authUser) => {
-  const { customerName, customerPhone, initialPlateNumber, incidentType, incidentLocation } = body;
+  const {
+    customerName,
+    customerPhone,
+    initialPlateNumber,
+    incidentType,
+    incidentLocation,
+    latitude,
+    longitude,
+  } = body;
+
+  let incidentCoordinatesObj = null;
+  if (typeof latitude === 'number' && typeof longitude === 'number') {
+    incidentCoordinatesObj = {
+      latitude,
+      longitude,
+      capturedAt: new Date(),
+    };
+  }
 
   const claimData = {
     organizationId: authUser.organizationId,
@@ -27,6 +44,7 @@ const createClaim = async (body, authUser) => {
     },
     incidentType,
     incidentLocation,
+    incidentCoordinates: incidentCoordinatesObj,
 
     timeline: [
       {
@@ -135,7 +153,7 @@ const getClaimById = async (claimId, authUser) => {
 
 
 const assignClaim = async (claimId, body, authUser) => {
-  const { adjusterId, priority, notes } = body;
+  const { adjusterId, priority, notes, overrideCapacity } = body;
   const { userId, role, organizationId } = authUser;
 
   // 1. Find the adjuster and verify existence, role, and status
@@ -144,11 +162,17 @@ const assignClaim = async (claimId, body, authUser) => {
     throw new AppError('Adjuster not found', 404, 'ADJUSTER_NOT_FOUND');
   }
 
-  // 2. Verify adjuster availability (active claims <= 3 is AVAILABLE, > 3 is UNAVAILABLE)
+  // 2. Verify adjuster availability (active claims <= 3 is AVAILABLE, > 3 is UNAVAILABLE unless overrideCapacity is true)
   const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
   const maxActiveClaims = Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3;
-  if (activeTasksCount > maxActiveClaims) {
+  if (activeTasksCount > maxActiveClaims && !overrideCapacity) {
     throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
+  }
+
+  let assignmentNotes = notes || null;
+  if (activeTasksCount > maxActiveClaims && overrideCapacity) {
+    const overridePrefix = `[CAPACITY OVERRIDE] Assigned while adjuster had ${activeTasksCount} active tasks (max: ${maxActiveClaims})`;
+    assignmentNotes = notes ? `${overridePrefix} | ${notes}` : overridePrefix;
   }
 
   // 3. Atomically assign the claim (query checks org + status:'NEW')
@@ -156,7 +180,7 @@ const assignClaim = async (claimId, body, authUser) => {
     action: 'Claim Assigned',
     previousStatus: 'NEW',
     newStatus: 'ASSIGNED',
-    notes: notes || null,
+    notes: assignmentNotes,
     performedBy: userId,
     role,
     timestamp: new Date(),
@@ -168,7 +192,7 @@ const assignClaim = async (claimId, body, authUser) => {
     assignedAt: new Date(),
     status: 'ASSIGNED',
     priority,
-    assignmentNotes: notes,
+    assignmentNotes,
     timelineEvent,
   };
 

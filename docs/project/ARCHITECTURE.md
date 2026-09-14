@@ -98,6 +98,7 @@ src/
 │   ├── role.middleware.js   # RBAC permission checks
 │   ├── validate.middleware.js# Joi boundary schema validator
 │   ├── upload.middleware.js # Multer in-memory upload handler (10MB, JPEG/PNG/WEBP)
+│   ├── adjusterLocation.middleware.js # Header-based GPS location capture for Field Adjusters
 │   ├── rateLimiter.middleware.js # Multi-tier rate limiting (loginLimiter & apiLimiter)
 │   ├── errorHandler.js      # Global centralized error response handler
 │   └── notFound.js          # 404 handler for undefined endpoints
@@ -106,6 +107,7 @@ src/
 │   ├── appError.js          # Custom operational error class
 │   ├── asyncWrapper.js      # Promise rejection forwarding to next()
 │   ├── counter.model.js     # Atomic sequence counter model
+│   ├── geo.utils.js         # Pure-JS Haversine distance calculator (km)
 │   └── uploadToCloudinary.js# Cloudinary upload_stream buffer helper
 └── modules/
     ├── auth/                # Login, JWT, password change
@@ -220,3 +222,19 @@ Every endpoint in the system complies with the unified structure provided by `sr
     });
     ```
     This defines an own, writable property on the `req` instance, properly shadowing the prototype getter and guaranteeing that Joi-transformed data types, trimmed values, and injected defaults propagate seamlessly to Controllers and Services.
+
+### 5.8 Location Tracking & Map Dispatch Architecture (Feature 18)
+- **Passive HTTP Header Ingestion (`adjusterLocation.middleware.js`):**
+  - Instead of dedicated polling endpoints or stateful WebSockets, the mobile client sends `X-Latitude` and `X-Longitude` request headers on every request made by a `FIELD_ADJUSTER`.
+  - The middleware runs immediately after `authenticate`, verifies role and coordinate limits (`-90..90`, `-180..180`), and updates `user.location` asynchronously.
+  - Wrapped completely in a non-blocking `try/catch` with server warnings; never calls `next(err)` and never delays or rejects primary route execution.
+- **Incident Coordinates vs Incident Location Address:**
+  - `claim.incidentCoordinates: { latitude, longitude, capturedAt }` is captured optionally at claim creation (`POST /claims`) and kept immutable.
+  - The accident location text string `claim.incidentLocation` (required address description) is preserved completely without modification.
+  - Both are strictly separated from on-site inspection GPS (`claim.location: { latitude, longitude, address, capturedAt }`) updated during inspection (`PUT /claims/:id/location`).
+- **Server-Side Haversine Geodesic Computation (`geo.utils.js`):**
+  - Great-circle distance in kilometers calculated via pure JavaScript spherical trigonometry without external dependencies.
+  - `GET /api/v1/users/adjusters` resolves incident coordinates (from `claimId` or direct params), calculates `distanceKm`, and sorts ascending (null locations last).
+- **Advisory Capacity & Explicit Override:**
+  - Enforced server-side in `claim.service.js` (`assignClaim`): blocks with `409 ADJUSTER_UNAVAILABLE` when `activeTasksCount > 3`, unless `overrideCapacity: true` is explicitly passed.
+  - Overridden assignments prefix the audit timeline with `[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)`.

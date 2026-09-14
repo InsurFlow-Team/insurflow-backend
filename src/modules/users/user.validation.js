@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { objectIdPattern } = require('../../middlewares/validate.middleware');
 
 const createUserSchema = Joi.object({
   name: Joi.string().trim().required(),
@@ -22,6 +23,19 @@ const getAdjustersQuerySchema = Joi.object({
     .messages({
       'any.only': 'status must be: available',
     }),
+  claimId: Joi.string().pattern(objectIdPattern).optional().messages({
+    'string.pattern.base': 'Invalid ID format',
+  }),
+  latitude: Joi.number().min(-90).max(90).optional().messages({
+    'number.base': 'Latitude must be a valid number between -90 and 90',
+    'number.min': 'Latitude must be at least -90',
+    'number.max': 'Latitude cannot exceed 90',
+  }),
+  longitude: Joi.number().min(-180).max(180).optional().messages({
+    'number.base': 'Longitude must be a valid number between -180 and 180',
+    'number.min': 'Longitude must be at least -180',
+    'number.max': 'Longitude cannot exceed 180',
+  }),
 });
 
 const listUsersQuerySchema = Joi.object({

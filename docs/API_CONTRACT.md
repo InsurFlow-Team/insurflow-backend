@@ -30,6 +30,12 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
     *(Aligned with the existing `src/utils/apiResponse.js` convention)*
   - **Production Internal Error Masking (HTTP 500 / SEC-03):** In production environments, unexpected 500 errors always return a safe generic message (`"Internal Server Error"`) with error code `"INTERNAL_ERROR"`, strictly preventing leakage of internal exception messages, stack traces, database details, or filesystem paths to clients. Diagnostic details are preserved in server-side logs.
 
+### 2.1 Request Headers for Location Tracking (Feature 18)
+Mobile client requests performed by `FIELD_ADJUSTER` users passively transmit the adjuster's current GPS position via standard HTTP request headers:
+- `X-Latitude`: Current latitude as decimal number (`-90.0` to `90.0`).
+- `X-Longitude`: Current longitude as decimal number (`-180.0` to `180.0`).
+These headers are processed asynchronously by a lightweight middleware mounted after authentication. They update the adjuster's stored location without interrupting, delaying, or rejecting the primary request.
+
 ## 3. Authentication
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
@@ -112,9 +118,12 @@ Valid status transitions (enforced by the Backend):
     "customerPhone": "0591234567",
     "initialPlateNumber": "ABC-1234",
     "incidentType": "COLLISION",
-    "incidentLocation": "Main St, Riyadh"
+    "incidentLocation": "Main St, Riyadh",
+    "latitude": 31.9050,
+    "longitude": 35.2040
   }
   ```
+- **Incident Coordinates (Feature 18):** `latitude` and `longitude` are optional numeric coordinates. When provided, they are stored in a dedicated `claim.incidentCoordinates: { latitude, longitude, capturedAt }` subdocument (separate from incident address string `claim.incidentLocation` and inspection GPS `claim.location`). If omitted, `incidentCoordinates` is stored as `null` and `incidentLocation` text is preserved as given.
 - **Business Rules:** The Backend automatically determines `organizationId`, `createdBy`, `createdAt`, and `status`. The client must not attempt to control these values.
 - **Success Response (201):**
   ```json
@@ -291,11 +300,18 @@ Valid status transitions (enforced by the Backend):
 ## 9. Field Adjuster APIs
 
 ### `GET /users/adjusters`
-- **Purpose:** Allow Claims Officer to retrieve Field Adjusters available for assignment.
+- **Purpose:** Allow Claims Officer to retrieve Field Adjusters for map-based or list-based dispatch.
 - **Authorized Roles:** `CLAIMS_OFFICER`
 - **Authentication:** Required (JWT).
-- **Request Parameters:** `?status=available` (optional filter).
-- **Business Rules:** The Backend calculates availability via a single `$lookup` aggregation. `AVAILABLE` if User status = `ACTIVE` AND the Field Adjuster has 3 or fewer active inspection tasks (`activeTasksCount <= 3`) across `ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`. If `activeTasksCount > 3`, status is `UNAVAILABLE`.
+- **Request Parameters (Query):**
+  - `status`: Optional filter (`available` | `all`, default: `all`).
+  - `claimId`: Optional claim ObjectId. Uses claim's `incidentCoordinates` as proximity reference point.
+  - `latitude`: Optional decimal number (-90..90) specifying direct reference latitude.
+  - `longitude`: Optional decimal number (-180..180) specifying direct reference longitude.
+- **Business Rules:**
+  - The Backend calculates availability via a single `$lookup` aggregation. `AVAILABLE` if User status = `ACTIVE` AND the Field Adjuster has 3 or fewer active inspection tasks (`activeTasksCount <= 3`) across `ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`. If `activeTasksCount > 3`, status is `UNAVAILABLE`.
+  - When reference coordinates are supplied (via `claimId` or direct `latitude`/`longitude`), the Backend computes geodesic Haversine distance in kilometers (`distanceKm`, rounded to 2 decimals) from each adjuster's last-known location.
+  - Adjusters are sorted ascending by `distanceKm`. Adjusters without reported location are placed at the end with `distanceKm: null`.
 - **Success Response (200):**
   ```json
   {
@@ -308,7 +324,13 @@ Valid status transitions (enforced by the Backend):
         "role": "FIELD_ADJUSTER",
         "status": "ACTIVE",
         "availability": "AVAILABLE",
-        "activeTasksCount": 0
+        "activeTasksCount": 1,
+        "location": {
+          "latitude": 31.9038,
+          "longitude": 35.2034,
+          "updatedAt": "2026-09-14T07:25:00.000Z"
+        },
+        "distanceKm": 0.15
       }
     ]
   }
@@ -323,11 +345,16 @@ Valid status transitions (enforced by the Backend):
   {
     "adjusterId": "651a1f8b7f1d2c001f8d4e92",
     "priority": "HIGH",
-    "notes": "Please inspect ASAP"
+    "notes": "Please inspect ASAP",
+    "overrideCapacity": false
   }
   ```
-- **Business Rules:** The Backend records `assignedTo`, `assignedBy`, `assignedAt`.
-- **Validation rules (Rejects if):** Malformed MongoDB ObjectId format for `adjusterId` (must be 24-character hexadecimal, returns 400 `VALIDATION_ERROR`), Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive/unavailable (has $> 3$ active assigned tasks), Claim is not in `NEW` status, Unauthorized user.
+- **Business Rules:**
+  - The Backend records `assignedTo`, `assignedBy`, `assignedAt`.
+  - **Advisory Capacity Rule (Feature 18):** If the target adjuster has $> 3$ active assigned tasks and `overrideCapacity` is absent or `false`, the request is rejected with `409 ADJUSTER_UNAVAILABLE`.
+  - When `overrideCapacity: true` is sent, the assignment proceeds even if over capacity, and the audit timeline note is prefixed with:
+    `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.
+- **Validation rules (Rejects if):** Malformed MongoDB ObjectId format for `adjusterId` (must be 24-character hexadecimal, returns 400 `VALIDATION_ERROR`), Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive, Adjuster is over capacity without `overrideCapacity: true`, Claim is not in `NEW` status, Unauthorized user.
 - **Success Response (200):**
   ```json
   {
@@ -952,6 +979,6 @@ The backend is the sole authority enforcing these transitions:
 - Backend resolves and merges the data.
 
 ## 21. Open Decisions / Requires Team Decision // out of the sprint 1
-- **Location Payload Definition:** The system supports "Accident Location" and "Inspection Location". The current `PUT /claims/:claimId/location` contract assumes a single location object. The team needs to decide if these will be separate nested objects or separate endpoints.
-- **Digital Signature Flow:** How the signature is uploaded/persisted (e.g., base64 vs. file upload) is not strictly defined in this document yet.
-- **Evidence Formatting:** The exact validation rules for required evidence files.
+- **Location Payload Definition (Resolved in Feature 18):** The system separates "Accident Location Address" (`claim.incidentLocation`), "Accident Incident Coordinates" (`claim.incidentCoordinates: { latitude, longitude, capturedAt }` captured at creation via optional `latitude`/`longitude` in `POST /claims`), and "Inspection Location" GPS captured by the field adjuster on-site during inspection via `PUT /claims/:claimId/location` into `claim.location`. They are strictly separate data structures with independent lifecycles.
+- **Digital Signature Flow (Resolved in Feature 15):** The signature is uploaded as an image file to Cloudinary and persisted in `claim.signature`.
+- **Evidence Formatting (Resolved in Feature 15):** Photo evidence is uploaded to Cloudinary, validated by `imageType` enum, and stored in `claim.evidence`.

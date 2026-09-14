@@ -30,6 +30,16 @@ const createClaimSchema = Joi.object({
     'string.empty': 'Incident location is required',
     'any.required': 'Incident location is required',
   }),
+  latitude: Joi.number().min(-90).max(90).optional().messages({
+    'number.base': 'Latitude must be a valid number between -90 and 90',
+    'number.min': 'Latitude must be at least -90',
+    'number.max': 'Latitude cannot exceed 90',
+  }),
+  longitude: Joi.number().min(-180).max(180).optional().messages({
+    'number.base': 'Longitude must be a valid number between -180 and 180',
+    'number.min': 'Longitude must be at least -180',
+    'number.max': 'Longitude cannot exceed 180',
+  }),
 });
 
 /**
@@ -47,6 +57,7 @@ const assignClaimSchema = Joi.object({
     }),
   priority: Joi.string().valid('LOW', 'MEDIUM', 'HIGH').optional().default('MEDIUM'),
   notes: Joi.string().trim().optional().allow('', null),
+  overrideCapacity: Joi.boolean().optional().default(false),
 });
 
 const updateVehicleSchema = Joi.object({

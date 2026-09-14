@@ -1,11 +1,68 @@
 const userRepository = require('./user.repository');
-
-const getAdjusters = async (organizationId, statusFilter) => {
-  return await userRepository.findAdjustersWithWorkload(organizationId, statusFilter);
-};
-
-
+const claimRepository = require('../claims/claim.repository');
+const { calculateHaversineDistance } = require('../../utils/geo.utils');
 const AppError = require('../../utils/appError');
+
+const getAdjusters = async (organizationId, options = {}) => {
+  const query = typeof options === 'string' ? { status: options } : options;
+  const { status, claimId, latitude, longitude } = query;
+
+  const adjusters = await userRepository.findAdjustersWithWorkload(organizationId, status);
+
+  let refLat = null;
+  let refLon = null;
+
+  if (typeof latitude === 'number' && typeof longitude === 'number') {
+    refLat = latitude;
+    refLon = longitude;
+  } else if (claimId) {
+    const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!claim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (
+      claim.incidentCoordinates &&
+      typeof claim.incidentCoordinates.latitude === 'number' &&
+      typeof claim.incidentCoordinates.longitude === 'number'
+    ) {
+      refLat = claim.incidentCoordinates.latitude;
+      refLon = claim.incidentCoordinates.longitude;
+    }
+  }
+
+  const adjustersWithDistance = adjusters.map((adj) => {
+    let distanceKm = null;
+    if (
+      refLat !== null &&
+      refLon !== null &&
+      adj.location &&
+      typeof adj.location.latitude === 'number' &&
+      typeof adj.location.longitude === 'number'
+    ) {
+      distanceKm = calculateHaversineDistance(
+        refLat,
+        refLon,
+        adj.location.latitude,
+        adj.location.longitude
+      );
+    }
+    return {
+      ...adj,
+      distanceKm,
+    };
+  });
+
+  if (refLat !== null && refLon !== null) {
+    adjustersWithDistance.sort((a, b) => {
+      if (a.distanceKm === null && b.distanceKm === null) return 0;
+      if (a.distanceKm === null) return 1;
+      if (b.distanceKm === null) return -1;
+      return a.distanceKm - b.distanceKm;
+    });
+  }
+
+  return adjustersWithDistance;
+};
 
 const createUser = async (body, authUser) => {
   try {

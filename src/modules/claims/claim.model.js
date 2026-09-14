@@ -90,6 +90,17 @@ const claimSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    incidentCoordinates: {
+      type: new mongoose.Schema(
+        {
+          latitude: { type: Number, min: -90, max: 90, default: null },
+          longitude: { type: Number, min: -180, max: 180, default: null },
+          capturedAt: { type: Date, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
 
     // ── Vehicle (initial plate; full data added during inspection) ───
     vehicle: {
