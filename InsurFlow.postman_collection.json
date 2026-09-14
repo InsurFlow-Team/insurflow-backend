@@ -5,7 +5,7 @@
       "name": "InsurFlow",
       "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
       "createdAt": "2026-08-25T11:42:57.000Z",
-      "updatedAt": "2026-09-10T15:19:29.876Z",
+      "updatedAt": "2026-09-14T08:21:22.364Z",
       "lastUpdatedBy": "48167372",
       "uid": "48167372-2cc8307a-749f-4cf6-b547-29ee44495b82"
     },
@@ -1112,6 +1112,122 @@
             "response": [],
             "id": "bf29884b-f505-3c29-feaf-598cdd061e88",
             "uid": "48167372-bf29884b-f505-3c29-feaf-598cdd061e88"
+          },
+          {
+            "name": "15. List Adjusters with Proximity by Claim ID (Map Dispatch)",
+            "id": "98c3dbef-7780-4675-966a-e23d0435b725",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/adjusters?claimId={{claimId}}",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "adjusters"
+                ],
+                "query": [
+                  {
+                    "key": "claimId",
+                    "value": "{{claimId}}"
+                  }
+                ]
+              },
+              "description": "Retrieve Field Adjusters sorted ascending by geodesic Haversine distance (distanceKm) from target claim incidentCoordinates. Shows availability and activeTasksCount."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Adjusters sorted by geodesic distance from claim\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "    if (jsonData.data.length > 0) {",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"distanceKm\");",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"location\");",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"availability\");",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"activeTasksCount\");",
+                    "    }",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "16. List Adjusters with Proximity by Direct Coordinates (Map Dispatch)",
+            "id": "9c20740f-98a6-4f04-8aa4-1aa78771d692",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/adjusters?latitude=31.9050&longitude=35.2040",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "adjusters"
+                ],
+                "query": [
+                  {
+                    "key": "latitude",
+                    "value": "31.9050"
+                  },
+                  {
+                    "key": "longitude",
+                    "value": "35.2040"
+                  }
+                ]
+              },
+              "description": "Retrieve Field Adjusters sorted ascending by geodesic Haversine distance from direct reference coordinates."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Adjusters retrieved with distanceKm from coordinates\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
           }
         ],
         "id": "1c372911-672a-4205-929c-e82c036e7a2c",
@@ -1636,6 +1752,127 @@
               },
               "description": "Download publication-grade final claim report PDF. Authorized roles: ADMIN, CLAIMS_OFFICER. Precondition: Claim must have a final decision (APPROVED, REJECTED, or CLOSED)."
             },
+            "response": []
+          },
+          {
+            "name": "13. Create Claim with Incident Coordinates (Officer/Admin)",
+            "id": "9d5ca603-5292-4364-8be4-9952b951913d",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"customerName\": \"Ahmad Accident\",\n  \"customerPhone\": \"+970599123456\",\n  \"initialPlateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ]
+              },
+              "description": "Create a new claim with optional incident GPS coordinates (latitude, longitude) stored in claim.incidentCoordinates, while preserving incidentLocation address text."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 201 Created\", function () {",
+                    "    pm.response.to.have.status(201);",
+                    "});",
+                    "pm.test(\"Claim created successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"id\");",
+                    "    pm.environment.set(\"claimId\", jsonData.data.id);",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "14. Assign Adjuster with Capacity Override (Officer/Admin)",
+            "id": "f81aab04-fb1c-4575-96bd-1912f981b151",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"adjusterId\": \"{{adjusterId}}\",\n  \"priority\": \"HIGH\",\n  \"notes\": \"Assigned with explicit capacity override due to proximity\",\n  \"overrideCapacity\": true\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/assign",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "assign"
+                ]
+              },
+              "description": "Assigns an adjuster to a claim. If adjuster activeTasksCount > 3, overrideCapacity: true bypasses the limit and prefixes timeline note with [CAPACITY OVERRIDE]."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim assigned successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
             "response": []
           }
         ],
@@ -2306,6 +2543,59 @@
               "description": "Fetches active inspection caseload, pending action breakdown, and capacity bar metrics for the logged-in field adjuster."
             },
             "response": []
+          },
+          {
+            "name": "13. Transmit Location GPS via HTTP Headers (Passive Ingestion)",
+            "id": "d6afe963-2a70-4945-8b26-e994f40d72e1",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "X-Latitude",
+                  "value": "31.9038"
+                },
+                {
+                  "key": "X-Longitude",
+                  "value": "35.2034"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ]
+              },
+              "description": "Field Adjuster transmits current GPS position passively via X-Latitude and X-Longitude headers on any authenticated request. Non-blocking middleware asynchronously updates user.location."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claims retrieved and location headers accepted passively\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
           }
         ]
       },
@@ -2352,6 +2642,364 @@
         "createdAt": "2026-08-28T15:57:04.000Z",
         "updatedAt": "2026-08-28T18:53:09.000Z",
         "uid": "48167372-3252c40a-de6f-492c-bc31-f1116ef63304"
+      },
+      {
+        "name": "Map-Based Adjuster Dispatch & Location Tracking (Feature 18)",
+        "id": "718b7dbe-21d5-4013-ae5f-40b1f26265ba",
+        "description": "Feature 18: Map-based adjuster dispatch, passive GPS ingestion via HTTP headers, server-side Haversine proximity calculation, and advisory capacity override.",
+        "item": [
+          {
+            "name": "1. Create Claim with Incident Coordinates (Officer/Admin)",
+            "id": "9d5ca603-5292-4364-8be4-9952b951913d",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"customerName\": \"Ahmad Accident\",\n  \"customerPhone\": \"+970599123456\",\n  \"initialPlateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ]
+              },
+              "description": "Create a new claim with optional incident GPS coordinates (latitude, longitude) stored in claim.incidentCoordinates, while preserving incidentLocation address text."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 201 Created\", function () {",
+                    "    pm.response.to.have.status(201);",
+                    "});",
+                    "pm.test(\"Claim created successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"id\");",
+                    "    pm.environment.set(\"claimId\", jsonData.data.id);",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "2. Transmit Adjuster GPS Location via HTTP Headers (Field Adjuster)",
+            "id": "d6afe963-2a70-4945-8b26-e994f40d72e1",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "X-Latitude",
+                  "value": "31.9038"
+                },
+                {
+                  "key": "X-Longitude",
+                  "value": "35.2034"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ]
+              },
+              "description": "Field Adjuster transmits current GPS position passively via X-Latitude and X-Longitude headers on any authenticated request. Non-blocking middleware asynchronously updates user.location."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claims retrieved and location headers accepted passively\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "3. List Adjusters with Proximity by Claim ID (Officer/Admin)",
+            "id": "98c3dbef-7780-4675-966a-e23d0435b725",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/adjusters?claimId={{claimId}}",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "adjusters"
+                ],
+                "query": [
+                  {
+                    "key": "claimId",
+                    "value": "{{claimId}}"
+                  }
+                ]
+              },
+              "description": "Retrieve Field Adjusters sorted ascending by geodesic Haversine distance (distanceKm) from target claim incidentCoordinates. Shows availability and activeTasksCount."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Adjusters sorted by geodesic distance from claim\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "    if (jsonData.data.length > 0) {",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"distanceKm\");",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"location\");",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"availability\");",
+                    "        pm.expect(jsonData.data[0]).to.have.property(\"activeTasksCount\");",
+                    "    }",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "4. List Adjusters with Proximity by Direct Coordinates (Officer/Admin)",
+            "id": "9c20740f-98a6-4f04-8aa4-1aa78771d692",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/adjusters?latitude=31.9050&longitude=35.2040",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "adjusters"
+                ],
+                "query": [
+                  {
+                    "key": "latitude",
+                    "value": "31.9050"
+                  },
+                  {
+                    "key": "longitude",
+                    "value": "35.2040"
+                  }
+                ]
+              },
+              "description": "Retrieve Field Adjusters sorted ascending by geodesic Haversine distance from direct reference coordinates."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Adjusters retrieved with distanceKm from coordinates\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(Array.isArray(jsonData.data)).to.be.true;",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "5. Assign Adjuster with Capacity Override (Officer/Admin)",
+            "id": "f81aab04-fb1c-4575-96bd-1912f981b151",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"adjusterId\": \"{{adjusterId}}\",\n  \"priority\": \"HIGH\",\n  \"notes\": \"Assigned with explicit capacity override due to proximity\",\n  \"overrideCapacity\": true\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/assign",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "assign"
+                ]
+              },
+              "description": "Assigns an adjuster to a claim. If adjuster activeTasksCount > 3, overrideCapacity: true bypasses the limit and prefixes timeline note with [CAPACITY OVERRIDE]."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim assigned successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "6. [Negative Test] Assign Adjuster Over Capacity without Override (Expect 409)",
+            "id": "b41fb4b3-a001-40c7-9e8e-0d77d43068cd",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"adjusterId\": \"{{busyAdjusterId}}\",\n  \"priority\": \"MEDIUM\",\n  \"notes\": \"Attempt assignment without override\",\n  \"overrideCapacity\": false\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/assign",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "assign"
+                ]
+              },
+              "description": "Verifies that assigning an adjuster with > 3 active tasks without overrideCapacity: true is rejected with 409 ADJUSTER_UNAVAILABLE."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 409 Conflict\", function () {",
+                    "    pm.response.to.have.status(409);",
+                    "});",
+                    "pm.test(\"Rejected with ADJUSTER_UNAVAILABLE code\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.errors[0].code).to.eql(\"ADJUSTER_UNAVAILABLE\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          }
+        ]
       },
       {
         "name": "test the server",
