@@ -219,9 +219,26 @@ const getClaimStatsQuerySchema = Joi.object({
   return value;
 });
 
+/**
+ * Validation schema for POST /claims/:claimId/decline-assignment
+ * Transitions: ASSIGNED → NEW
+ */
+const declineAssignmentSchema = Joi.object({
+  reason: Joi.string()
+    .trim()
+    .max(300)
+    .required()
+    .messages({
+      'string.empty': 'Reason is required',
+      'any.required': 'Reason is required',
+      'string.max': 'Reason cannot exceed 300 characters',
+    }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
+  declineAssignmentSchema,
   updateVehicleSchema,
   updateAccidentSchema,
   updateLocationSchema,

@@ -42,7 +42,7 @@ The API uses JWT-based authentication. The context containing user identity, rol
 ## 4. Roles & Authorization
 - **ADMIN:** Administrative user management, Oversight of all organization claims, Create Claim, Make Claim decision, Final claim closure, Download Final Claim Report.
 - **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision, Download Final Claim Report.
-- **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
+- **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Decline Assignment, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
 
 *(No additional permissions are invented outside of these scopes).*
 
@@ -60,6 +60,7 @@ Valid status enum: `NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`
 Valid status transitions (enforced by the Backend):
 - `Create Claim` → `NEW`
 - `Assign Adjuster` (`NEW` → `ASSIGNED`)
+- `Decline Assignment` (`ASSIGNED` → `NEW`)
 - `Start / Resume Inspection` (`ASSIGNED` or `CORRECTION_REQUIRED` → `IN_PROGRESS`)
 - `Submit Inspection` (`IN_PROGRESS` → `SUBMITTED`)
 - `Start Review` (`SUBMITTED` → `UNDER_REVIEW`)
@@ -364,6 +365,56 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 - **Status Transition:** `NEW` → `ASSIGNED`
+
+### `POST /claims/:claimId/decline-assignment`
+- **Purpose:** Field Adjuster declines an assigned claim, returning it to unassigned pool for re-dispatch.
+- **Authorized Roles:** `FIELD_ADJUSTER` (strictly the assigned adjuster).
+- **Authentication:** Required (JWT).
+- **Stealth-Tenancy & Authorization Rules:**
+  - If called by `CLAIMS_OFFICER` or `ADMIN`: `403 Forbidden` (`Forbidden: Insufficient permissions`).
+  - If called by an adjuster not assigned to the claim: `404 Not Found` (`Claim not found`).
+  - If claim belongs to another organization: `404 Not Found` (`Claim not found`).
+  - If claim is not in `ASSIGNED` status (e.g. `IN_PROGRESS` or `NEW`): `409 Conflict` (`INVALID_STATUS_TRANSITION`).
+- **Request Body:**
+  ```json
+  {
+    "reason": "Vehicle mechanical breakdown on route"
+  }
+  ```
+- **Validation Rules (400 Bad Request):**
+  - `reason`: Required non-empty string after trimming, max 300 characters.
+  - Missing/empty: `400 VALIDATION_ERROR` with details `"Reason is required"`.
+  - Exceeds 300 chars: `400 VALIDATION_ERROR` with details `"Reason cannot exceed 300 characters"`.
+- **State Mutations (Atomic):**
+  - `status`: `ASSIGNED` → `NEW`
+  - `assignedTo`: `null`
+  - `assignedBy`: `null`
+  * `assignedAt`: `null`
+  * `assignmentNotes`: `null`
+- **Timeline Audit Event:**
+  - `action`: `'Assignment Declined'`
+  - `previousStatus`: `'ASSIGNED'`
+  - `newStatus`: `'NEW'`
+  - `performedBy`: `req.user.userId`
+  - `role`: `'FIELD_ADJUSTER'`
+  - `notes`: `"[ASSIGNMENT DECLINED] by <employeeCode> — <reason>"`
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Assignment declined successfully",
+    "data": {
+      "id": "claim-uuid",
+      "claimNumber": "CLM-DEMO-0001",
+      "status": "NEW",
+      "assignedTo": null,
+      "assignedBy": null,
+      "assignedAt": null,
+      "assignmentNotes": null
+    }
+  }
+  ```
+- **Status Transition:** `ASSIGNED` → `NEW`
 
 ## 10. Vehicle & Policy APIs
 

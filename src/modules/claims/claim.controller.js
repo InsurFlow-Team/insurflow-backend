@@ -22,6 +22,18 @@ const assignClaim = async (req, res) => {
 };
 
 /**
+ * POST /api/v1/claims/:claimId/decline-assignment
+ * Declines an assigned claim, returning it to NEW status.
+ * Authorized: FIELD_ADJUSTER (the assigned adjuster only).
+ */
+const declineAssignment = async (req, res) => {
+  const { claimId } = req.params;
+  const { reason } = req.body;
+  const result = await claimService.declineAssignment(claimId, reason, req.user);
+  return res.status(200).json(successResponse('Assignment declined successfully', result));
+};
+
+/**
  * GET /api/v1/claims
  * Returns claims visible to the authenticated user (role-filtered).
  * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
@@ -152,6 +164,7 @@ const getClaimReport = async (req, res) => {
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
+  declineAssignment: asyncWrapper(declineAssignment),
   getClaims: asyncWrapper(getClaims),
   getClaimById: asyncWrapper(getClaimById),
   startInspection: asyncWrapper(startInspection),

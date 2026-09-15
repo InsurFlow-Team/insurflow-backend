@@ -113,6 +113,12 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
     `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.
   - The backend is the single source of truth for capacity enforcement.
 - **Rule BR-ASSIGN-5 (Atomic Assignment):** The database update must atomically verify `status: 'NEW'` and set `status: 'ASSIGNED'`, `assignedTo`, `assignedBy`, `assignedAt`, `priority`, and append a timeline event.
+- **Rule BR-ASSIGN-6 (Adjuster Assignment Decline & Re-dispatch):** An assigned `FIELD_ADJUSTER` may decline a dispatched claim via `POST /api/v1/claims/:claimId/decline-assignment` with a mandatory reason ($\le 300$ chars).
+  - Precondition: Claim must currently be in `ASSIGNED` status. Any other status returns `HTTP 409 Conflict` (`INVALID_STATUS_TRANSITION`).
+  - Authorization & Stealth Tenancy: Only the specific `FIELD_ADJUSTER` assigned to the claim may decline. Other roles (`CLAIMS_OFFICER`, `ADMIN`) receive `HTTP 403 Forbidden`. Non-assigned adjusters or cross-tenant adjusters receive `HTTP 404 Not Found` (stealth-tenancy guard).
+  - Atomic State Reset: Atomically resets `status: 'NEW'`, `assignedTo: null`, `assignedBy: null`, `assignedAt: null`, `assignmentNotes: null`.
+  - Timeline Audit Trail: Records an event with `action: 'Assignment Declined'`, `previousStatus: 'ASSIGNED'`, `newStatus: 'NEW'`, `notes: '[ASSIGNMENT DECLINED] by <employeeCode> — <reason>'`.
+  - Re-dispatch: Claim immediately returns to the unassigned queue (`NEW`) for fresh map-based proximity dispatch by Claims Officers.
 - **Rule BR-LOCATION-1 (Passive Location Ingestion via HTTP Headers):** Mobile client requests performed by `FIELD_ADJUSTER` users passively transmit the adjuster's current GPS position via `X-Latitude` and `X-Longitude` request headers. A cross-cutting middleware validates coordinate boundaries (`-90..90`, `-180..180`) and asynchronously updates stored location. It operates in a non-blocking `try/catch` wrapper that logs server warnings on failure and never interrupts, delays, or rejects the primary request.
 - **Rule BR-DISPATCH-PROXIMITY (Server-Side Haversine Proximity Sorting):** When querying adjusters via `GET /api/v1/users/adjusters` with reference coordinates (from `claimId`'s `incidentCoordinates` or direct query params), the server computes geodesic distances via the Haversine formula (km, rounded to 2 decimals) and sorts adjusters ascending. Adjusters with no reported location are placed at the end with `distanceKm: null`.
 

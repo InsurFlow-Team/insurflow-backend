@@ -8,6 +8,7 @@ const upload = require('../../middlewares/upload.middleware');
 const {
   createClaimSchema,
   assignClaimSchema,
+  declineAssignmentSchema,
   updateVehicleSchema,
   updateAccidentSchema,
   updateLocationSchema,
@@ -64,6 +65,15 @@ router.post(
   validateObjectId('claimId'),
   validate(assignClaimSchema),
   claimController.assignClaim
+);
+
+// POST /api/v1/claims/:claimId/decline-assignment — Decline assigned claim
+router.post(
+  '/:claimId/decline-assignment',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  validate(declineAssignmentSchema),
+  claimController.declineAssignment
 );
 
 router.post(

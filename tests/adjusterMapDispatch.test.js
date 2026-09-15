@@ -411,4 +411,203 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       expect(assignedTimelineEvent.notes).toContain('Urgent nearest adjuster needed');
     });
   });
+
+  describe('POST /api/v1/claims/:claimId/decline-assignment — Decline Assignment Workflow', () => {
+    let assignedClaim;
+
+    beforeEach(async () => {
+      // Create a claim assigned to adjuster1
+      assignedClaim = await Claim.create({
+        organizationId: org1._id,
+        createdBy: officer1._id,
+        status: 'ASSIGNED',
+        assignedTo: adjuster1._id,
+        assignedBy: officer1._id,
+        assignedAt: new Date(),
+        priority: 'HIGH',
+        assignmentNotes: 'Please inspect immediately',
+        customer: { name: 'Customer Test', phone: '0599123456' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Al-Irsal St, Ramallah',
+        incidentCoordinates: { latitude: 31.904, longitude: 35.203, capturedAt: new Date() },
+        timeline: [
+          {
+            action: 'Claim Created',
+            previousStatus: null,
+            newStatus: 'NEW',
+            performedBy: officer1._id,
+            role: 'CLAIMS_OFFICER',
+            timestamp: new Date(),
+          },
+          {
+            action: 'Claim Assigned',
+            previousStatus: 'NEW',
+            newStatus: 'ASSIGNED',
+            performedBy: officer1._id,
+            role: 'CLAIMS_OFFICER',
+            timestamp: new Date(),
+          },
+        ],
+      });
+    });
+
+    it('successfully declines an assigned claim with 200, resets status to NEW, nulls assignment fields, and records exact timeline note', async () => {
+      const res = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({
+          reason: 'Vehicle broke down on route',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('NEW');
+      expect(res.body.data.assignedTo).toBeNull();
+      expect(res.body.data.assignedBy).toBeNull();
+      expect(res.body.data.assignedAt).toBeNull();
+
+      const claimInDb = await Claim.findById(assignedClaim._id);
+      expect(claimInDb.status).toBe('NEW');
+      expect(claimInDb.assignedTo).toBeNull();
+      expect(claimInDb.assignedBy).toBeNull();
+      expect(claimInDb.assignedAt).toBeNull();
+      expect(claimInDb.assignmentNotes).toBeNull();
+
+      const lastTimeline = claimInDb.timeline[claimInDb.timeline.length - 1];
+      expect(lastTimeline.action).toBe('Assignment Declined');
+      expect(lastTimeline.previousStatus).toBe('ASSIGNED');
+      expect(lastTimeline.newStatus).toBe('NEW');
+      expect(lastTimeline.performedBy.toString()).toBe(adjuster1._id.toString());
+      expect(lastTimeline.role).toBe('FIELD_ADJUSTER');
+      expect(lastTimeline.notes).toBe('[ASSIGNMENT DECLINED] by FA-01 — Vehicle broke down on route');
+    });
+
+    it('returns 404 CLAIM_NOT_FOUND when a different FIELD_ADJUSTER attempts to decline', async () => {
+      const adjuster2Token = generateToken(adjuster2);
+      const res = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster2Token}`)
+        .send({
+          reason: 'I do not want this claim',
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('CLAIM_NOT_FOUND');
+
+      // Claim remains assigned to adjuster1
+      const claimInDb = await Claim.findById(assignedClaim._id);
+      expect(claimInDb.status).toBe('ASSIGNED');
+      expect(claimInDb.assignedTo.toString()).toBe(adjuster1._id.toString());
+    });
+
+    it('returns 403 FORBIDDEN when a CLAIMS_OFFICER or ADMIN calls the decline endpoint', async () => {
+      const resOfficer = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          reason: 'Officer attempting decline',
+        });
+
+      expect(resOfficer.status).toBe(403);
+      expect(resOfficer.body.success).toBe(false);
+      expect(resOfficer.body.message).toMatch(/Forbidden/i);
+    });
+
+    it('returns 400 VALIDATION_ERROR when reason is missing or empty after trimming', async () => {
+      // Missing reason
+      const resMissing = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({});
+
+      expect(resMissing.status).toBe(400);
+      expect(resMissing.body.success).toBe(false);
+      expect(resMissing.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(resMissing.body.errors[0].details).toBe('Reason is required');
+
+      // Empty string after trimming
+      const resEmpty = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({ reason: '   ' });
+
+      expect(resEmpty.status).toBe(400);
+      expect(resEmpty.body.success).toBe(false);
+      expect(resEmpty.body.errors[0].details).toBe('Reason is required');
+    });
+
+    it('returns 400 VALIDATION_ERROR when reason exceeds 300 characters', async () => {
+      const longReason = 'a'.repeat(301);
+      const res = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({ reason: longReason });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toBe('Reason cannot exceed 300 characters');
+    });
+
+    it('returns 409 INVALID_STATUS_TRANSITION when declining a claim that is not in ASSIGNED status (e.g. IN_PROGRESS)', async () => {
+      await Claim.findByIdAndUpdate(assignedClaim._id, { status: 'IN_PROGRESS' });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({
+          reason: 'Cannot finish inspection',
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('INVALID_STATUS_TRANSITION');
+    });
+
+    it('returns 404 CLAIM_NOT_FOUND when an adjuster from another organization attempts decline (cross-tenant isolation)', async () => {
+      const otherToken = generateToken(otherOrgAdjuster);
+      const res = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .send({
+          reason: 'Beta adjuster attempting decline on alpha claim',
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('CLAIM_NOT_FOUND');
+    });
+
+    it('confirms the claim is genuinely re-assignable after decline', async () => {
+      // Step 1: Adjuster 1 declines
+      const resDecline = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({
+          reason: 'Heavy traffic, unable to reach location in time',
+        });
+
+      expect(resDecline.status).toBe(200);
+
+      // Step 2: Officer re-assigns to Adjuster 2
+      const resAssign = await request(app)
+        .post(`/api/v1/claims/${assignedClaim._id}/assign`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          adjusterId: adjuster2._id.toString(),
+          priority: 'HIGH',
+          notes: 'Re-dispatched to nearest available adjuster',
+        });
+
+      expect(resAssign.status).toBe(200);
+      expect(resAssign.body.success).toBe(true);
+      expect(resAssign.body.data.status).toBe('ASSIGNED');
+
+      const claimAfter = await Claim.findById(assignedClaim._id);
+      expect(claimAfter.status).toBe('ASSIGNED');
+      expect(claimAfter.assignedTo.toString()).toBe(adjuster2._id.toString());
+    });
+  });
 });
+

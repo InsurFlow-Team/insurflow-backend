@@ -169,6 +169,7 @@ src/
 ### 5.4 Database & Concurrency Design
 - **Atomic Operations Over Read-Modify-Write:** Status transitions and state mutations use Mongoose `findOneAndUpdate` with state preconditions in the filter query.
   - For example, assigning an adjuster queries `{ _id: claimId, organizationId, status: 'NEW' }`. If two officers attempt simultaneous assignment, exactly one succeeds and the other receives `null`, which the service converts to an HTTP 409 Conflict.
+  - Similarly, declining an assignment (`POST /claims/:claimId/decline-assignment`) queries `{ _id: claimId, organizationId, status: 'ASSIGNED', assignedTo: adjusterId }` and atomically resets the claim back to `status: 'NEW'` while nulling assignment fields (`assignedTo`, `assignedBy`, `assignedAt`, `assignmentNotes`) and appending an `[ASSIGNMENT DECLINED]` timeline event.
 - **Audit Timeline:** Claims embed an array of timeline subdocuments (`timeline: [...]`), atomically appended using `$push` on every lifecycle event.
 
 ### 5.5 Unified API Response Envelope

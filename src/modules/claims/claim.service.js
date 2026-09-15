@@ -219,6 +219,60 @@ const assignClaim = async (claimId, body, authUser) => {
   };
 };
 
+const declineAssignment = async (claimId, reason, authUser) => {
+  const { userId, role, organizationId } = authUser;
+
+  // Retrieve adjuster's employeeCode for timeline note
+  const adjusterUser = await userRepository.findByIdAndOrganization(userId, organizationId);
+  const employeeCode = adjusterUser?.employeeCode || 'UNKNOWN';
+
+  const timelineEvent = {
+    action: 'Assignment Declined',
+    previousStatus: 'ASSIGNED',
+    newStatus: 'NEW',
+    notes: `[ASSIGNMENT DECLINED] by ${employeeCode} — ${reason}`,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.declineAssignment(
+    claimId,
+    organizationId,
+    userId,
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    // Atomic update failed: claim doesn't exist, wrong org, not assigned to this adjuster, or not in ASSIGNED status
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+
+    const assignedToId = existing.assignedTo?._id?.toString() ?? existing.assignedTo?.toString();
+    if (assignedToId !== userId.toString()) {
+      // Stealth tenancy: any other adjuster gets 404 CLAIM_NOT_FOUND (not 403)
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+
+    if (existing.status !== 'ASSIGNED') {
+      throw new AppError('Claim is not in ASSIGNED status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  return {
+    id: updatedClaim._id,
+    claimNumber: updatedClaim.claimNumber,
+    status: updatedClaim.status,
+    assignedTo: updatedClaim.assignedTo,
+    assignedBy: updatedClaim.assignedBy,
+    assignedAt: updatedClaim.assignedAt,
+  };
+};
+
 const startInspection = async (claimId, authUser) => {
   const { userId, role, organizationId } = authUser;
 
@@ -793,6 +847,7 @@ module.exports = {
   getClaims,
   getClaimById,
   assignClaim,
+  declineAssignment,
   startInspection,
   updateVehicle,
   updateAccident,

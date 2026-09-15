@@ -240,6 +240,28 @@ const getClaimStats = async ({ organizationId, assignedTo, fromDate, toDate }) =
   return await Claim.aggregate(pipeline);
 };
 
+const declineAssignment = async (claimId, organizationId, assignedTo, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    {
+      _id: claimId,
+      organizationId,
+      status: 'ASSIGNED',
+      assignedTo,
+    },
+    {
+      $set: {
+        status: 'NEW',
+        assignedTo: null,
+        assignedBy: null,
+        assignedAt: null,
+        assignmentNotes: null,
+      },
+      $push: { timeline: timelineEvent },
+    },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -247,6 +269,7 @@ module.exports = {
   findByIdAndOrganization,
   countActiveClaimsByAssignee,
   assignClaim,
+  declineAssignment,
   startInspection,
   updateVehicle,
   updateAccident,

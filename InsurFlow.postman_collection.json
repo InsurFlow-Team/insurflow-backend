@@ -2596,6 +2596,68 @@
               }
             ],
             "response": []
+          },
+          {
+            "name": "14. Decline Assignment (Field Adjuster)",
+            "id": "e33b5281-75d6-48d6-8ac8-063625cbe202",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"reason\": \"Unable to attend incident location due to vehicle breakdown\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decline-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decline-assignment"
+                ]
+              },
+              "description": "Field Adjuster declines an assigned claim. The claim must be in ASSIGNED status. Atomically resets status to NEW, nulls assignment fields, and records an [ASSIGNMENT DECLINED] timeline event."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Assignment declined successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"NEW\");",
+                    "    pm.expect(jsonData.data.assignedTo).to.be.null;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
           }
         ]
       },
@@ -2994,6 +3056,68 @@
                     "    pm.expect(jsonData.errors[0].code).to.eql(\"ADJUSTER_UNAVAILABLE\");",
                     "});"
                   ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "7. Decline Claim Assignment (Field Adjuster)",
+            "id": "2d285bc6-d42e-4f6c-b59e-b73f8fcfe67b",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"reason\": \"Adjuster unavailable due to distance and road blockages\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decline-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decline-assignment"
+                ]
+              },
+              "description": "Field Adjuster declines an assigned claim in ASSIGNED status. Atomically resets status to NEW, nulls assignedTo/assignedBy/assignedAt, and pushes timeline audit note."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Assignment declined successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"NEW\");",
+                    "    pm.expect(jsonData.data.assignedTo).to.be.null;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
                 }
               }
             ],

@@ -186,10 +186,58 @@ The **Map-Based Adjuster Dispatch & Location Tracking** capability enables Claim
     }
     ```
 
+### E. POST `/api/v1/claims/:claimId/decline-assignment` (Assignment Decline Workflow)
+* **Purpose:** Field Adjuster declines an assigned claim (e.g. vehicle mechanical breakdown, distance or road blockages, overload).
+* **Authorized Roles:** `FIELD_ADJUSTER` (strictly the assigned adjuster).
+* **Stealth-Tenancy & Authorization Rules:**
+  * If called by `CLAIMS_OFFICER` or `ADMIN`: `403 Forbidden` (`Forbidden: Insufficient permissions`).
+  * If called by a different `FIELD_ADJUSTER`: `404 Not Found` (`Claim not found` — stealth tenancy guard).
+  * If claim belongs to another organization: `404 Not Found` (`Claim not found`).
+  * If claim status is not `ASSIGNED` (e.g. `IN_PROGRESS` or `NEW`): `409 Conflict` (`INVALID_STATUS_TRANSITION`).
+* **Request Body:**
+  ```json
+  {
+    "reason": "Vehicle breakdown on way to inspection site"
+  }
+  ```
+* **Validation Rules:**
+  * `reason`: Required non-empty string after trimming, maximum 300 characters.
+  * Empty or missing reason: `400 VALIDATION_ERROR` (`Reason is required`).
+  * Reason exceeding 300 chars: `400 VALIDATION_ERROR` (`Reason cannot exceed 300 characters`).
+* **State Mutations (Atomic):**
+  * `status`: `ASSIGNED` → `NEW`
+  * `assignedTo`: `null`
+  * `assignedBy`: `null`
+  * `assignedAt`: `null`
+  * `assignmentNotes`: `null`
+* **Timeline Audit Trail:**
+  * `action`: `'Assignment Declined'`
+  * `previousStatus`: `'ASSIGNED'`
+  * `newStatus`: `'NEW'`
+  * `performedBy`: `req.user.userId`
+  * `role`: `'FIELD_ADJUSTER'`
+  * `notes`: `"[ASSIGNMENT DECLINED] by <employeeCode> — <reason>"`
+* **Response (`200 OK`):**
+  ```json
+  {
+    "success": true,
+    "message": "Assignment declined successfully",
+    "data": {
+      "status": "NEW",
+      "assignedTo": null,
+      "assignedBy": null,
+      "assignedAt": null,
+      "assignmentNotes": null
+    }
+  }
+  ```
+
 ---
 
 ## 4. Business Rules Enforced
 * **BR-ASSIGN-4 (Capacity Rule & Advisory Override):** Adjuster maximum workload is 3 active claims (`ASSIGNED` + `IN_PROGRESS`). Assignment when `activeTasksCount > 3` is rejected with `409 ADJUSTER_UNAVAILABLE` unless `overrideCapacity: true`.
+* **BR-ASSIGN-6 (Adjuster Assignment Decline & Re-dispatch):** The assigned `FIELD_ADJUSTER` can decline the claim while in `ASSIGNED` status with a validated reason ($\le 300$ chars). Atomically resets claim status to `NEW`, nulls all assignment fields, logs an audit note with `[ASSIGNMENT DECLINED] by <employeeCode> — <reason>`, and restores the claim for immediate re-assignment. Non-assigned adjusters receive `404 Not Found` (stealth tenancy).
 * **BR-LOCATION-1 (Passive Location Ingestion):** Adjuster locations are updated seamlessly via HTTP headers without dedicated polling or connection overhead.
 * **BR-DISPATCH-PROXIMITY (Geodesic Proximity Sorting):** Distance is computed using the Haversine formula and sorted ascending. Adjusters without reported location appear last.
 * **Tenant Isolation:** Coordinates, adjusters, and incident references never cross tenant boundaries.
+

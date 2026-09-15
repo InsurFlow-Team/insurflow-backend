@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (20 Suites / 263 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (20 Suites / 271 Tests)** |
 
 ---
 
@@ -79,8 +79,12 @@
   - Passive GPS capture for Field Adjusters via `X-Latitude` / `X-Longitude` HTTP headers handled by non-blocking `adjusterLocation.middleware.js`.
   - Incident GPS capture at creation in `claim.incidentCoordinates: { latitude, longitude, capturedAt }` (optional `latitude`/`longitude` in `POST /claims`), preserving required text address `claim.incidentLocation` and strictly separated from inspection GPS `claim.location`. Resolves Section 21 of `docs/API_CONTRACT.md`.
   - Geodesic proximity sorting via server-side Haversine engine (`src/utils/geo.utils.js`) on `GET /api/v1/users/adjusters` supporting `claimId` or direct coordinates.
-  - Advisory capacity enforcement (3 active tasks max) with explicit `overrideCapacity: true` and `[CAPACITY OVERRIDE]` timeline notation on `POST /claims/:claimId/assign`.
-  - 11 new integration tests in `tests/adjusterMapDispatch.test.js`, bringing suite to 20 suites / 263 tests (100% pass).
+  - 11 initial integration tests in `tests/adjusterMapDispatch.test.js`.
+- [x] **Adjuster Assignment Decline & Re-dispatch (Feature 18 Addendum):**
+  - Atomic decline endpoint `POST /api/v1/claims/:claimId/decline-assignment` restricted exclusively to assigned `FIELD_ADJUSTER`.
+  - Atomically rolls back status from `ASSIGNED` to `NEW`, resets assignment fields (`assignedTo: null`, `assignedBy: null`, `assignedAt: null`, `assignmentNotes: null`), and appends audit timeline event `[ASSIGNMENT DECLINED] by <employeeCode> — <reason>`.
+  - Claims return to `NEW` status, immediately eligible for map-based re-dispatch.
+  - 8 new integration tests in `tests/adjusterMapDispatch.test.js`, bringing suite to 20 suites / 271 tests (100% pass).
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
   - Complete, updated Postman collection (`InsurFlow.postman_collection.json`) covering all auth, claim lifecycle, inspection, decision, and admin flows.
