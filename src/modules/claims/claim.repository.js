@@ -8,15 +8,25 @@ const create = async (data) => {
 };
 
 
-const findByOrganization = async (organizationId, status, pagination = {}) => {
+const findByOrganization = async (organizationId, filter = {}, pagination = {}) => {
   const { page = 1, limit = 50 } = pagination;
   const skip = (page - 1) * limit;
-  const query = { organizationId, ...(status && { status }) };
+
+  // Support both legacy string status and filter object: { status, adjusterId }
+  const status = typeof filter === 'string' ? filter : filter?.status;
+  const adjusterId = typeof filter === 'object' ? (filter?.adjusterId || filter?.assignedTo) : undefined;
+
+  const query = {
+    organizationId,
+    ...(status && { status }),
+    ...(adjusterId && { assignedTo: adjusterId }),
+  };
 
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo')
+      .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -35,7 +45,8 @@ const findByAssignee = async (organizationId, userId, status, pagination = {}) =
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo')
+      .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

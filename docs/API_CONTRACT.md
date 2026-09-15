@@ -147,6 +147,8 @@ Valid status transitions (enforced by the Backend):
 - **Authentication:** Required (JWT).
 - **Request Parameters:**
   - `status`: Optional filter (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
+  - `adjusterId`: Optional MongoDB ObjectId string to filter claims assigned to a specific Field Adjuster.
+  - `assignedTo`: Alias for `adjusterId`.
   - `page`: Optional integer $\ge 1$ (default: `1`).
   - `limit`: Optional integer between $1$ and $100$ (default: `50`).
 - **Pagination Headers (Response):**
@@ -155,9 +157,9 @@ Valid status transitions (enforced by the Backend):
   - `X-Limit`: Items per page.
   - `X-Total-Pages`: Total page count.
 - **Filtering Behavior:**
-  - `CLAIMS_OFFICER`: Returns organization-wide Claims.
+  - `CLAIMS_OFFICER`: Returns organization-wide Claims (optionally filtered by `status` and/or `adjusterId`).
   - `FIELD_ADJUSTER`: Returns only Claims assigned to the authenticated user.
-  - `ADMIN`: Returns Claims according to administrative permissions.
+  - `ADMIN`: Returns Claims according to administrative permissions (optionally filtered by `status` and/or `adjusterId`).
 - **Success Response (200):**
   ```json
   {
@@ -167,10 +169,18 @@ Valid status transitions (enforced by the Backend):
       {
         "id": "claim-uuid",
         "claimNumber": "CLM-DEMO-0001",
-        "status": "NEW",
+        "status": "ASSIGNED",
         "customerName": "John Doe",
         "initialPlateNumber": "ABC-1234",
-        "createdAt": "2026-08-26T15:00:00Z"
+        "createdAt": "2026-08-26T15:00:00Z",
+        "assignedTo": {
+          "id": "6a91ab09c9ff1dc54fabf15c",
+          "name": "Ahmed Ali"
+        },
+        "fieldAdjuster": {
+          "id": "6a91ab09c9ff1dc54fabf15c",
+          "name": "Ahmed Ali"
+        }
       }
     ]
   }

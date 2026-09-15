@@ -342,7 +342,7 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
 | `POST` | `/claims` | CLAIMS_OFFICER / ADMIN | إنشاء مطالبة جديدة |
-| `GET` | `/claims` | الكل* | عرض قائمة المطالبات (مع الهيدرز للـ Pagination) |
+| `GET` | `/claims` | الكل* | عرض قائمة المطالبات (مع بيانات المعاين المعين `assignedTo` و `fieldAdjuster` والفلترة بـ `adjusterId` و Pagination) |
 | `GET` | `/claims/:claimId` | الكل* | عرض تفاصيل المطالبة وسجل الـ Timeline |
 | `POST` | `/claims/:claimId/assign` | CLAIMS_OFFICER | تعيين مفتش متاح للمطالبة |
 | `POST` | `/claims/:claimId/inspection/start` | FIELD_ADJUSTER | بدء أو استئناف المعاينة الميدانية (`IN_PROGRESS`) |

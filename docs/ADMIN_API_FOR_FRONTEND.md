@@ -381,35 +381,41 @@
 
 ---
 
-### 3.2 استعراض ومراقبة جميع المطالبات (All Claims Oversight)
-* **المسار (Endpoint):** `GET /api/v1/claims?status=UNDER_REVIEW&page=1&limit=20`
-* **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
-* **ملاحظة:** الأدمن يستطيع رؤية **جميع** مطالبات المؤسسة بمختلف حالاتها.
+### 3.2 استعراض ومراقبة جميع المطالبات (All Claims Oversight & Filtering)
+* **المسار (Endpoint):** `GET /api/v1/claims`
+* **Query Parameters (اختيارية):**
+  * `status`: تصفية حسب حالة المطالبة (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`).
+  * `adjusterId` (أو `assignedTo`): تصفية المطالبات المعينة لخبير معاينة محدد (`Field Adjuster ObjectId`).
+  * `page`: رقم الصفحة (الافتراضي: 1).
+  * `limit`: عدد العناصر في الصفحة (الافتراضي: 50، الأقصى: 100).
+* **Headers:** `Authorization: Bearer <ADMIN_TOKEN>` أو `<CLAIMS_OFFICER_TOKEN>`
+* **ملاحظة:** الأدمن وموظف المطالبات يستطيعان رؤية **جميع** مطالبات المؤسسة وتصفيتها حسب الحالة أو حسب خبير المعاينة (`adjusterId`). المطالبة غير المعينة ترجع `assignedTo: null`.
 * **Success Response (200 OK):**
   ```json
   {
     "success": true,
-    "message": "Success",
-    "data": {
-      "claims": [
-        {
-          "id": "6a91ab09c9ff1dc54fabf15b",
-          "claimNumber": "CLM-2026-0001",
-          "status": "UNDER_REVIEW",
-          "customerName": "John Doe",
-          "initialPlateNumber": "ABC-1234",
-          "createdAt": "2026-09-08T10:00:00.000Z"
+    "message": "Claims retrieved successfully",
+    "data": [
+      {
+        "id": "6a91ab09c9ff1dc54fabf15b",
+        "claimNumber": "CLM-2026-0001",
+        "status": "ASSIGNED",
+        "customerName": "John Doe",
+        "initialPlateNumber": "ABC-1234",
+        "createdAt": "2026-09-08T10:00:00.000Z",
+        "assignedTo": {
+          "id": "6a91ab09c9ff1dc54fabf15c",
+          "name": "Ahmed Ali"
+        },
+        "fieldAdjuster": {
+          "id": "6a91ab09c9ff1dc54fabf15c",
+          "name": "Ahmed Ali"
         }
-      ],
-      "pagination": {
-        "totalCount": 1,
-        "page": 1,
-        "limit": 20,
-        "totalPages": 1
       }
-    }
+    ]
   }
   ```
+  *(يتم إرجاع بيانات التصفح عبر Response Headers القياسية: `X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`).*
 
 ---
 

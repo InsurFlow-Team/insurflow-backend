@@ -70,9 +70,13 @@ const createClaim = async (body, authUser) => {
 };
 
 
-const getClaims = async (authUser, status, pagination = {}) => {
+const getClaims = async (authUser, filter = {}, pagination = {}) => {
   const { userId, role, organizationId } = authUser;
   const { page = 1, limit = 50 } = pagination;
+
+  // Support both legacy string status and filter object: { status, adjusterId }
+  const status = typeof filter === 'string' ? filter : filter?.status;
+  const adjusterId = typeof filter === 'object' ? (filter?.adjusterId || filter?.assignedTo) : undefined;
 
   let result;
 
@@ -80,21 +84,34 @@ const getClaims = async (authUser, status, pagination = {}) => {
   if (role === 'FIELD_ADJUSTER') {
     result = await claimRepository.findByAssignee(organizationId, userId, status, { page, limit });
   } else {
-    // CLAIMS_OFFICER & ADMIN: see all claims in their organization
-    result = await claimRepository.findByOrganization(organizationId, status, { page, limit });
+    // CLAIMS_OFFICER & ADMIN: see claims in their organization (optionally filtered by status and/or adjuster)
+    result = await claimRepository.findByOrganization(organizationId, { status, adjusterId }, { page, limit });
   }
 
   const { totalCount, claims } = result;
   const totalPages = Math.ceil(totalCount / limit);
 
-  const formattedClaims = claims.map((claim) => ({
-    id: claim._id,
-    claimNumber: claim.claimNumber,
-    status: claim.status,
-    customerName: claim.customer.name,
-    initialPlateNumber: claim.vehicle.plateNumber,
-    createdAt: claim.createdAt,
-  }));
+  const formattedClaims = claims.map((claim) => {
+    let assignedAdjuster = null;
+    if (claim.assignedTo) {
+      const id = claim.assignedTo._id ? claim.assignedTo._id.toString() : claim.assignedTo.toString();
+      assignedAdjuster = {
+        id,
+        name: claim.assignedTo.name || null,
+      };
+    }
+
+    return {
+      id: claim._id,
+      claimNumber: claim.claimNumber,
+      status: claim.status,
+      customerName: claim.customer.name,
+      initialPlateNumber: claim.vehicle.plateNumber,
+      createdAt: claim.createdAt,
+      assignedTo: assignedAdjuster,
+      fieldAdjuster: assignedAdjuster,
+    };
+  });
 
   return {
     claims: formattedClaims,

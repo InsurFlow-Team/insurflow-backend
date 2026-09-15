@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (20 Suites / 271 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (20 Suites / 276 Tests)** |
 
 ---
 
@@ -39,6 +39,7 @@
   - Single-query MongoDB `$lookup` aggregation for adjuster availability eliminating N+1 queries.
   - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`.
   - Adjuster dispatch with atomic assignment checks (`POST /api/v1/claims/:claimId/assign`).
+  - **Field Adjuster Visibility & Filtering on Claims Listing (`GET /api/v1/claims`):** Populates assigned Field Adjuster identity (`id` and `name`) in both `assignedTo` and `fieldAdjuster` fields (or `null` if unassigned) across all claims returned by `GET /api/v1/claims`. Supports filtering by assigned adjuster via `adjusterId` and alias `assignedTo` query parameters with Joi ObjectId validation. Tested in `tests/claim.read.test.js`.
 - [x] **Vehicle & Policy Lookup:**
   - Plate lookup (`GET /api/v1/vehicles/lookup`) with normalization and policy expiration warning (`POLICY_EXPIRED`).
 - [x] **Field Inspection & 9-Status Lifecycle Machine:**

@@ -119,6 +119,20 @@ const listClaimsQuerySchema = Joi.object({
     .messages({
       'any.only': 'status must be one of: NEW, ASSIGNED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, CORRECTION_REQUIRED, APPROVED, REJECTED, CLOSED',
     }),
+  adjusterId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+    }),
+  assignedTo: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+    }),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(50),
 });

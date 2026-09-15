@@ -39,8 +39,12 @@ const declineAssignment = async (req, res) => {
  * Authorized: CLAIMS_OFFICER, FIELD_ADJUSTER, ADMIN.
  */
 const getClaims = async (req, res) => {
-  const { status, page, limit } = req.query;
-  const { claims, pagination } = await claimService.getClaims(req.user, status, { page, limit });
+  const { status, adjusterId, assignedTo, page, limit } = req.query;
+  const { claims, pagination } = await claimService.getClaims(
+    req.user,
+    { status, adjusterId: adjusterId || assignedTo },
+    { page, limit }
+  );
 
   res.set('X-Total-Count', String(pagination.totalCount));
   res.set('X-Page', String(pagination.page));

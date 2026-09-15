@@ -52,15 +52,24 @@ To prevent cross-tenant count pollution, the exact same `query` filter object is
 
 ```javascript
 // Claim Repository Example:
-const findByOrganization = async (organizationId, status, pagination = {}) => {
+const findByOrganization = async (organizationId, filter = {}, pagination = {}) => {
   const { page = 1, limit = 50 } = pagination;
   const skip = (page - 1) * limit;
-  const query = { organizationId, ...(status && { status }) };
+
+  const status = typeof filter === 'string' ? filter : filter?.status;
+  const adjusterId = typeof filter === 'object' ? (filter?.adjusterId || filter?.assignedTo) : undefined;
+
+  const query = {
+    organizationId,
+    ...(status && { status }),
+    ...(adjusterId && { assignedTo: adjusterId }),
+  };
 
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt')
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo')
+      .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -72,7 +81,7 @@ const findByOrganization = async (organizationId, status, pagination = {}) => {
 ```
 
 ### Role-Based Filter Handling on Claims
-* **`CLAIMS_OFFICER` & `ADMIN`:** Queries organization-wide claims (`{ organizationId, ... }`).
+* **`CLAIMS_OFFICER` & `ADMIN`:** Queries organization-wide claims (`{ organizationId, ... }`), with optional filtering by `status` and/or `adjusterId` (`assignedTo`).
 * **`FIELD_ADJUSTER`:** Queries only claims assigned to the caller (`{ organizationId, assignedTo: userId, ... }`). Both `X-Total-Count` and returned items reflect the adjuster's assigned subset.
 
 ---
@@ -83,14 +92,16 @@ const findByOrganization = async (organizationId, status, pagination = {}) => {
 ```javascript
 const listClaimsQuerySchema = Joi.object({
   status: Joi.string()
-    .valid('NEW', 'ASSIGNED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CLOSED')
+    .valid('NEW', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED')
     .optional(),
+  adjusterId: Joi.string().trim().pattern(objectIdPattern).optional(),
+  assignedTo: Joi.string().trim().pattern(objectIdPattern).optional(),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(50),
 });
 ```
 
-* Request: `GET /api/v1/claims?page=2&limit=20&status=ASSIGNED`
+* Request: `GET /api/v1/claims?page=2&limit=20&status=ASSIGNED&adjusterId=6a91ab09c9ff1dc54fabf15c`
 * Success Response (200 OK):
   * **Headers:**
     ```http
@@ -104,7 +115,24 @@ const listClaimsQuerySchema = Joi.object({
     {
       "success": true,
       "message": "Claims retrieved successfully",
-      "data": [ ... 20 claims ... ]
+      "data": [
+        {
+          "id": "6a91ab09c9ff1dc54fabf15b",
+          "claimNumber": "CLM-2026-0001",
+          "status": "ASSIGNED",
+          "customerName": "John Doe",
+          "initialPlateNumber": "ABC-1234",
+          "createdAt": "2026-09-08T10:00:00.000Z",
+          "assignedTo": {
+            "id": "6a91ab09c9ff1dc54fabf15c",
+            "name": "Ahmed Ali"
+          },
+          "fieldAdjuster": {
+            "id": "6a91ab09c9ff1dc54fabf15c",
+            "name": "Ahmed Ali"
+          }
+        }
+      ]
     }
     ```
 

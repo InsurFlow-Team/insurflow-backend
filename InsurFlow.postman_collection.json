@@ -1273,16 +1273,22 @@
             "uid": "48167372-8c7521cc-f20d-4b8c-8746-322e162c49fa"
           },
           {
-            "name": "allClaims",
+            "name": "allClaims (List Claims & Filter by Adjuster)",
             "id": "eec530a1-d164-466d-9aa1-c47c63fd867c",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
             "request": {
               "method": "GET",
-              "header": [],
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}",
+                  "type": "text"
+                }
+              ],
               "url": {
-                "raw": "{{URL}}api/v1/claims?status=NEW",
+                "raw": "{{URL}}api/v1/claims?status=ASSIGNED&adjusterId={{adjusterId}}",
                 "host": [
                   "{{URL}}api"
                 ],
@@ -1293,15 +1299,68 @@
                 "query": [
                   {
                     "key": "status",
-                    "value": "NEW"
+                    "value": "ASSIGNED",
+                    "description": "Optional status filter (NEW, ASSIGNED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, CORRECTION_REQUIRED, APPROVED, REJECTED, CLOSED)"
+                  },
+                  {
+                    "key": "adjusterId",
+                    "value": "{{adjusterId}}",
+                    "description": "Filter claims assigned to a specific Field Adjuster (ObjectId)"
+                  },
+                  {
+                    "key": "assignedTo",
+                    "value": "{{adjusterId}}",
+                    "description": "Alias for adjusterId",
+                    "disabled": true
+                  },
+                  {
+                    "key": "page",
+                    "value": "1",
+                    "description": "Page number (default 1)",
+                    "disabled": true
+                  },
+                  {
+                    "key": "limit",
+                    "value": "20",
+                    "description": "Items per page (default 50, max 100)",
+                    "disabled": true
                   }
                 ]
-              }
+              },
+              "description": "Returns organization claims with populated assignedTo & fieldAdjuster details ({ id, name }). Supports filtering by status and/or adjusterId (or assignedTo alias), and standard pagination headers (X-Total-Count, X-Page, X-Limit, X-Total-Pages)."
             },
             "response": [],
             "createdAt": "2026-08-28T18:57:20.000Z",
             "updatedAt": "2026-09-01T08:30:51.000Z",
-            "uid": "48167372-eec530a1-d164-466d-9aa1-c47c63fd867c"
+            "uid": "48167372-eec530a1-d164-466d-9aa1-c47c63fd867c",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claims list retrieved with assigned adjuster info\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    var claims = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data?.claims || []);",
+                    "    pm.expect(claims).to.be.an(\"array\");",
+                    "    if (claims.length > 0) {",
+                    "        var assignedClaim = claims.find(function(c) { return c.assignedTo !== null; });",
+                    "        if (assignedClaim) {",
+                    "            pm.expect(assignedClaim.assignedTo).to.have.property(\"id\");",
+                    "            pm.expect(assignedClaim.assignedTo).to.have.property(\"name\");",
+                    "            pm.expect(assignedClaim.fieldAdjuster).to.have.property(\"id\");",
+                    "            pm.expect(assignedClaim.fieldAdjuster).to.have.property(\"name\");",
+                    "        }",
+                    "    }",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
           },
           {
             "name": "claimById",
@@ -1980,9 +2039,10 @@
                     "pm.test(\"Claims list retrieved\", function () {",
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.claims).to.be.an(\"array\");",
-                    "    if (jsonData.data.claims.length > 0) {",
-                    "        pm.environment.set(\"claimId\", jsonData.data.claims[0].id);",
+                    "    var claimsList = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data?.claims || []);",
+                    "    pm.expect(claimsList).to.be.an(\"array\");",
+                    "    if (claimsList.length > 0) {",
+                    "        pm.environment.set(\"claimId\", claimsList[0].id);",
                     "    }",
                     "});"
                   ],
