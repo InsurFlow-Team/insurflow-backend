@@ -151,6 +151,7 @@ const getClaimById = async (claimId, authUser) => {
     vehicle: claim.vehicle,
     incidentType: claim.incidentType,
     incidentLocation: claim.incidentLocation,
+    incidentCoordinates: claim.incidentCoordinates ?? null,
     assignment: {
       assignedTo: claim.assignedTo,
       assignedBy: claim.assignedBy,

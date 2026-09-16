@@ -200,6 +200,12 @@ Valid status transitions (enforced by the Backend):
       "status": "ASSIGNED",
       "customer": { "name": "John Doe", "phone": "0591234567" },
       "vehicle": { "plateNumber": "ABC-1234" },
+      "incidentLocation": "Al-Irsal St, Ramallah",
+      "incidentCoordinates": {
+        "latitude": 31.9050,
+        "longitude": 35.2040,
+        "capturedAt": "2026-08-26T15:00:00Z"
+      },
       "assignment": { 
         "assignedTo": "adjuster-id", 
         "assignedBy": "officer-id", 

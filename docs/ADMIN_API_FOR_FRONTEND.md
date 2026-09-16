@@ -644,3 +644,32 @@ async function downloadClaimReport(claimId, claimNumber, token) {
   3. عند ضغط المستخدم "نعم / تأكيد التجاوز"، يعيد الفرونت إرسال نفس الطلب مع إضافة `"overrideCapacity": true`.
   4. ينجح التعيين ويقوم الباك إند تلقائياً بإضافة بادئة في سجل الملاحظات:
      `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.
+
+### 5.3 رفض التكليف وإعادة التوزيع (Adjuster Decline Assignment Workflow)
+* **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decline-assignment`
+* **المستخدم المصرح له:** حصرياً المعاين الميداني المكلّف بهذه المطالبة (`FIELD_ADJUSTER`).
+* **Headers:** `Authorization: Bearer <ADJUSTER_TOKEN>`
+* **Request Body:**
+  ```json
+  {
+    "reason": "تعطل في المركبة ولا يمكن الوصول في الوقت المحدد"
+  }
+  ```
+* **سلوك النظام والواجهة:**
+  1. حقل `reason` إلزامي (نص حتى 300 حرف كحد أقصى).
+  2. يتم تحويل حالة المطالبة ذرياً من `ASSIGNED` إلى `NEW` وتصفير حقول التكليف (`assignedTo: null`).
+  3. تظهر المطالبة فوراً من جديد على خريطة موظف المطالبات في حالة `NEW` ليعيد توزيعها لمعاين آخر.
+  4. إذا حاول موظف مطالبات أو أدمن استدعاء المسار يُرجع `403 Forbidden`.
+  5. إذا حاول معاين آخر غير المكلف استدعاء المسار يُرجع `404 Not Found` (Stealth Tenancy).
+
+### 5.4 إحداثيات الحادث في تفاصيل المطالبة (Incident Coordinates)
+* **المسار (Endpoint):** `GET /api/v1/claims/:claimId`
+* يرجع الباك إند كائن إحداثيات الحادث لرسم نقطة الحادث على الخريطة:
+  ```json
+  "incidentCoordinates": {
+    "latitude": 31.9050,
+    "longitude": 35.2040,
+    "capturedAt": "2026-09-14T07:27:55.000Z"
+  }
+  ```
+  *(إذا لم تُسجل إحداثيات عند إنشاء المطالبة، يرجع الحقل بقيمة `null`)*.
