@@ -260,5 +260,5 @@ Every endpoint in the system complies with the unified structure provided by `sr
 - **Device Token Self-Registration (`PATCH /api/v1/users/me/fcm-token`):**
   - Resides within the `users` module.
   - Mounted before `/:userId` parameter routes to prevent routing conflicts.
-  - Accessible to all authenticated users regardless of role, updating exclusively the calling user's document (`req.user.userId || req.user._id`) scoped to their authenticated `organizationId`.
+  - Accessible to all authenticated users regardless of role, updating exclusively the calling user's document (`req.user.userId`) scoped to their authenticated `organizationId`.
 
