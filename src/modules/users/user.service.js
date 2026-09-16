@@ -148,7 +148,7 @@ const updateUser = async (userId, updateData, authUser) => {
 };
 
 const updateFcmToken = async (fcmToken, authUser) => {
-  const userId = authUser.userId || authUser._id;
+  const userId = authUser.userId;
   const updated = await userRepository.updateFcmToken(userId, authUser.organizationId, fcmToken);
   if (!updated) {
     throw new AppError('User not found', 404, 'USER_NOT_FOUND');

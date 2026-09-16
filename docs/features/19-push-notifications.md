@@ -1,12 +1,19 @@
 # Feature Specification: Push Notifications & Device Token Management (Feature 19)
 
+> [!WARNING]
+> **Implementation Status: PARTIAL / IN-PROGRESS (Increments 1 & 2 Only)**  
+> This specification documents the foundational infrastructure and device-token registration delivered in Increments 1 and 2.  
+> **Increment 3 (Domain Trigger Wiring) is NOT yet implemented.** At this stage, no notifications are triggered or dispatched by any business actions (claim assignment, correction requests, approvals, or rejections). End-to-end delivery will be activated once Increment 3 wires `createAndSendNotification` into the corresponding domain lifecycle hooks.
+
+---
+
 ## 1. Feature Overview
 The **Push Notifications** module enables InsurFlow to dispatch real-time mobile push notifications to field adjusters and staff members via Firebase Cloud Messaging (FCM), alongside persistent in-app notification records.
 
-### Implementation Status:
-- **Increment 1 (Completed):** Firebase Admin SDK initialization (`src/config/firebase.js`) and reusable push sender service (`src/services/push.service.js`).
-- **Increment 2 (Completed):** Notification persistence model (`src/modules/notifications/notification.model.js`), unified notification service (`src/modules/notifications/notification.service.js`), `fcmToken` attribute on `User` model, and device token registration endpoint (`PATCH /api/v1/users/me/fcm-token`).
-- **Increment 3 (Upcoming):** Wiring into the 4 core domain business lifecycle triggers (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`).
+### Implementation Phasing:
+- **Increment 1 (Closed):** Firebase Admin SDK initialization (`src/config/firebase.js`) and reusable push sender service (`src/services/push.service.js`).
+- **Increment 2 (Closed):** Notification persistence model (`src/modules/notifications/notification.model.js`), unified notification service (`src/modules/notifications/notification.service.js`), `fcmToken` attribute on `User` model, and device token registration endpoint (`PATCH /api/v1/users/me/fcm-token`).
+- **Increment 3 (Pending):** Wiring into the 4 core domain business lifecycle triggers (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`).
 
 ---
 
@@ -19,7 +26,7 @@ The **Push Notifications** module enables InsurFlow to dispatch real-time mobile
    - If recipient has no `fcmToken` or is not found, push is skipped silently.
    - If `sendPush` throws an error, the error is caught, logged via `console.error`, and suppressed. The created `Notification` document is returned successfully.
 4. **Tenant & Identity Isolation:**
-   - `PATCH /api/v1/users/me/fcm-token` updates only the authenticated user's own document (`req.user.userId || req.user._id`), scoped by `organizationId`.
+   - `PATCH /api/v1/users/me/fcm-token` updates only the authenticated user's own document (`req.user.userId`), scoped by `organizationId`.
    - Notification records are strictly tenant-scoped via `organizationId`.
 
 ---

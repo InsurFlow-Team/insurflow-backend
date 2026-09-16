@@ -26,8 +26,8 @@
 | **15** | [15-evidence-photos-and-digital-signature.md](./15-evidence-photos-and-digital-signature.md) | Photo evidence capture (additive array, categorized imageType), digital signature sign-off, Cloudinary storage, 5-pillar inspection completeness | Assigned `FIELD_ADJUSTER` | `POST /api/v1/claims/:claimId/evidence`<br>`POST /api/v1/claims/:claimId/signature` |
 | **16** | [16-dashboard-kpi-aggregation.md](./16-dashboard-kpi-aggregation.md) | Dashboard KPI metrics, role-scoped envelopes (`ORGANIZATION` vs `ASSIGNED`), adjuster workload distribution, date-filtered aggregation | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims/stats` |
 | **17** | [17-final-claim-report.md](./17-final-claim-report.md) | Final claim PDF dossier, full domain hydration, Cloudinary transform & graceful degradation, in-memory buffering | `CLAIMS_OFFICER`, `ADMIN` | `GET /api/v1/claims/:claimId/report` |
-| **18** | [18-adjuster-map-dispatch-and-location-tracking.md](./18-adjuster-map-dispatch-and-location-tracking.md) | Passive HTTP header GPS capture, server-side Haversine distance, proximity-sorted adjuster dispatch, advisory capacity with explicit override | `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/users/adjusters`<br>`POST /api/v1/claims/:claimId/assign` |
-| **19** | [19-push-notifications.md](./19-push-notifications.md) | Firebase Admin SDK integration, reusable push service, Notification schema, User device-token registration | All Authenticated Roles | `PATCH /api/v1/users/me/fcm-token` |
+| **19** | [19-push-notifications.md](./19-push-notifications.md) | *(In Progress — Inc 1 & 2 only, triggers pending Inc 3)* Firebase Admin SDK integration, reusable push service, Notification schema, User device-token registration | All Authenticated Roles | `PATCH /api/v1/users/me/fcm-token` |
+
 
 ---
 
