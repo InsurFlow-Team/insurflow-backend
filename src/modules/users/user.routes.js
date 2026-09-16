@@ -11,6 +11,7 @@ const {
   resetPasswordSchema,
   getAdjustersQuerySchema,
   listUsersQuerySchema,
+  updateFcmTokenSchema,
 } = require('./user.validation');
 
 const router = express.Router();
@@ -26,6 +27,9 @@ router.get(
   validate(getAdjustersQuerySchema, 'query'),
   userController.getAdjusters
 );
+
+// PATCH /api/v1/users/me/fcm-token — Register device token for current user (any authenticated role)
+router.patch('/me/fcm-token', validate(updateFcmTokenSchema), userController.updateFcmToken);
 
 // ADMIN user management routes
 router.post('/', authorizeRole(['ADMIN']), validate(createUserSchema), userController.createUser);

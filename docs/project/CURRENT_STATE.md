@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (20 Suites / 276 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (23 Suites / 299 Tests)** |
 
 ---
 
@@ -86,6 +86,14 @@
   - Atomically rolls back status from `ASSIGNED` to `NEW`, resets assignment fields (`assignedTo: null`, `assignedBy: null`, `assignedAt: null`, `assignmentNotes: null`), and appends audit timeline event `[ASSIGNMENT DECLINED] by <employeeCode> — <reason>`.
   - Claims return to `NEW` status, immediately eligible for map-based re-dispatch.
   - 8 new integration tests in `tests/adjusterMapDispatch.test.js`, bringing suite to 20 suites / 271 tests (100% pass).
+- [x] **Push Notifications & Device Token Management (Feature 19 — Increments 1 & 2):**
+  - Firebase Admin SDK initialization (`src/config/firebase.js`) loading local service account credential.
+  - Reusable push notification sender (`src/services/push.service.js`) with FCM data payload normalization (guaranteed string values) and error isolation.
+  - Notification persistence model (`src/modules/notifications/notification.model.js`) with enums (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`), tenant compound index, and defaults.
+  - Unified notification service (`src/modules/notifications/notification.service.js`) with `createAndSendNotification`, ensuring push failures are caught and logged without propagating or failing caller actions.
+  - Added `fcmToken: { type: String, default: null }` attribute to `User` model (`src/modules/users/user.model.js`).
+  - Device token registration endpoint `PATCH /api/v1/users/me/fcm-token` available to all authenticated roles with Joi validation and tenant/identity self-scoping.
+  - Automated test coverage across 3 dedicated suites (`tests/push.service.test.js`, `tests/notification.service.test.js`, `tests/user.fcmToken.test.js`), bringing total coverage to 23 suites / 299 tests (100% pass).
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
   - Complete, updated Postman collection (`InsurFlow.postman_collection.json`) covering all auth, claim lifecycle, inspection, decision, and admin flows.

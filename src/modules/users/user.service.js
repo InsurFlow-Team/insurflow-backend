@@ -147,6 +147,18 @@ const updateUser = async (userId, updateData, authUser) => {
   }
 };
 
+const updateFcmToken = async (fcmToken, authUser) => {
+  const userId = authUser.userId || authUser._id;
+  const updated = await userRepository.updateFcmToken(userId, authUser.organizationId, fcmToken);
+  if (!updated) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  return {
+    id: updated._id,
+    fcmToken: updated.fcmToken,
+  };
+};
+
 module.exports = {
   getAdjusters,
   createUser,
@@ -154,4 +166,5 @@ module.exports = {
   updateUser,
   updateUserStatus,
   resetUserPassword,
+  updateFcmToken,
 };

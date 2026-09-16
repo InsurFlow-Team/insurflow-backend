@@ -70,6 +70,17 @@ const updateUser = async (userId, organizationId, updateData) => {
     .lean();
 };
 
+const updateFcmToken = async (userId, organizationId, fcmToken) => {
+  return await User.findOneAndUpdate(
+    { _id: userId, organizationId },
+    { $set: { fcmToken } },
+    { returnDocument: 'after' }
+  )
+    .select('_id fcmToken')
+    .lean();
+};
+
+
 /**
  * Aggregates field adjusters in an organization along with their active claim workload in a single query.
  * Eliminates the N+1 query loop.
@@ -175,5 +186,6 @@ module.exports = {
   resetPassword,
   updateStatus,
   updateUser,
+  updateFcmToken,
 };
 

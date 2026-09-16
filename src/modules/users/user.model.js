@@ -50,6 +50,10 @@ const userSchema = new mongoose.Schema({
       default: null,
     },
   },
+  fcmToken: {
+    type: String,
+    default: null,
+  },
 }, { timestamps: true });
 
 userSchema.index({ organizationId: 1, employeeCode: 1 }, { unique: true });

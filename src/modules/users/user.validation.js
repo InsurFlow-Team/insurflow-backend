@@ -55,6 +55,14 @@ const updateUserSchema = Joi.object({
   employeeCode: Joi.string().trim().min(1).optional(),
 }).min(1);
 
+const updateFcmTokenSchema = Joi.object({
+  fcmToken: Joi.string().trim().min(1).required().messages({
+    'string.base': 'fcmToken must be a string',
+    'string.empty': 'fcmToken cannot be empty',
+    'any.required': 'fcmToken is required',
+  }),
+});
+
 module.exports = {
   createUserSchema,
   updateUserSchema,
@@ -62,4 +70,6 @@ module.exports = {
   resetPasswordSchema,
   getAdjustersQuerySchema,
   listUsersQuerySchema,
+  updateFcmTokenSchema,
 };
+

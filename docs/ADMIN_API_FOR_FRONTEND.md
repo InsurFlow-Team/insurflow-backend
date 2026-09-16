@@ -252,7 +252,31 @@
 
 ---
 
-### 2.5 استعراض المعاينين الميدانيين وحمل العمل (Adjusters Workload)
+### 2.6 تسجيل وتحديث توكن الإشعارات للأجهزة المحمولة (Device FCM Token Registration)
+* **المسار (Endpoint):** `PATCH /api/v1/users/me/fcm-token`
+* **Headers:** `Authorization: Bearer <JWT_TOKEN>` (متاح لجميع الأدوار: `FIELD_ADJUSTER`, `CLAIMS_OFFICER`, `ADMIN`)
+* **الوصف:** يقوم بحفظ أو تحديث رمز جهاز المستخدم المستلم من Firebase Cloud Messaging (FCM) في وثيقة المستخدم الخاصة به لاستلام الإشعارات الفورية.
+* **Request Body:**
+  ```json
+  {
+    "fcmToken": "dKj4f_...-device-token-string"
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Device token updated successfully",
+    "data": {
+      "id": "6aa27838cda4d3dca00b83ee",
+      "fcmToken": "dKj4f_...-device-token-string"
+    }
+  }
+  ```
+
+---
+
+### 2.7 استعراض المعاينين الميدانيين وحمل العمل (Adjusters Workload)
 * **المسار (Endpoint):** `GET /api/v1/users/adjusters?status=available`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 * **Query Parameters:** `status=available` (اختياري لجلب المتفرغين فقط).

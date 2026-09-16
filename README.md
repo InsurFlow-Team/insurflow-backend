@@ -64,7 +64,11 @@ INSURFLOW/
 │   ├── config/                   ← إعدادات المشروع
 │   │   ├── env.js                ← قراءة متغيرات البيئة (.env)
 │   │   ├── database.js           ← الاتصال بـ MongoDB
-│   │   └── cloudinary.js         ← إعداد الربط مع Cloudinary
+│   │   ├── cloudinary.js         ← إعداد الربط مع Cloudinary
+│   │   └── firebase.js           ← إعداد وتهيئة Firebase Admin SDK
+│   │
+│   ├── services/                 ← خدمات مشتركة عابرة للوحدات
+│   │   └── push.service.js       ← إرسال الإشعارات الفورية عبر Firebase Cloud Messaging
 │   │
 │   ├── middlewares/              ← وسطاء الطلبات (تُنفَّذ قبل كل endpoint)
 │   │   ├── auth.middleware.js    ← التحقق من الـ JWT token
@@ -72,6 +76,7 @@ INSURFLOW/
 │   │   ├── validate.middleware.js← التحقق من المدخلات بواسطة Joi
 │   │   ├── upload.middleware.js  ← معالجة رفع الصور في الذاكرة (10MB)
 │   │   ├── rateLimiter.middleware.js ← تحديد معدل الطلبات وحماية الهجمات
+│   │   ├── adjusterLocation.middleware.js ← التقاط إحداثيات المعاين الميداني
 │   │   ├── errorHandler.js       ← معالج الأخطاء العام
 │   │   └── notFound.js           ← معالج الـ 404
 │   │
@@ -79,6 +84,7 @@ INSURFLOW/
 │   │   ├── apiResponse.js        ← تنسيق موحد للردود
 │   │   ├── appError.js           ← كلاس مخصص للأخطاء
 │   │   ├── counter.model.js      ← عداد لتوليد أرقام المطالبات
+│   │   ├── geo.utils.js          ← حساب المسافات الجغرافية (Haversine)
 │   │   └── uploadToCloudinary.js ← أداة رفع الملفات عبر Streams لـ Cloudinary
 │   │
 │   ├── scripts/
@@ -105,7 +111,12 @@ INSURFLOW/
 │       │   ├── user.controller.js
 │       │   ├── user.service.js
 │       │   ├── user.repository.js
-│       │   └── user.model.js
+│       │   ├── user.model.js
+│       │   └── user.validation.js
+│       │
+│       ├── notifications/        ← وحدة الإشعارات
+│       │   ├── notification.model.js
+│       │   └── notification.service.js
 │       │
 │       ├── vehicles/             ← وحدة المركبات
 │       │   ├── vehicle.routes.js
@@ -126,7 +137,7 @@ INSURFLOW/
 │           ├── policy.model.js
 │           └── policy.repository.js
 │
-├── tests/                        ← الاختبارات التلقائية (17 Suites / 208 Tests)
+├── tests/                        ← الاختبارات التلقائية (23 Suites / 299 Tests)
 ├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json

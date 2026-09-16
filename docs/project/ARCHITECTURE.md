@@ -165,6 +165,7 @@ src/
   - User: `{ organizationId: 1, employeeCode: 1 }` (unique)
   - Vehicle: `{ organizationId: 1, plateNumber: 1 }` (unique)
   - Policy: `{ organizationId: 1, policyNumber: 1 }` (unique)
+  - Notification: `{ organizationId: 1, recipientId: 1, createdAt: -1 }`
 
 ### 5.4 Database & Concurrency Design
 - **Atomic Operations Over Read-Modify-Write:** Status transitions and state mutations use Mongoose `findOneAndUpdate` with state preconditions in the filter query.
@@ -239,3 +240,25 @@ Every endpoint in the system complies with the unified structure provided by `sr
 - **Advisory Capacity & Explicit Override:**
   - Enforced server-side in `claim.service.js` (`assignClaim`): blocks with `409 ADJUSTER_UNAVAILABLE` when `activeTasksCount > 3`, unless `overrideCapacity: true` is explicitly passed.
   - Overridden assignments prefix the audit timeline with `[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)`.
+
+### 5.9 Push Notification & Device Token Architecture (Feature 19)
+- **Firebase Admin SDK Initialization (`src/config/firebase.js`):**
+  - Uses the official `firebase-admin` SDK initialized via service account credentials stored in an untracked local JSON file.
+  - In environments where credentials are not provisioned (e.g. CI or unit test runners), it exports a null/mocked reference gracefully without crashing startup.
+- **Cross-Module Push Sender (`src/services/push.service.js`):**
+  - Encapsulates `admin.messaging().send(...)`.
+  - Normalizes FCM data payloads to ensure all values are strings (required by FCM protocol).
+  - No retries or unprompted resilience layers; errors bubble up to caller or service-level handlers.
+- **Notification Persistence Model (`src/modules/notifications/notification.model.js`):**
+  - Mongoose schema tracking `recipientId`, `organizationId`, `type` (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`), `relatedClaimId`, `title`, `body`, `read`, and `createdAt`.
+  - Compound index `{ organizationId: 1, recipientId: 1, createdAt: -1 }` for efficient tenant-scoped user notification listing.
+- **Push & Business Logic Decoupling (`src/modules/notifications/notification.service.js`):**
+  - `createAndSendNotification` always creates the `Notification` database document first.
+  - Queries recipient `User` for `fcmToken` using `.select('fcmToken').lean()`.
+  - If token exists, calls `sendPush(...)` inside an isolated `try/catch`.
+  - Any push failure is logged to `console.error` and suppressed — it never propagates or fails the calling business flow (e.g. claim assignment, approval, or correction request).
+- **Device Token Self-Registration (`PATCH /api/v1/users/me/fcm-token`):**
+  - Resides within the `users` module.
+  - Mounted before `/:userId` parameter routes to prevent routing conflicts.
+  - Accessible to all authenticated users regardless of role, updating exclusively the calling user's document (`req.user.userId || req.user._id`) scoped to their authenticated `organizationId`.
+

@@ -1015,9 +1015,36 @@ Valid status transitions (enforced by the Backend):
   - `400 Bad Request`: Invalid ID format or password too short.
   - `404 Not Found`: User not found in this organization.
 
+### `PATCH /users/me/fcm-token`
+- **Purpose:** Register or update Firebase Cloud Messaging (FCM) device push token for the authenticated user.
+- **Authorized Roles:** All authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`).
+- **Authentication:** Required (JWT).
+- **Request Body:**
+  ```json
+  {
+    "fcmToken": "c7x...-fcm-device-registration-token"
+  }
+  ```
+- **Validation Rules:** `fcmToken` (string, required, non-empty, trimmed).
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Device token updated successfully",
+    "data": {
+      "id": "673f1a2b3c4d5e6f7a8b9c0d",
+      "fcmToken": "c7x...-fcm-device-registration-token"
+    }
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: Missing or empty `fcmToken`.
+  - `401 Unauthorized`: Missing, invalid, or expired JWT.
+
 ## 16. Request/Response Models
 *Conceptual entities represented in the APIs. Not meant to map exactly 1:1 to database schema.*
-- **User:** `id`, `name`, `employeeCode`, `role`, `organizationId`, `status`.
+- **User:** `id`, `name`, `employeeCode`, `role`, `organizationId`, `status`, `fcmToken`.
+- **Notification:** `id`, `recipientId`, `organizationId`, `type`, `relatedClaimId`, `title`, `body`, `read`, `createdAt`.
 - **Organization:** `id`, `name`, `code`.
 - **Claim:** `id`, `claimNumber`, `status`, `organizationId`, `createdBy`, `assignedTo`, `assignedBy`, `assignedAt`, `closedBy`, `closedAt`, `customer`, `vehicle`, `policy`, `accident`, `location`, `evidence`, `signature`.
 - **TimelineEvent:** `action`, `performedBy`, `role`, `timestamp`.

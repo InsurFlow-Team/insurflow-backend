@@ -49,6 +49,11 @@ const resetUserPassword = async (req, res) => {
   return res.status(200).json(successResponse('User password reset successfully', result));
 };
 
+const updateFcmToken = async (req, res) => {
+  const result = await userService.updateFcmToken(req.body.fcmToken, req.user);
+  return res.status(200).json(successResponse('Device token updated successfully', result));
+};
+
 module.exports = {
   getAdjusters: asyncWrapper(getAdjusters),
   createUser: asyncWrapper(createUser),
@@ -56,4 +61,5 @@ module.exports = {
   updateUser: asyncWrapper(updateUser),
   updateUserStatus: asyncWrapper(updateUserStatus),
   resetUserPassword: asyncWrapper(resetUserPassword),
+  updateFcmToken: asyncWrapper(updateFcmToken),
 };

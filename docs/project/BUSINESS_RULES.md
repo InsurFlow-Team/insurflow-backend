@@ -217,4 +217,15 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 | Who can download the final claim report? | **`ADMIN` and `CLAIMS_OFFICER` only** |
 | When can the final claim report be generated? | **Only after a final decision: `APPROVED`, `REJECTED`, or `CLOSED`** |
 | Can Field Adjusters download the claim report? | **No (`HTTP 403 Forbidden`)** |
+| Does a push notification failure fail the claim action? | **Never (`Notification` document is saved; push errors are caught and logged only)** |
+| Who can register a device FCM token? | **Any authenticated user for their own account (`PATCH /users/me/fcm-token`)** |
+
+---
+
+### 2.10 Push Notifications & Device Token Management
+- **Rule BR-NOTIF-1 (Zero Push-Failure Propagation):** A push delivery failure (e.g. expired FCM token, Firebase network downtime, or invalid payload) must **never** cause the calling business action to fail or throw an exception. The parent domain operation (such as assigning a claim, requesting corrections, approving, or rejecting) must proceed and succeed regardless of push outcome.
+- **Rule BR-NOTIF-2 (Persistence Precedence):** The `Notification` record is always created and saved in MongoDB first, before any push delivery attempt is made.
+- **Rule BR-NOTIF-3 (Silent Skip on Missing Token):** If the recipient user has no registered `fcmToken` (or is not found in the database), push delivery is skipped silently without throwing an error.
+- **Rule BR-NOTIF-4 (Device Token Ownership & Multi-Tenancy):** An authenticated user of any role (`FIELD_ADJUSTER`, `CLAIMS_OFFICER`, `ADMIN`) may register or update their own FCM device token via `PATCH /api/v1/users/me/fcm-token`. The operation strictly updates the caller's own User document (`req.user.userId || req.user._id`) within their authenticated tenant (`req.user.organizationId`). Users cannot view or overwrite device tokens belonging to other users.
+
 
