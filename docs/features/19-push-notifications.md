@@ -1,19 +1,12 @@
 # Feature Specification: Push Notifications & Device Token Management (Feature 19)
 
-> [!WARNING]
-> **Implementation Status: PARTIAL / IN-PROGRESS (Increments 1 & 2 Only)**  
-> This specification documents the foundational infrastructure and device-token registration delivered in Increments 1 and 2.  
-> **Increment 3 (Domain Trigger Wiring) is NOT yet implemented.** At this stage, no notifications are triggered or dispatched by any business actions (claim assignment, correction requests, approvals, or rejections). End-to-end delivery will be activated once Increment 3 wires `createAndSendNotification` into the corresponding domain lifecycle hooks.
-
----
-
 ## 1. Feature Overview
 The **Push Notifications** module enables InsurFlow to dispatch real-time mobile push notifications to field adjusters and staff members via Firebase Cloud Messaging (FCM), alongside persistent in-app notification records.
 
 ### Implementation Phasing:
 - **Increment 1 (Closed):** Firebase Admin SDK initialization (`src/config/firebase.js`) and reusable push sender service (`src/services/push.service.js`).
 - **Increment 2 (Closed):** Notification persistence model (`src/modules/notifications/notification.model.js`), unified notification service (`src/modules/notifications/notification.service.js`), `fcmToken` attribute on `User` model, and device token registration endpoint (`PATCH /api/v1/users/me/fcm-token`).
-- **Increment 3 (Pending):** Wiring into the 4 core domain business lifecycle triggers (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`).
+- **Increment 3 (Closed):** Wiring into the 4 core domain business lifecycle triggers (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`) with strict call-site error isolation.
 
 ---
 
@@ -99,3 +92,33 @@ The **Push Notifications** module enables InsurFlow to dispatch real-time mobile
 3. If `recipient.fcmToken` is present, invokes `sendPush(token, title, body, { claimId: relatedClaimId, type })`.
 4. Wraps push delivery in isolated `try/catch` to guarantee that push failures never propagate to the caller.
 5. Returns the persisted `Notification` document.
+
+---
+
+## 6. Domain Business Triggers & Lifecycle Wiring
+
+Increment 3 wires `createAndSendNotification` directly into the four core atomic claim state transitions in `src/modules/claims/claim.service.js`. Every notification call is executed immediately after the atomic state transition succeeds in MongoDB, reusing the updated claim document already returned by the repository (zero extra database queries).
+
+### 6.1 Trigger Mappings
+
+| # | Domain Transition | Function (`claim.service.js`) | Recipient (`recipientId`) | Notification Type | Title | Message Body |
+|---|---|---|---|---|---|---|
+| 1 | `NEW` → `ASSIGNED` | `assignClaim` | Assigned Adjuster (`updatedClaim.assignedTo`) | `ASSIGNED` | `New Claim Assigned` | `You've been assigned claim <claimNumber>.` |
+| 2 | `UNDER_REVIEW` → `CORRECTION_REQUIRED` | `requestCorrection` | Assigned Adjuster (`updatedClaim.assignedTo`) | `CORRECTION_REQUIRED` | `Correction Requested` | `Claim <claimNumber> needs correction. Reason: <notes>` |
+| 3 | `UNDER_REVIEW` → `APPROVED` | `decideClaim` (approve) | Assigned Adjuster (`updatedClaim.assignedTo`) | `APPROVED` | `Claim Approved` | `Claim <claimNumber> has been approved.` |
+| 4 | `UNDER_REVIEW` → `REJECTED` | `decideClaim` (reject) | Assigned Adjuster (`updatedClaim.assignedTo`) | `REJECTED` | `Claim Rejected` | `Claim <claimNumber> has been rejected.` |
+
+In all four triggers:
+- `organizationId`: `updatedClaim.organizationId` (tenant isolation preserved).
+- `relatedClaimId`: `updatedClaim._id` (claim identifier linked).
+
+### 6.2 Strict Call-Site Error Isolation
+At each of the four call sites in `src/modules/claims/claim.service.js`, the entire notification operation is wrapped in a dedicated `try/catch` block:
+```javascript
+try {
+  await createAndSendNotification({ ... });
+} catch (err) {
+  console.error('Failed to send notification for <action>:', err);
+}
+```
+**Non-Negotiable Guarantee:** Any failure during notification processing — including database write errors on the `Notification` collection or Firebase FCM push dispatch errors — is caught and logged to `console.error` only. Notification failures **never** propagate or cause the parent claim transition to fail. The business action always returns HTTP 200 to the caller.

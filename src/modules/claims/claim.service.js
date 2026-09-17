@@ -8,6 +8,7 @@ const Organization = require('../organizations/organization.model');
 const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const { generateClaimReportPdf } = require('./claim.report.builder');
+const { createAndSendNotification } = require('../notifications/notification.service');
 
 
 const createClaim = async (body, authUser) => {
@@ -224,6 +225,19 @@ const assignClaim = async (claimId, body, authUser) => {
       throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
     }
     throw new AppError('Claim is not in NEW state', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  try {
+    await createAndSendNotification({
+      recipientId: updatedClaim.assignedTo,
+      organizationId: updatedClaim.organizationId,
+      type: 'ASSIGNED',
+      relatedClaimId: updatedClaim._id,
+      title: 'New Claim Assigned',
+      body: `You've been assigned claim ${updatedClaim.claimNumber}.`,
+    });
+  } catch (err) {
+    console.error('Failed to send notification for claim assignment:', err);
   }
 
   return {
@@ -597,6 +611,19 @@ const requestCorrection = async (claimId, body, authUser) => {
     throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
   }
 
+  try {
+    await createAndSendNotification({
+      recipientId: updatedClaim.assignedTo,
+      organizationId: updatedClaim.organizationId,
+      type: 'CORRECTION_REQUIRED',
+      relatedClaimId: updatedClaim._id,
+      title: 'Correction Requested',
+      body: `Claim ${updatedClaim.claimNumber} needs correction. Reason: ${notes}`,
+    });
+  } catch (err) {
+    console.error('Failed to send notification for correction request:', err);
+  }
+
   return { status: updatedClaim.status };
 };
 
@@ -629,6 +656,34 @@ const decideClaim = async (claimId, body, authUser) => {
       throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
     }
     throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  if (decision === 'APPROVED') {
+    try {
+      await createAndSendNotification({
+        recipientId: updatedClaim.assignedTo,
+        organizationId: updatedClaim.organizationId,
+        type: 'APPROVED',
+        relatedClaimId: updatedClaim._id,
+        title: 'Claim Approved',
+        body: `Claim ${updatedClaim.claimNumber} has been approved.`,
+      });
+    } catch (err) {
+      console.error('Failed to send notification for claim approval:', err);
+    }
+  } else if (decision === 'REJECTED') {
+    try {
+      await createAndSendNotification({
+        recipientId: updatedClaim.assignedTo,
+        organizationId: updatedClaim.organizationId,
+        type: 'REJECTED',
+        relatedClaimId: updatedClaim._id,
+        title: 'Claim Rejected',
+        body: `Claim ${updatedClaim.claimNumber} has been rejected.`,
+      });
+    } catch (err) {
+      console.error('Failed to send notification for claim rejection:', err);
+    }
   }
 
   return {

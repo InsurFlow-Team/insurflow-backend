@@ -8,6 +8,10 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+jest.mock('../src/modules/notifications/notification.service', () => ({
+  createAndSendNotification: jest.fn().mockResolvedValue({}),
+}));
+
 let mongoServer;
 
 beforeAll(async () => {

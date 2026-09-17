@@ -137,7 +137,7 @@ INSURFLOW/
 │           ├── policy.model.js
 │           └── policy.repository.js
 │
-├── tests/                        ← الاختبارات التلقائية (23 Suites / 299 Tests)
+├── tests/                        ← الاختبارات التلقائية (24 Suites / 307 Tests)
 ├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json

@@ -27,7 +27,7 @@
 | **16** | [16-dashboard-kpi-aggregation.md](./16-dashboard-kpi-aggregation.md) | Dashboard KPI metrics, role-scoped envelopes (`ORGANIZATION` vs `ASSIGNED`), adjuster workload distribution, date-filtered aggregation | `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/claims/stats` |
 | **17** | [17-final-claim-report.md](./17-final-claim-report.md) | Final claim PDF dossier, full domain hydration, Cloudinary transform & graceful degradation, in-memory buffering | `CLAIMS_OFFICER`, `ADMIN` | `GET /api/v1/claims/:claimId/report` |
 | **18** | [18-adjuster-map-dispatch-and-location-tracking.md](./18-adjuster-map-dispatch-and-location-tracking.md) | Passive HTTP header GPS capture, server-side Haversine distance, proximity-sorted adjuster dispatch, advisory capacity with explicit override | `CLAIMS_OFFICER`, `FIELD_ADJUSTER` | `GET /api/v1/users/adjusters`<br>`POST /api/v1/claims/:claimId/assign` |
-| **19** | [19-push-notifications.md](./19-push-notifications.md) | *(In Progress — Inc 1 & 2 only, triggers pending Inc 3)* Firebase Admin SDK integration, reusable push service, Notification schema, User device-token registration | All Authenticated Roles | `PATCH /api/v1/users/me/fcm-token` |
+| **19** | [19-push-notifications.md](./19-push-notifications.md) | Firebase Admin SDK integration, reusable push service, Notification schema, User device-token registration, and domain lifecycle trigger wiring (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`) | All Authenticated Roles | `PATCH /api/v1/users/me/fcm-token` |
 
 
 ---
@@ -35,8 +35,8 @@
 ## Test Suite Status
 
 All features are backed by an automated integration test suite executing with isolated in-memory MongoDB instances, Firebase mocks, and Cloudinary streaming mocks:
-* **Test Suites:** 23 passed, 23 total
-* **Tests:** 299 passed, 299 total (0 failures)
+* **Test Suites:** 24 passed, 24 total
+* **Tests:** 307 passed, 307 total (0 failures)
 
 ---
 
