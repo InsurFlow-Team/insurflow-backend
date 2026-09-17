@@ -243,8 +243,8 @@ Every endpoint in the system complies with the unified structure provided by `sr
 
 ### 5.9 Push Notification & Device Token Architecture (Feature 19)
 - **Firebase Admin SDK Initialization (`src/config/firebase.js`):**
-  - Uses the official `firebase-admin` SDK initialized via service account credentials stored in an untracked local JSON file.
-  - In environments where credentials are not provisioned (e.g. CI or unit test runners), it exports a null/mocked reference gracefully without crashing startup.
+  - Uses the official `firebase-admin` SDK initialized via service account credentials loaded from a local JSON file (path configurable via `FIREBASE_SERVICE_ACCOUNT_PATH`).
+  - Unconditionally verifies file existence on disk (`fs.existsSync`) and immediately throws if missing, with no environment-conditional fallback or silent suppression.
 - **Cross-Module Push Sender (`src/services/push.service.js`):**
   - Encapsulates `admin.messaging().send(...)`.
   - Normalizes FCM data payloads to ensure all values are strings (required by FCM protocol).
