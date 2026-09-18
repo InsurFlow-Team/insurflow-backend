@@ -128,9 +128,27 @@ describe('GET /api/v1/users/adjusters', () => {
     const aInactive = response.body.data.find(a => a.employeeCode === 'FA-INACTIVE');
 
     expect(a1.availability).toBe('AVAILABLE');
+    expect(a1.activeTasksCount).toBe(0);
+    expect(a1.capacityLimit).toBe(3);
     expect(a2.availability).toBe('UNAVAILABLE');
     expect(a2.activeTasksCount).toBe(4);
+    expect(a2.capacityLimit).toBe(3);
     expect(aInactive.availability).toBe('UNAVAILABLE');
+    expect(aInactive.capacityLimit).toBe(3);
+  });
+
+  it('should include numeric capacityLimit and activeTasksCount for all adjusters', async () => {
+    const response = await request(app)
+      .get('/api/v1/users/adjusters')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.length).toBeGreaterThan(0);
+    response.body.data.forEach((adjuster) => {
+      expect(typeof adjuster.activeTasksCount).toBe('number');
+      expect(typeof adjuster.capacityLimit).toBe('number');
+      expect(adjuster.capacityLimit).toBe(3);
+    });
   });
 
   it('should filter adjusters when status=available is passed', async () => {

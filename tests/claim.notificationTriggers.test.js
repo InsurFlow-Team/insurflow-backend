@@ -88,16 +88,16 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.status).toBe('ASSIGNED');
+      expect(res.body.data.status).toBe('PENDING_ACCEPTANCE');
 
       expect(createAndSendNotification).toHaveBeenCalledTimes(1);
       expect(createAndSendNotification).toHaveBeenCalledWith({
         recipientId: adjuster._id,
         organizationId: org._id,
-        type: 'ASSIGNED',
+        type: 'PENDING_ACCEPTANCE',
         relatedClaimId: claim._id,
-        title: 'New Claim Assigned',
-        body: `You've been assigned claim ${claim.claimNumber}.`,
+        title: 'New Assignment Pending',
+        body: `You have a new claim assignment pending your acceptance: ${claim.claimNumber}.`,
       });
     });
 
@@ -120,7 +120,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.status).toBe('ASSIGNED');
+      expect(res.body.data.status).toBe('PENDING_ACCEPTANCE');
     });
   });
 

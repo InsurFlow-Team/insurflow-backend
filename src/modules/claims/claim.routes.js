@@ -8,6 +8,7 @@ const upload = require('../../middlewares/upload.middleware');
 const {
   createClaimSchema,
   assignClaimSchema,
+  acceptAssignmentSchema,
   declineAssignmentSchema,
   updateVehicleSchema,
   updateAccidentSchema,
@@ -74,6 +75,15 @@ router.post(
   validateObjectId('claimId'),
   validate(declineAssignmentSchema),
   claimController.declineAssignment
+);
+
+// POST /api/v1/claims/:claimId/accept-assignment — Accept pending assignment
+router.post(
+  '/:claimId/accept-assignment',
+  authorizeRole(['FIELD_ADJUSTER']),
+  validateObjectId('claimId'),
+  validate(acceptAssignmentSchema),
+  claimController.acceptAssignment
 );
 
 router.post(

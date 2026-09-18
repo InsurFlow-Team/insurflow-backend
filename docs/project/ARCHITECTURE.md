@@ -169,8 +169,9 @@ src/
 
 ### 5.4 Database & Concurrency Design
 - **Atomic Operations Over Read-Modify-Write:** Status transitions and state mutations use Mongoose `findOneAndUpdate` with state preconditions in the filter query.
-  - For example, assigning an adjuster queries `{ _id: claimId, organizationId, status: 'NEW' }`. If two officers attempt simultaneous assignment, exactly one succeeds and the other receives `null`, which the service converts to an HTTP 409 Conflict.
-  - Similarly, declining an assignment (`POST /claims/:claimId/decline-assignment`) queries `{ _id: claimId, organizationId, status: 'ASSIGNED', assignedTo: adjusterId }` and atomically resets the claim back to `status: 'NEW'` while nulling assignment fields (`assignedTo`, `assignedBy`, `assignedAt`, `assignmentNotes`) and appending an `[ASSIGNMENT DECLINED]` timeline event.
+  - For example, dispatching an adjuster queries `{ _id: claimId, organizationId, status: 'NEW' }` and transitions to `status: 'PENDING_ACCEPTANCE'`. If two officers attempt simultaneous assignment, exactly one succeeds and the other receives `null`, which the service converts to an HTTP 409 Conflict.
+  - Acceptance (`POST /claims/:claimId/accept-assignment`) atomically verifies `{ _id: claimId, organizationId, status: 'PENDING_ACCEPTANCE', assignedTo: adjusterId }` and transitions to `status: 'ASSIGNED'`.
+  - Similarly, declining an assignment (`POST /claims/:claimId/decline-assignment`) queries `{ _id: claimId, organizationId, status: 'PENDING_ACCEPTANCE', assignedTo: adjusterId }` and atomically resets the claim back to `status: 'NEW'` while nulling assignment fields (`assignedTo`, `assignedBy`, `assignedAt`, `assignmentNotes`) and appending an `[ASSIGNMENT DECLINED]` timeline event.
 - **Audit Timeline:** Claims embed an array of timeline subdocuments (`timeline: [...]`), atomically appended using `$push` on every lifecycle event.
 
 ### 5.5 Unified API Response Envelope
@@ -250,7 +251,7 @@ Every endpoint in the system complies with the unified structure provided by `sr
   - Normalizes FCM data payloads to ensure all values are strings (required by FCM protocol).
   - No retries or unprompted resilience layers; errors bubble up to caller or service-level handlers.
 - **Notification Persistence Model (`src/modules/notifications/notification.model.js`):**
-  - Mongoose schema tracking `recipientId`, `organizationId`, `type` (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`), `relatedClaimId`, `title`, `body`, `read`, and `createdAt`.
+  - Mongoose schema tracking `recipientId`, `organizationId`, `type` (`PENDING_ACCEPTANCE`, `ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`), `relatedClaimId`, `title`, `body`, `read`, and `createdAt`.
   - Compound index `{ organizationId: 1, recipientId: 1, createdAt: -1 }` for efficient tenant-scoped user notification listing.
 - **Push & Business Logic Decoupling (`src/modules/notifications/notification.service.js`):**
   - `createAndSendNotification` always creates the `Notification` database document first.

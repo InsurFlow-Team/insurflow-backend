@@ -227,9 +227,10 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
       const data = res.body.data;
       expect(data.scope).toBe('ORGANIZATION');
 
-      // Verify all 9 statuses present
+      // Verify all 10 statuses present
       expect(data.byStatus).toEqual({
         NEW: 2,
+        PENDING_ACCEPTANCE: 0,
         ASSIGNED: 3, // adjuster1: 1, adjuster2: 1, inactiveAdjuster: 1
         IN_PROGRESS: 2, // adjuster1: 1, adjuster2: 1
         SUBMITTED: 1,
@@ -249,6 +250,7 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
       // actionableBreakdown: unassigned = NEW (2), readyForReview = SUBMITTED (1) + UNDER_REVIEW (1) = 2
       expect(data.actionableBreakdown).toEqual({
         unassigned: 2,
+        pendingAcceptance: 0,
         readyForReview: 2,
       });
 
@@ -321,6 +323,7 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
       expect(data.totalClaims).toBe(6);
       expect(data.byStatus).toEqual({
         NEW: 0,
+        PENDING_ACCEPTANCE: 0,
         ASSIGNED: 2,
         IN_PROGRESS: 1,
         SUBMITTED: 1,
@@ -432,6 +435,7 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
       expect(res.body.data.pendingActionCount).toBe(0);
       expect(res.body.data.actionableBreakdown).toEqual({
         unassigned: 0,
+        pendingAcceptance: 0,
         readyForReview: 0,
       });
       expect(res.body.data.adjustersWorkload).toEqual({

@@ -42,7 +42,7 @@ The API uses JWT-based authentication. The context containing user identity, rol
 ## 4. Roles & Authorization
 - **ADMIN:** Administrative user management, Oversight of all organization claims, Create Claim, Make Claim decision, Final claim closure, Download Final Claim Report.
 - **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision, Download Final Claim Report.
-- **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Decline Assignment, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
+- **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Accept Assignment, Decline Assignment, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
 
 *(No additional permissions are invented outside of these scopes).*
 
@@ -55,12 +55,13 @@ The API uses JWT-based authentication. The context containing user identity, rol
 - Organization isolation must apply to all Claim-related operations (reading, writing, and transitioning).
 
 ## 6. Claim Lifecycle
-Valid status enum: `NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`.
+Valid status enum: `NEW`, `PENDING_ACCEPTANCE`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`.
 
 Valid status transitions (enforced by the Backend):
 - `Create Claim` → `NEW`
-- `Assign Adjuster` (`NEW` → `ASSIGNED`)
-- `Decline Assignment` (`ASSIGNED` → `NEW`)
+- `Assign Adjuster` (`NEW` → `PENDING_ACCEPTANCE`)
+- `Accept Assignment` (`PENDING_ACCEPTANCE` → `ASSIGNED`)
+- `Decline Assignment` (`PENDING_ACCEPTANCE` → `NEW`)
 - `Start / Resume Inspection` (`ASSIGNED` or `CORRECTION_REQUIRED` → `IN_PROGRESS`)
 - `Submit Inspection` (`IN_PROGRESS` → `SUBMITTED`)
 - `Start Review` (`SUBMITTED` → `UNDER_REVIEW`)
@@ -146,7 +147,7 @@ Valid status transitions (enforced by the Backend):
 - **Authorized Roles:** `CLAIMS_OFFICER`, `FIELD_ADJUSTER`, `ADMIN`
 - **Authentication:** Required (JWT).
 - **Request Parameters:**
-  - `status`: Optional filter (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
+  - `status`: Optional filter (`NEW`, `PENDING_ACCEPTANCE`, `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `CLOSED`). Returns 400 `VALIDATION_ERROR` for invalid status values.
   - `adjusterId`: Optional MongoDB ObjectId string to filter claims assigned to a specific Field Adjuster.
   - `assignedTo`: Alias for `adjusterId`.
   - `page`: Optional integer $\ge 1$ (default: `1`).
@@ -173,6 +174,11 @@ Valid status transitions (enforced by the Backend):
         "customerName": "John Doe",
         "initialPlateNumber": "ABC-1234",
         "createdAt": "2026-08-26T15:00:00Z",
+        "incidentCoordinates": {
+          "latitude": 31.9050,
+          "longitude": 35.2040,
+          "capturedAt": "2026-08-26T14:30:00.000Z"
+        },
         "assignedTo": {
           "id": "6a91ab09c9ff1dc54fabf15c",
           "name": "Ahmed Ali"
@@ -251,6 +257,7 @@ Valid status transitions (enforced by the Backend):
         "totalClaims": 13,
         "byStatus": {
           "NEW": 2,
+          "PENDING_ACCEPTANCE": 0,
           "ASSIGNED": 3,
           "IN_PROGRESS": 2,
           "SUBMITTED": 1,
@@ -263,6 +270,7 @@ Valid status transitions (enforced by the Backend):
         "pendingActionCount": 4,
         "actionableBreakdown": {
           "unassigned": 2,
+          "pendingAcceptance": 0,
           "readyForReview": 2
         },
         "adjustersWorkload": {
@@ -285,6 +293,7 @@ Valid status transitions (enforced by the Backend):
         "totalClaims": 6,
         "byStatus": {
           "NEW": 0,
+          "PENDING_ACCEPTANCE": 0,
           "ASSIGNED": 2,
           "IN_PROGRESS": 1,
           "SUBMITTED": 1,
@@ -342,6 +351,7 @@ Valid status transitions (enforced by the Backend):
         "status": "ACTIVE",
         "availability": "AVAILABLE",
         "activeTasksCount": 1,
+        "capacityLimit": 3,
         "location": {
           "latitude": 31.9038,
           "longitude": 35.2034,
@@ -354,7 +364,7 @@ Valid status transitions (enforced by the Backend):
   ```
 
 ### `POST /claims/:claimId/assign`
-- **Purpose:** Assign a Field Adjuster to a Claim.
+- **Purpose:** Assign a Field Adjuster to a Claim (Two-Step Workflow Step 1).
 - **Authorized Roles:** `CLAIMS_OFFICER`
 - **Authentication:** Required (JWT).
 - **Request Body:**
@@ -367,8 +377,11 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 - **Business Rules:**
-  - The Backend records `assignedTo`, `assignedBy`, `assignedAt`.
-  - **Advisory Capacity Rule (Feature 18):** If the target adjuster has $> 3$ active assigned tasks and `overrideCapacity` is absent or `false`, the request is rejected with `409 ADJUSTER_UNAVAILABLE`.
+  - The Backend records `assignedTo`, `assignedBy`, `assignedAt`, `priority`, `assignmentNotes`.
+  - Claim transitions to `PENDING_ACCEPTANCE`.
+  - Fired notification of type `PENDING_ACCEPTANCE` to target adjuster.
+  - Claims in `PENDING_ACCEPTANCE` do NOT count towards active adjuster capacity.
+  - **Advisory Capacity Rule (Feature 18):** If the target adjuster has $> 3$ active assigned tasks (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) and `overrideCapacity` is absent or `false`, the request is rejected with `409 ADJUSTER_UNAVAILABLE`.
   - When `overrideCapacity: true` is sent, the assignment proceeds even if over capacity, and the audit timeline note is prefixed with:
     `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.
 - **Validation rules (Rejects if):** Malformed MongoDB ObjectId format for `adjusterId` (must be 24-character hexadecimal, returns 400 `VALIDATION_ERROR`), Claim doesn't exist, Claim belongs to another org, User is not a Field Adjuster, Adjuster is inactive, Adjuster is over capacity without `overrideCapacity: true`, Claim is not in `NEW` status, Unauthorized user.
@@ -376,21 +389,54 @@ Valid status transitions (enforced by the Backend):
   ```json
   {
     "success": true,
-    "message": "Adjuster assigned successfully",
-    "data": { "status": "ASSIGNED" }
+    "message": "Assignment pending acceptance",
+    "data": {
+      "id": "claim-uuid",
+      "claimNumber": "CLM-DEMO-0001",
+      "status": "PENDING_ACCEPTANCE",
+      "assignedTo": "651a1f8b7f1d2c001f8d4e92",
+      "priority": "HIGH"
+    }
   }
   ```
-- **Status Transition:** `NEW` → `ASSIGNED`
+- **Status Transition:** `NEW` → `PENDING_ACCEPTANCE`
+
+### `POST /claims/:claimId/accept-assignment`
+- **Purpose:** Field Adjuster accepts the pending claim assignment (Two-Step Workflow Step 2a).
+- **Authorized Roles:** `FIELD_ADJUSTER` (strictly the assigned adjuster).
+- **Authentication:** Required (JWT).
+- **Request Body:** `{}` (empty object)
+- **Preconditions:** Claim must be in `PENDING_ACCEPTANCE` status and assigned to calling adjuster. Returns 409 `INVALID_STATUS_TRANSITION` if status is not `PENDING_ACCEPTANCE`. Returns 404 if claim is not assigned to calling adjuster or belongs to another tenant.
+- **Audit Timeline Event:**
+  - `action`: `'Assignment Accepted'`
+  - `previousStatus`: `'PENDING_ACCEPTANCE'`
+  - `newStatus`: `'ASSIGNED'`
+  - `notes`: `"[ASSIGNMENT ACCEPTED] by <employeeCode>"`
+- **Push Notification:** Triggers push notification of type `ASSIGNED` to the assigned adjuster.
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Assignment accepted",
+    "data": {
+      "id": "claim-uuid",
+      "claimNumber": "CLM-DEMO-0001",
+      "status": "ASSIGNED",
+      "assignedTo": "651a1f8b7f1d2c001f8d4e92"
+    }
+  }
+  ```
+- **Status Transition:** `PENDING_ACCEPTANCE` → `ASSIGNED`
 
 ### `POST /claims/:claimId/decline-assignment`
-- **Purpose:** Field Adjuster declines an assigned claim, returning it to unassigned pool for re-dispatch.
+- **Purpose:** Field Adjuster declines a pending claim assignment, returning it to unassigned pool for re-dispatch (Two-Step Workflow Step 2b).
 - **Authorized Roles:** `FIELD_ADJUSTER` (strictly the assigned adjuster).
 - **Authentication:** Required (JWT).
 - **Stealth-Tenancy & Authorization Rules:**
   - If called by `CLAIMS_OFFICER` or `ADMIN`: `403 Forbidden` (`Forbidden: Insufficient permissions`).
   - If called by an adjuster not assigned to the claim: `404 Not Found` (`Claim not found`).
   - If claim belongs to another organization: `404 Not Found` (`Claim not found`).
-  - If claim is not in `ASSIGNED` status (e.g. `IN_PROGRESS` or `NEW`): `409 Conflict` (`INVALID_STATUS_TRANSITION`).
+  - If claim is not in `PENDING_ACCEPTANCE` status (e.g. `ASSIGNED`, `IN_PROGRESS` or `NEW`): `409 Conflict` (`INVALID_STATUS_TRANSITION`).
 - **Request Body:**
   ```json
   {
@@ -402,14 +448,14 @@ Valid status transitions (enforced by the Backend):
   - Missing/empty: `400 VALIDATION_ERROR` with details `"Reason is required"`.
   - Exceeds 300 chars: `400 VALIDATION_ERROR` with details `"Reason cannot exceed 300 characters"`.
 - **State Mutations (Atomic):**
-  - `status`: `ASSIGNED` → `NEW`
+  - `status`: `PENDING_ACCEPTANCE` → `NEW`
   - `assignedTo`: `null`
   - `assignedBy`: `null`
   * `assignedAt`: `null`
   * `assignmentNotes`: `null`
 - **Timeline Audit Event:**
   - `action`: `'Assignment Declined'`
-  - `previousStatus`: `'ASSIGNED'`
+  - `previousStatus`: `'PENDING_ACCEPTANCE'`
   - `newStatus`: `'NEW'`
   - `performedBy`: `req.user.userId`
   - `role`: `'FIELD_ADJUSTER'`
@@ -430,7 +476,7 @@ Valid status transitions (enforced by the Backend):
     }
   }
   ```
-- **Status Transition:** `ASSIGNED` → `NEW`
+- **Status Transition:** `PENDING_ACCEPTANCE` → `NEW`
 
 ## 10. Vehicle & Policy APIs
 

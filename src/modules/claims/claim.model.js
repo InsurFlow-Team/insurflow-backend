@@ -60,7 +60,7 @@ const claimSchema = new mongoose.Schema(
     // ── Status & Lifecycle ──────────────────────────────────────────
     status: {
       type: String,
-      enum: ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED'],
+      enum: ['NEW', 'PENDING_ACCEPTANCE', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED'],
       default: 'NEW',
       required: true,
     },

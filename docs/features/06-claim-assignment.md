@@ -1,14 +1,16 @@
-# Feature Specification: Claim Assignment
+# Feature Specification: Claim Assignment (Two-Step Workflow)
 
 ## 1. Feature Overview
-The **Claim Assignment** feature enables a Claims Officer to dispatch a newly created claim to an active, available Field Adjuster for on-site physical inspection.
+The **Claim Assignment** feature enables a Claims Officer to dispatch a newly created claim to an active, available Field Adjuster for on-site physical inspection using a **two-step workflow**:
+1. Dispatch: Claims Officer assigns the claim: **`NEW` → `PENDING_ACCEPTANCE`**.
+2. Explicit Response: Target Field Adjuster accepts (**`PENDING_ACCEPTANCE` → `ASSIGNED`**) or declines (**`PENDING_ACCEPTANCE` → `NEW`**).
 
 Key operational requirements:
-1. Only claims currently in status **`NEW`** can be assigned.
+1. Only claims currently in status **`NEW`** can be dispatched for assignment.
 2. The target adjuster must belong to the same tenant, have role **`FIELD_ADJUSTER`**, and have status **`ACTIVE`**.
-3. The target adjuster must be available with **3 or fewer active tasks** (`activeTasksCount <= 3`). If `activeTasksCount > 3`, assignment is blocked.
-4. Assignment must execute **atomically** to prevent race conditions (e.g. two officers simultaneously assigning the same claim).
-5. The claim transitions: **`NEW` → `ASSIGNED`**.
+3. The target adjuster must be available with **3 or fewer active tasks** (`activeTasksCount <= 3`), or the officer must explicitly provide `overrideCapacity: true`.
+4. Claims in `PENDING_ACCEPTANCE` do **NOT** count towards adjuster capacity (`Claim.ACTIVE_ADJUSTER_STATUSES` strictly remains `['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED']`).
+5. Assignment dispatch, acceptance, and decline must execute **atomically** with optimistic concurrency checks to prevent race conditions.
 
 ---
 
@@ -35,15 +37,30 @@ Key operational requirements:
    ├── 1. Query adjuster in tenant: User.findOne({ _id: adjusterId, organizationId })
    │      └── Throws 404 ADJUSTER_NOT_FOUND if invalid, wrong role, or inactive
    ├── 2. Query adjuster active workload: countActiveClaimsByAssignee(adjusterId)
-   │      └── Throws 409 ADJUSTER_UNAVAILABLE if activeTasksCount > 3
-   └── 3. Atomic Assignment Query:
-          Claim.findOneAndUpdate(
-            { _id: claimId, organizationId, status: 'NEW' },
-            { $set: { status: 'ASSIGNED', assignedTo, assignedBy, assignedAt, priority, assignmentNotes },
-              $push: { timeline: timelineEvent } },
-            { new: true }
-          )
-          └── Throws 409 INVALID_STATUS_TRANSITION if claim was already assigned
+   │      └── Throws 409 ADJUSTER_UNAVAILABLE if activeTasksCount > 3 and !overrideCapacity
+   ├── 3. Atomic Assignment Query:
+   │      Claim.findOneAndUpdate(
+   │        { _id: claimId, organizationId, status: 'NEW' },
+   │        { $set: { status: 'PENDING_ACCEPTANCE', assignedTo, assignedBy, assignedAt, priority, assignmentNotes },
+   │          $push: { timeline: timelineEvent } },
+   │        { new: true }
+   │      )
+   │      └── Throws 409 INVALID_STATUS_TRANSITION if claim was already assigned
+   └── 4. Send PENDING_ACCEPTANCE push notification to assigned adjuster
+```
+
+```
+[Field Adjuster]
+   │
+   ├──▶ POST /api/v1/claims/:claimId/accept-assignment
+   │    ├── Atomic Transition: PENDING_ACCEPTANCE ──▶ ASSIGNED
+   │    ├── Appends timeline: [ASSIGNMENT ACCEPTED] by <employeeCode>
+   │    └── Fires ASSIGNED push notification
+   │
+   └──▶ POST /api/v1/claims/:claimId/decline-assignment
+        ├── Body: { "reason": "..." } (max 300 chars)
+        ├── Atomic Transition: PENDING_ACCEPTANCE ──▶ NEW (resets assignedTo, assignedBy, assignedAt, assignmentNotes)
+        └── Appends timeline: [ASSIGNMENT DECLINED] by <employeeCode> — <reason>
 ```
 
 ---
@@ -59,52 +76,75 @@ Key operational requirements:
   {
     "adjusterId": "60d0fe4f5311236168a109cd",
     "priority": "HIGH",
-    "notes": "Vehicle is blocking the main roundabout."
+    "notes": "Vehicle is blocking the main roundabout.",
+    "overrideCapacity": false
   }
   ```
-* **Validation Rules:**
-  * `adjusterId`: Valid 24-character hex ObjectId string, required.
-  * `priority`: Optional enum: `['LOW', 'MEDIUM', 'HIGH']` (default: `'MEDIUM'`).
-  * `notes`: Optional string, trimmed.
 * **Success Response (200 OK):**
   ```json
   {
     "success": true,
-    "message": "Claim assigned successfully",
+    "message": "Assignment pending acceptance",
     "data": {
       "id": "60d0fe4f5311236168a109cc",
       "claimNumber": "CLM-INS-0001",
-      "status": "ASSIGNED",
+      "status": "PENDING_ACCEPTANCE",
       "assignedTo": "60d0fe4f5311236168a109cd",
       "priority": "HIGH"
     }
   }
   ```
-* **Error Responses:**
-  * `400 Bad Request`: `VALIDATION_ERROR` (invalid ObjectId format or invalid priority).
-  * `404 Not Found`: `CLAIM_NOT_FOUND` or `ADJUSTER_NOT_FOUND`.
-  * `409 Conflict`:
-    * `ADJUSTER_UNAVAILABLE`: Target adjuster already has more than 3 active assigned tasks (`activeTasksCount > 3`).
-    * `INVALID_STATUS_TRANSITION`: Claim is not in `NEW` status.
+
+### POST `/api/v1/claims/:claimId/accept-assignment`
+* **Authorized Roles:** `FIELD_ADJUSTER` (strictly the assigned adjuster).
+* **Authentication:** Required (JWT).
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Assignment accepted",
+    "data": {
+      "id": "60d0fe4f5311236168a109cc",
+      "claimNumber": "CLM-INS-0001",
+      "status": "ASSIGNED",
+      "assignedTo": "60d0fe4f5311236168a109cd"
+    }
+  }
+  ```
+
+### POST `/api/v1/claims/:claimId/decline-assignment`
+* **Authorized Roles:** `FIELD_ADJUSTER` (strictly the assigned adjuster).
+* **Authentication:** Required (JWT).
+* **Request Body:** `{ "reason": "Severe mechanical breakdown" }`
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Assignment declined successfully",
+    "data": {
+      "id": "60d0fe4f5311236168a109cc",
+      "claimNumber": "CLM-INS-0001",
+      "status": "NEW",
+      "assignedTo": null,
+      "assignedBy": null,
+      "assignedAt": null,
+      "assignmentNotes": null
+    }
+  }
+  ```
 
 ---
 
 ## 4. Multi-Tenancy & Concurrency Invariants
 
 1. **Atomic State Check:**
-   The update filter enforces `{ _id: claimId, organizationId, status: 'NEW' }`.
-   If two officers simultaneously attempt to assign the same claim, MongoDB executes the write operations sequentially. The first succeeds and transitions the claim to `ASSIGNED`; the second matches 0 documents and returns `409 INVALID_STATUS_TRANSITION`.
-2. **Cross-Tenant Stealth 404:**
-   Attempting to assign a claim or assign to an adjuster belonging to another organization returns `404 Not Found`.
+   Assignment dispatch updates `{ _id: claimId, organizationId, status: 'NEW' }` to `PENDING_ACCEPTANCE`. Acceptance atomically updates `{ _id: claimId, organizationId, status: 'PENDING_ACCEPTANCE', assignedTo }` to `ASSIGNED`. Decline atomically updates `{ _id: claimId, organizationId, status: 'PENDING_ACCEPTANCE', assignedTo }` back to `NEW`.
+2. **Cross-Tenant & Unassigned Adjuster Stealth 404:**
+   Attempting to accept or decline a claim belonging to another tenant or assigned to another adjuster returns `404 Not Found`.
 
 ---
 
-## 5. Automated Testing Suite
-
-Tested in [tests/claim.assignment.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.assignment.test.js) (14 tests):
-* Successful assignment transitions status to `ASSIGNED`.
-* Correct timeline event logged (`action: 'Claim Assigned'`).
-* Blocking assignment to unavailable adjusters (409).
-* Blocking assignment on claims not in `NEW` status (409).
-* Role enforcement (403 for non-officers).
-* Tenant boundary isolation (404 for cross-tenant adjuster or claim).
+## 5. Automated Testing Suites
+* [tests/claim.assignment.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.assignment.test.js) (14 tests)
+* [tests/claim.twoStepAssignment.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.twoStepAssignment.test.js) (13 tests)
+* [tests/adjusterMapDispatch.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/adjusterMapDispatch.test.js) (19 tests)

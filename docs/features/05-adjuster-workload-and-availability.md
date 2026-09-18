@@ -88,6 +88,7 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         status: 1,
         availability: 1,
         activeTasksCount: 1,
+        capacityLimit: 1,
       },
     },
   ];
@@ -122,7 +123,8 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         "role": "FIELD_ADJUSTER",
         "status": "ACTIVE",
         "availability": "AVAILABLE",
-        "activeTasksCount": 0
+        "activeTasksCount": 0,
+        "capacityLimit": 3
       },
       {
         "id": "60d0fe4f5311236168a109ce",
@@ -131,7 +133,8 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         "role": "FIELD_ADJUSTER",
         "status": "ACTIVE",
         "availability": "UNAVAILABLE",
-        "activeTasksCount": 1
+        "activeTasksCount": 1,
+        "capacityLimit": 3
       },
       {
         "id": "60d0fe4f5311236168a109cf",
@@ -140,7 +143,8 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         "role": "FIELD_ADJUSTER",
         "status": "INACTIVE",
         "availability": "UNAVAILABLE",
-        "activeTasksCount": 0
+        "activeTasksCount": 0,
+        "capacityLimit": 3
       }
     ]
   }

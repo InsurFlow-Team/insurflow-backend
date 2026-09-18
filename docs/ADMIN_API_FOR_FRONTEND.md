@@ -294,7 +294,8 @@
         "role": "FIELD_ADJUSTER",
         "status": "ACTIVE",
         "availability": "AVAILABLE",
-        "activeTasksCount": 0
+        "activeTasksCount": 0,
+        "capacityLimit": 3
       }
     ]
   }
@@ -310,7 +311,7 @@
 * **الأدوار المصرح لها:** `ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`.
 * **المكان في الواجهة الأمامية (Where this lives in UI):**
   1. **لوحة تحكم الويب للمدير وموظف المطالبات (Web Dashboard Overview):**
-     - بطاقات مؤشرات الأداء العلوية (KPI Cards): إجمالي المطالبات (`totalClaims`)، المطالبات المعلقة التي تتطلب إجراءً إداريًا (`pendingActionCount`)، المطالبات غير المعينة (`unassigned`)، والمطالبات الجاهزة للمراجعة والتدقيق (`readyForReview`).
+     - بطاقات مؤشرات الأداء العلوية (KPI Cards): إجمالي المطالبات (`totalClaims`)، المطالبات المعلقة التي تتطلب إجراءً إداريًا (`pendingActionCount`)، المطالبات غير المعينة (`unassigned`)، المطالبات بانتظار قبول المعاين (`pendingAcceptance`)، والمطالبات الجاهزة للمراجعة والتدقيق (`readyForReview`).
      - قسم أعباء عمل المعاينين (Adjusters Workload Cards): إجمالي المعاينين النشطين، المعاينين المتاحين، المعاينين القريبين من السعة القصوى، والمعاينين الذين بلغوا الحد الأقصى.
      - رسم بياني لحالات المطالبات التسع (`byStatus`).
      - فلتر التاريخ بالأعلى (`from` و `to`) لتحديد الفترة الزمنية للتقرير (أسبوع، شهر، سنة، أو مخصص).
@@ -334,9 +335,10 @@
   "message": "Claim statistics retrieved successfully",
   "data": {
     "scope": "ORGANIZATION",
-    "totalClaims": 13,
+    "totalClaims": 14,
     "byStatus": {
       "NEW": 2,
+      "PENDING_ACCEPTANCE": 1,
       "ASSIGNED": 3,
       "IN_PROGRESS": 2,
       "SUBMITTED": 1,
@@ -346,9 +348,10 @@
       "REJECTED": 1,
       "CLOSED": 1
     },
-    "pendingActionCount": 4,
+    "pendingActionCount": 5,
     "actionableBreakdown": {
       "unassigned": 2,
+      "pendingAcceptance": 1,
       "readyForReview": 2
     },
     "adjustersWorkload": {
@@ -606,6 +609,7 @@ async function downloadClaimReport(claimId, claimNumber, token) {
         "status": "ACTIVE",
         "availability": "AVAILABLE",
         "activeTasksCount": 1,
+        "capacityLimit": 3,
         "location": {
           "latitude": 31.9038,
           "longitude": 35.2034,
@@ -621,6 +625,7 @@ async function downloadClaimReport(claimId, claimNumber, token) {
         "status": "ACTIVE",
         "availability": "UNAVAILABLE",
         "activeTasksCount": 4,
+        "capacityLimit": 3,
         "location": {
           "latitude": 31.9200,
           "longitude": 35.2200,
@@ -636,6 +641,7 @@ async function downloadClaimReport(claimId, claimNumber, token) {
         "status": "ACTIVE",
         "availability": "AVAILABLE",
         "activeTasksCount": 0,
+        "capacityLimit": 3,
         "location": {
           "latitude": null,
           "longitude": null,
@@ -650,7 +656,7 @@ async function downloadClaimReport(claimId, claimNumber, token) {
   * الترتيب يرجع تصاعدياً حسب `distanceKm` (الأقرب للحادث أولاً).
   * المعاين الذي لم يرسل موقعه بعد يظهر في نهاية القائمة وتكون قيمة `distanceKm: null`.
 
-### 5.2 تعيين المعاين مع تجاوز حد السعة الاستيعابية (Assign Adjuster with Capacity Override)
+### 5.2 تعيين المعاين بنظام الخطوتين وتجاوز السعة (Two-Step Assign & Capacity Override)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/assign`
 * **Headers:** `Authorization: Bearer <OFFICER_TOKEN>`
 * **Request Body:**
@@ -663,13 +669,37 @@ async function downloadClaimReport(claimId, claimNumber, token) {
   }
   ```
 * **سلوك الواجهة (UI Flow):**
-  1. إذا أرسل الفرونت الطلب بدون `overrideCapacity: true` وكان لدى المعاين أكثر من 3 مهام نشطة، يرجع الباك إند خطأ `409 Conflict` بكود `ADJUSTER_UNAVAILABLE`.
+  1. إذا أرسل الفرونت الطلب بدون `overrideCapacity: true` وكان لدى المعاين أكثر من 3 مهام نشطة (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`)، يرجع الباك إند خطأ `409 Conflict` بكود `ADJUSTER_UNAVAILABLE`.
   2. يقوم الفرونت بإظهار مربع حوار تأكيدي للمسؤول (Modal): *"المعاين لديه أكثر من 3 مهام حالياً، هل تود تأكيد التعيين وتجاوز السعة؟"*.
   3. عند ضغط المستخدم "نعم / تأكيد التجاوز"، يعيد الفرونت إرسال نفس الطلب مع إضافة `"overrideCapacity": true`.
-  4. ينجح التعيين ويقوم الباك إند تلقائياً بإضافة بادئة في سجل الملاحظات:
+  4. عند نجاح التعيين، تتحول حالة المطالبة إلى **`PENDING_ACCEPTANCE`** (بانتظار قبول المعاين من تطبيقه) وليس `ASSIGNED` مباشرة، ولا تُحتسب المطالبة ضمن سعة المعاين في هذه المرحلة حتى يقبلها.
+  5. عند تجاوز السعة، يُسجل الباك إند تلقائياً في الخط الزمني:
      `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.
 
-### 5.3 رفض التكليف وإعادة التوزيع (Adjuster Decline Assignment Workflow)
+### 5.3 قبول التكليف من تطبيق المعاين (Adjuster Accept Assignment)
+* **المسار (Endpoint):** `POST /api/v1/claims/:claimId/accept-assignment`
+* **المستخدم المصرح له:** حصرياً المعاين الميداني المكلّف بهذه المطالبة (`FIELD_ADJUSTER`).
+* **Headers:** `Authorization: Bearer <ADJUSTER_TOKEN>`
+* **Request Body:** `{}` (جسم فارغ)
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Assignment accepted",
+    "data": {
+      "id": "6aa27838cda4d3dca00b83ac",
+      "claimNumber": "CLM-INS-0001",
+      "status": "ASSIGNED",
+      "assignedTo": "6aa27838cda4d3dca00b83ac"
+    }
+  }
+  ```
+* **سلوك الواجهة:**
+  - تتحول حالة المطالبة من `PENDING_ACCEPTANCE` إلى `ASSIGNED`.
+  - يُفعل زر "بدء المعاينة" (`POST /inspection/start`) في شاشة المعاين.
+  - يُسجل في الخط الزمني: `[ASSIGNMENT ACCEPTED] by <employeeCode>`.
+
+### 5.4 رفض التكليف وإعادة التوزيع (Adjuster Decline Assignment Workflow)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decline-assignment`
 * **المستخدم المصرح له:** حصرياً المعاين الميداني المكلّف بهذه المطالبة (`FIELD_ADJUSTER`).
 * **Headers:** `Authorization: Bearer <ADJUSTER_TOKEN>`
@@ -680,15 +710,16 @@ async function downloadClaimReport(claimId, claimNumber, token) {
   }
   ```
 * **سلوك النظام والواجهة:**
-  1. حقل `reason` إلزامي (نص حتى 300 حرف كحد أقصى).
-  2. يتم تحويل حالة المطالبة ذرياً من `ASSIGNED` إلى `NEW` وتصفير حقول التكليف (`assignedTo: null`).
-  3. تظهر المطالبة فوراً من جديد على خريطة موظف المطالبات في حالة `NEW` ليعيد توزيعها لمعاين آخر.
-  4. إذا حاول موظف مطالبات أو أدمن استدعاء المسار يُرجع `403 Forbidden`.
-  5. إذا حاول معاين آخر غير المكلف استدعاء المسار يُرجع `404 Not Found` (Stealth Tenancy).
+  1. حقل `reason` إلزامي (نص من 1 إلى 300 حرف كحد أقصى).
+  2. يتم تحويل حالة المطالبة ذرياً من `PENDING_ACCEPTANCE` إلى `NEW` وتصفير حقول التكليف (`assignedTo: null`).
+  3. تظهر المطالبة فوراً من جديد على خريطة وقائمة موظف المطالبات في حالة `NEW` ليعيد توزيعها لمعاين آخر.
+  4. يُسجل في الخط الزمني: `[ASSIGNMENT DECLINED] by <employeeCode> — <reason>`.
+  5. إذا حاول موظف مطالبات أو أدمن استدعاء المسار يُرجع `403 Forbidden`.
+  6. إذا حاول معاين آخر غير المكلف استدعاء المسار يُرجع `404 Not Found` (Stealth Tenancy).
 
-### 5.4 إحداثيات الحادث في تفاصيل المطالبة (Incident Coordinates)
-* **المسار (Endpoint):** `GET /api/v1/claims/:claimId`
-* يرجع الباك إند كائن إحداثيات الحادث لرسم نقطة الحادث على الخريطة:
+### 5.5 إحداثيات الحادث في تفاصيل وقائمة المطالبات (Incident Coordinates for Maps)
+* **المسارات:** `GET /api/v1/claims/:claimId` وأيضاً قائمة المطالبات `GET /api/v1/claims`.
+* يرجع الباك إند كائن إحداثيات الحادث لرسم نقاط وماركرز الحوادث على الخريطة مباشرة:
   ```json
   "incidentCoordinates": {
     "latitude": 31.9050,

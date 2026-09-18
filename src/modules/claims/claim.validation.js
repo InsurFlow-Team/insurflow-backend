@@ -114,10 +114,10 @@ const updateLocationSchema = Joi.object({
 
 const listClaimsQuerySchema = Joi.object({
   status: Joi.string()
-    .valid('NEW', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED')
+    .valid('NEW', 'PENDING_ACCEPTANCE', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED', 'CLOSED')
     .optional()
     .messages({
-      'any.only': 'status must be one of: NEW, ASSIGNED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, CORRECTION_REQUIRED, APPROVED, REJECTED, CLOSED',
+      'any.only': 'status must be one of: NEW, PENDING_ACCEPTANCE, ASSIGNED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, CORRECTION_REQUIRED, APPROVED, REJECTED, CLOSED',
     }),
   adjusterId: Joi.string()
     .trim()
@@ -234,8 +234,14 @@ const getClaimStatsQuerySchema = Joi.object({
 });
 
 /**
+ * Validation schema for POST /claims/:claimId/accept-assignment
+ * Transitions: PENDING_ACCEPTANCE → ASSIGNED
+ */
+const acceptAssignmentSchema = Joi.object({});
+
+/**
  * Validation schema for POST /claims/:claimId/decline-assignment
- * Transitions: ASSIGNED → NEW
+ * Transitions: PENDING_ACCEPTANCE → NEW
  */
 const declineAssignmentSchema = Joi.object({
   reason: Joi.string()
@@ -252,6 +258,7 @@ const declineAssignmentSchema = Joi.object({
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
+  acceptAssignmentSchema,
   declineAssignmentSchema,
   updateVehicleSchema,
   updateAccidentSchema,

@@ -111,6 +111,7 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
       createdAt: claim.createdAt,
       assignedTo: assignedAdjuster,
       fieldAdjuster: assignedAdjuster,
+      incidentCoordinates: claim.incidentCoordinates ?? null,
     };
   });
 
@@ -196,9 +197,9 @@ const assignClaim = async (claimId, body, authUser) => {
 
   // 3. Atomically assign the claim (query checks org + status:'NEW')
   const timelineEvent = {
-    action: 'Claim Assigned',
+    action: 'Assignment Pending Acceptance',
     previousStatus: 'NEW',
-    newStatus: 'ASSIGNED',
+    newStatus: 'PENDING_ACCEPTANCE',
     notes: assignmentNotes,
     performedBy: userId,
     role,
@@ -209,7 +210,7 @@ const assignClaim = async (claimId, body, authUser) => {
     assignedTo: adjusterId,
     assignedBy: userId,
     assignedAt: new Date(),
-    status: 'ASSIGNED',
+    status: 'PENDING_ACCEPTANCE',
     priority,
     assignmentNotes,
     timelineEvent,
@@ -231,10 +232,10 @@ const assignClaim = async (claimId, body, authUser) => {
     await createAndSendNotification({
       recipientId: updatedClaim.assignedTo,
       organizationId: updatedClaim.organizationId,
-      type: 'ASSIGNED',
+      type: 'PENDING_ACCEPTANCE',
       relatedClaimId: updatedClaim._id,
-      title: 'New Claim Assigned',
-      body: `You've been assigned claim ${updatedClaim.claimNumber}.`,
+      title: 'New Assignment Pending',
+      body: `You have a new claim assignment pending your acceptance: ${updatedClaim.claimNumber}.`,
     });
   } catch (err) {
     console.error('Failed to send notification for claim assignment:', err);
@@ -251,6 +252,73 @@ const assignClaim = async (claimId, body, authUser) => {
   };
 };
 
+const acceptAssignment = async (claimId, authUser) => {
+  const { userId, role, organizationId } = authUser;
+
+  // Retrieve adjuster's employeeCode for timeline
+  const adjusterUser = await userRepository.findByIdAndOrganization(userId, organizationId);
+  const employeeCode = adjusterUser?.employeeCode || 'UNKNOWN';
+
+  const timelineEvent = {
+    action: 'Assignment Accepted',
+    previousStatus: 'PENDING_ACCEPTANCE',
+    newStatus: 'ASSIGNED',
+    notes: `[ASSIGNMENT ACCEPTED] by ${employeeCode}`,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.acceptAssignment(
+    claimId,
+    organizationId,
+    userId,
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+
+    const assignedToId = existing.assignedTo?._id?.toString() ?? existing.assignedTo?.toString();
+    if (assignedToId !== userId.toString()) {
+      // Stealth tenancy: any other adjuster gets 404 CLAIM_NOT_FOUND (matching declineAssignment)
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+
+    if (existing.status !== 'PENDING_ACCEPTANCE') {
+      throw new AppError('Claim is not in PENDING_ACCEPTANCE status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // Send notification to the officer who assigned it (optional, fire-and-forget)
+  try {
+    await createAndSendNotification({
+      recipientId: updatedClaim.assignedBy,
+      organizationId: updatedClaim.organizationId,
+      type: 'ASSIGNED',
+      relatedClaimId: updatedClaim._id,
+      title: 'Assignment Accepted',
+      body: `${employeeCode} accepted claim ${updatedClaim.claimNumber}.`,
+    });
+  } catch (err) {
+    console.error('Failed to send notification for assignment acceptance:', err);
+  }
+
+  return {
+    id: updatedClaim._id,
+    claimNumber: updatedClaim.claimNumber,
+    status: updatedClaim.status,
+    assignedTo: updatedClaim.assignedTo,
+    assignedBy: updatedClaim.assignedBy,
+    assignedAt: updatedClaim.assignedAt,
+  };
+};
+
 const declineAssignment = async (claimId, reason, authUser) => {
   const { userId, role, organizationId } = authUser;
 
@@ -260,7 +328,7 @@ const declineAssignment = async (claimId, reason, authUser) => {
 
   const timelineEvent = {
     action: 'Assignment Declined',
-    previousStatus: 'ASSIGNED',
+    previousStatus: 'PENDING_ACCEPTANCE',
     newStatus: 'NEW',
     notes: `[ASSIGNMENT DECLINED] by ${employeeCode} — ${reason}`,
     performedBy: userId,
@@ -276,7 +344,7 @@ const declineAssignment = async (claimId, reason, authUser) => {
   );
 
   if (!updatedClaim) {
-    // Atomic update failed: claim doesn't exist, wrong org, not assigned to this adjuster, or not in ASSIGNED status
+    // Atomic update failed: claim doesn't exist, wrong org, not assigned to this adjuster, or not in PENDING_ACCEPTANCE status
     const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
     if (!existing) {
       throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
@@ -288,8 +356,8 @@ const declineAssignment = async (claimId, reason, authUser) => {
       throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
     }
 
-    if (existing.status !== 'ASSIGNED') {
-      throw new AppError('Claim is not in ASSIGNED status', 409, 'INVALID_STATUS_TRANSITION');
+    if (existing.status !== 'PENDING_ACCEPTANCE') {
+      throw new AppError('Claim is not in PENDING_ACCEPTANCE status', 409, 'INVALID_STATUS_TRANSITION');
     }
 
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
@@ -749,6 +817,7 @@ const getClaimStats = async (authUser, query = {}) => {
   const buildByStatus = (statusCounts) => {
     const byStatus = {
       NEW: 0,
+      PENDING_ACCEPTANCE: 0,
       ASSIGNED: 0,
       IN_PROGRESS: 0,
       SUBMITTED: 0,
@@ -812,7 +881,7 @@ const getClaimStats = async (authUser, query = {}) => {
 
 
   const { byStatus, totalClaims } = buildByStatus(statusCounts);
-  const pendingActionCount = byStatus.NEW + byStatus.SUBMITTED + byStatus.UNDER_REVIEW;
+  const pendingActionCount = byStatus.NEW + byStatus.PENDING_ACCEPTANCE + byStatus.SUBMITTED + byStatus.UNDER_REVIEW;
 
   let totalActive = 0;
   let available = 0;
@@ -844,6 +913,7 @@ const getClaimStats = async (authUser, query = {}) => {
     pendingActionCount,
     actionableBreakdown: {
       unassigned: byStatus.NEW,
+      pendingAcceptance: byStatus.PENDING_ACCEPTANCE,
       readyForReview: byStatus.SUBMITTED + byStatus.UNDER_REVIEW,
     },
     adjustersWorkload: {
@@ -920,6 +990,7 @@ module.exports = {
   getClaims,
   getClaimById,
   assignClaim,
+  acceptAssignment,
   declineAssignment,
   startInspection,
   updateVehicle,

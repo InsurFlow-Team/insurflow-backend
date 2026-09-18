@@ -398,14 +398,14 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.status).toBe('ASSIGNED');
+      expect(res.body.data.status).toBe('PENDING_ACCEPTANCE');
 
       const claimAfter = await Claim.findById(testClaim._id);
-      expect(claimAfter.status).toBe('ASSIGNED');
+      expect(claimAfter.status).toBe('PENDING_ACCEPTANCE');
       expect(claimAfter.assignedTo.toString()).toBe(adjuster1._id.toString());
 
       // Check timeline audit trail for the override note
-      const assignedTimelineEvent = claimAfter.timeline.find((t) => t.action === 'Claim Assigned');
+      const assignedTimelineEvent = claimAfter.timeline.find((t) => t.action === 'Assignment Pending Acceptance');
       expect(assignedTimelineEvent).toBeDefined();
       expect(assignedTimelineEvent.notes).toContain('[CAPACITY OVERRIDE] Assigned while adjuster had 4 active tasks (max: 3)');
       expect(assignedTimelineEvent.notes).toContain('Urgent nearest adjuster needed');
@@ -420,7 +420,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       assignedClaim = await Claim.create({
         organizationId: org1._id,
         createdBy: officer1._id,
-        status: 'ASSIGNED',
+        status: 'PENDING_ACCEPTANCE',
         assignedTo: adjuster1._id,
         assignedBy: officer1._id,
         assignedAt: new Date(),
@@ -440,9 +440,9 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
             timestamp: new Date(),
           },
           {
-            action: 'Claim Assigned',
+            action: 'Assignment Pending Acceptance',
             previousStatus: 'NEW',
-            newStatus: 'ASSIGNED',
+            newStatus: 'PENDING_ACCEPTANCE',
             performedBy: officer1._id,
             role: 'CLAIMS_OFFICER',
             timestamp: new Date(),
@@ -475,7 +475,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
 
       const lastTimeline = claimInDb.timeline[claimInDb.timeline.length - 1];
       expect(lastTimeline.action).toBe('Assignment Declined');
-      expect(lastTimeline.previousStatus).toBe('ASSIGNED');
+      expect(lastTimeline.previousStatus).toBe('PENDING_ACCEPTANCE');
       expect(lastTimeline.newStatus).toBe('NEW');
       expect(lastTimeline.performedBy.toString()).toBe(adjuster1._id.toString());
       expect(lastTimeline.role).toBe('FIELD_ADJUSTER');
@@ -497,7 +497,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
 
       // Claim remains assigned to adjuster1
       const claimInDb = await Claim.findById(assignedClaim._id);
-      expect(claimInDb.status).toBe('ASSIGNED');
+      expect(claimInDb.status).toBe('PENDING_ACCEPTANCE');
       expect(claimInDb.assignedTo.toString()).toBe(adjuster1._id.toString());
     });
 
@@ -550,7 +550,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       expect(res.body.errors[0].details).toBe('Reason cannot exceed 300 characters');
     });
 
-    it('returns 409 INVALID_STATUS_TRANSITION when declining a claim that is not in ASSIGNED status (e.g. IN_PROGRESS)', async () => {
+    it('returns 409 INVALID_STATUS_TRANSITION when declining a claim that is not in PENDING_ACCEPTANCE status (e.g. IN_PROGRESS)', async () => {
       await Claim.findByIdAndUpdate(assignedClaim._id, { status: 'IN_PROGRESS' });
 
       const res = await request(app)
@@ -602,10 +602,10 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
 
       expect(resAssign.status).toBe(200);
       expect(resAssign.body.success).toBe(true);
-      expect(resAssign.body.data.status).toBe('ASSIGNED');
+      expect(resAssign.body.data.status).toBe('PENDING_ACCEPTANCE');
 
       const claimAfter = await Claim.findById(assignedClaim._id);
-      expect(claimAfter.status).toBe('ASSIGNED');
+      expect(claimAfter.status).toBe('PENDING_ACCEPTANCE');
       expect(claimAfter.assignedTo.toString()).toBe(adjuster2._id.toString());
     });
   });

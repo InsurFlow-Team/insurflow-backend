@@ -18,7 +18,17 @@ const createClaim = async (req, res) => {
 const assignClaim = async (req, res) => {
   const { claimId } = req.params;
   const result = await claimService.assignClaim(claimId, req.body, req.user);
-  return res.status(200).json(successResponse('Claim assigned successfully', result));
+  return res.status(200).json(successResponse('Assignment pending acceptance', result));
+};
+
+/**
+ * POST /api/v1/claims/:claimId/accept-assignment
+ * Accepts a pending assignment. Authorized: FIELD_ADJUSTER (assigned only).
+ */
+const acceptAssignment = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.acceptAssignment(claimId, req.user);
+  return res.status(200).json(successResponse('Assignment accepted successfully', result));
 };
 
 /**
@@ -168,6 +178,7 @@ const getClaimReport = async (req, res) => {
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
+  acceptAssignment: asyncWrapper(acceptAssignment),
   declineAssignment: asyncWrapper(declineAssignment),
   getClaims: asyncWrapper(getClaims),
   getClaimById: asyncWrapper(getClaimById),

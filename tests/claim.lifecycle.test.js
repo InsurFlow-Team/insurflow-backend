@@ -310,13 +310,21 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
       const claimId = createRes.body.data.id;
       expect(createRes.body.data.status).toBe('NEW');
 
-      // 2. Assign -> ASSIGNED
+      // 2. Assign -> PENDING_ACCEPTANCE
       const assignRes = await request(app)
         .post(`/api/v1/claims/${claimId}/assign`)
         .set('Authorization', `Bearer ${officerToken}`)
         .send({ adjusterId: adjuster1._id });
       expect(assignRes.status).toBe(200);
-      expect(assignRes.body.data.status).toBe('ASSIGNED');
+      expect(assignRes.body.data.status).toBe('PENDING_ACCEPTANCE');
+
+      // 2a. Accept -> ASSIGNED
+      const acceptRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/accept-assignment`)
+        .set('Authorization', `Bearer ${adjusterToken}`)
+        .send({});
+      expect(acceptRes.status).toBe(200);
+      expect(acceptRes.body.data.status).toBe('ASSIGNED');
 
       // 2b. Start inspection -> IN_PROGRESS
       const startRes = await request(app)

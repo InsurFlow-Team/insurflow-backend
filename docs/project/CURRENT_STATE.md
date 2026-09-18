@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Completed & Verified** |
+| **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Two-Step Assignment Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (24 Suites / 307 Tests)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (25 Suites / 321 Tests)** |
 
 ---
 
@@ -37,7 +37,7 @@
 - [x] **Claims Intake & Assignment:**
   - Claim creation accessible to `CLAIMS_OFFICER` and `ADMIN` (`POST /api/v1/claims`).
   - Single-query MongoDB `$lookup` aggregation for adjuster availability eliminating N+1 queries.
-  - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`.
+  - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`. Exposes explicit numeric `capacityLimit` alongside `activeTasksCount` in `GET /api/v1/users/adjusters` for frontend workload rendering.
   - Adjuster dispatch with atomic assignment checks (`POST /api/v1/claims/:claimId/assign`).
   - **Field Adjuster Visibility & Filtering on Claims Listing (`GET /api/v1/claims`):** Populates assigned Field Adjuster identity (`id` and `name`) in both `assignedTo` and `fieldAdjuster` fields (or `null` if unassigned) across all claims returned by `GET /api/v1/claims`. Supports filtering by assigned adjuster via `adjusterId` and alias `assignedTo` query parameters with Joi ObjectId validation. Tested in `tests/claim.read.test.js`.
 - [x] **Vehicle & Policy Lookup:**
@@ -81,11 +81,15 @@
   - Incident GPS capture at creation in `claim.incidentCoordinates: { latitude, longitude, capturedAt }` (optional `latitude`/`longitude` in `POST /claims`), preserving required text address `claim.incidentLocation` and strictly separated from inspection GPS `claim.location`. Resolves Section 21 of `docs/API_CONTRACT.md`.
   - Geodesic proximity sorting via server-side Haversine engine (`src/utils/geo.utils.js`) on `GET /api/v1/users/adjusters` supporting `claimId` or direct coordinates.
   - 11 initial integration tests in `tests/adjusterMapDispatch.test.js`.
-- [x] **Adjuster Assignment Decline & Re-dispatch (Feature 18 Addendum):**
-  - Atomic decline endpoint `POST /api/v1/claims/:claimId/decline-assignment` restricted exclusively to assigned `FIELD_ADJUSTER`.
-  - Atomically rolls back status from `ASSIGNED` to `NEW`, resets assignment fields (`assignedTo: null`, `assignedBy: null`, `assignedAt: null`, `assignmentNotes: null`), and appends audit timeline event `[ASSIGNMENT DECLINED] by <employeeCode> — <reason>`.
-  - Claims return to `NEW` status, immediately eligible for map-based re-dispatch.
-  - 8 new integration tests in `tests/adjusterMapDispatch.test.js`, bringing suite to 20 suites / 271 tests (100% pass).
+- [x] **Two-Step Claim Assignment & PENDING_ACCEPTANCE Lifecycle (Feature 18 Upgrade):**
+  - Upgraded assignment workflow: `POST /api/v1/claims/:claimId/assign` transitions claim from `NEW` → `PENDING_ACCEPTANCE`.
+  - Added adjuster explicit response endpoints:
+    - `POST /api/v1/claims/:claimId/accept-assignment`: Transitions `PENDING_ACCEPTANCE` → `ASSIGNED`, appends `[ASSIGNMENT ACCEPTED] by <employeeCode>` timeline entry, and fires notification.
+    - `POST /api/v1/claims/:claimId/decline-assignment`: Transitions `PENDING_ACCEPTANCE` → `NEW`, unsets assignment fields, requires `reason` (1-300 chars), and appends `[ASSIGNMENT DECLINED] by <employeeCode> — <reason>` timeline entry.
+  - State guard: `POST /api/v1/claims/:claimId/inspection/start` returns 409 `INVALID_STATUS_TRANSITION` if claim is in `PENDING_ACCEPTANCE`.
+  - Adjuster capacity invariant: `PENDING_ACCEPTANCE` claims do **not** count toward the adjuster active task quota (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`).
+  - Claims listing projection (`GET /api/v1/claims`): now returns `incidentCoordinates: { latitude, longitude, capturedAt } | null` for map marker rendering.
+  - Dedicated test suite `tests/claim.twoStepAssignment.test.js` (13 tests), bringing total suite count to 25 suites / 321 tests (100% pass).
 - [x] **Push Notifications & Device Token Management (Feature 19 — Increments 1, 2 & 3 Completed):**
   - Firebase Admin SDK initialization (`src/config/firebase.js`) loading local service account credential.
   - Reusable push notification sender (`src/services/push.service.js`) with FCM data payload normalization (guaranteed string values) and error isolation.

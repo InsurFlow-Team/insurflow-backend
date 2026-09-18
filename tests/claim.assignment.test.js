@@ -75,7 +75,7 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.assignedTo).toBe(adjusterAvailable._id.toString());
-    expect(response.body.data.status).toBe('ASSIGNED');
+    expect(response.body.data.status).toBe('PENDING_ACCEPTANCE');
   });
 
   it('should successfully assign to an adjuster who currently has up to 3 active claims (3 and less is available)', async () => {
@@ -94,7 +94,7 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.assignedTo).toBe(adjusterAvailable._id.toString());
-    expect(response.body.data.status).toBe('ASSIGNED');
+    expect(response.body.data.status).toBe('PENDING_ACCEPTANCE');
   });
 
   it('should fail to assign if adjuster is busy (more than 3 active claims)', async () => {
@@ -239,7 +239,7 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.data.assignedTo).toBe(adjusterAvailable._id.toString());
-    expect(response.body.data.status).toBe('ASSIGNED');
+    expect(response.body.data.status).toBe('PENDING_ACCEPTANCE');
   });
 
   it('should handle concurrent assignment race condition safely, allowing exactly one to succeed and rejecting duplicate with 409', async () => {
@@ -273,15 +273,15 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
     const failedRes = res1.status === 409 ? res1 : res2;
 
     expect(successfulRes.body.success).toBe(true);
-    expect(successfulRes.body.data.status).toBe('ASSIGNED');
+    expect(successfulRes.body.data.status).toBe('PENDING_ACCEPTANCE');
     expect(failedRes.body.success).toBe(false);
     expect(failedRes.body.errors[0].code).toBe('INVALID_STATUS_TRANSITION');
 
     // Confirm database state
     const dbClaim = await Claim.findById(claimOrg1._id);
-    expect(dbClaim.status).toBe('ASSIGNED');
+    expect(dbClaim.status).toBe('PENDING_ACCEPTANCE');
     const assignmentTimelineEvents = dbClaim.timeline.filter(
-      (e) => e.action === 'Claim Assigned'
+      (e) => e.action === 'Assignment Pending Acceptance'
     );
     expect(assignmentTimelineEvents.length).toBe(1);
   });

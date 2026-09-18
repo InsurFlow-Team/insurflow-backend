@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['ASSIGNED', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED'],
+    enum: ['ASSIGNED', 'PENDING_ACCEPTANCE', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED'],
     required: true,
   },
   relatedClaimId: {

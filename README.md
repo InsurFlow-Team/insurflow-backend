@@ -137,7 +137,7 @@ INSURFLOW/
 │           ├── policy.model.js
 │           └── policy.repository.js
 │
-├── tests/                        ← الاختبارات التلقائية (24 Suites / 307 Tests)
+├── tests/                        ← الاختبارات التلقائية (25 Suites / 321 Tests)
 ├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json
@@ -696,7 +696,7 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] سجل تدقيق تاريخي ذري وشامل (Timeline) يوثق كل حالة وملاحظة ومستخدم
 
 ### ✅ الاختبارات والتوثيق المعتمد
-- [x] اجتياز 100% من الاختبارات التلقائية (20 Test Suites / 271 Tests Passed)
+- [x] اجتياز 100% من الاختبارات التلقائية (25 Test Suites / 321 Tests Passed)
 - [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
 - [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
 - [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)

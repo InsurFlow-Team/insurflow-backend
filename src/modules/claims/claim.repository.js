@@ -25,7 +25,7 @@ const findByOrganization = async (organizationId, filter = {}, pagination = {}) 
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo')
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo incidentCoordinates')
       .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -45,7 +45,7 @@ const findByAssignee = async (organizationId, userId, status, pagination = {}) =
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo')
+      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo incidentCoordinates')
       .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -251,12 +251,28 @@ const getClaimStats = async ({ organizationId, assignedTo, fromDate, toDate }) =
   return await Claim.aggregate(pipeline);
 };
 
+const acceptAssignment = async (claimId, organizationId, assignedTo, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    {
+      _id: claimId,
+      organizationId,
+      status: 'PENDING_ACCEPTANCE',
+      assignedTo,
+    },
+    {
+      $set: { status: 'ASSIGNED' },
+      $push: { timeline: timelineEvent },
+    },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
 const declineAssignment = async (claimId, organizationId, assignedTo, timelineEvent) => {
   return await Claim.findOneAndUpdate(
     {
       _id: claimId,
       organizationId,
-      status: 'ASSIGNED',
+      status: 'PENDING_ACCEPTANCE',
       assignedTo,
     },
     {
@@ -280,6 +296,7 @@ module.exports = {
   findByIdAndOrganization,
   countActiveClaimsByAssignee,
   assignClaim,
+  acceptAssignment,
   declineAssignment,
   startInspection,
   updateVehicle,

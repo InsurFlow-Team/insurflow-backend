@@ -166,7 +166,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       const claimId = createRes.body.data.id;
       expect(createRes.body.data.status).toBe('NEW');
 
-      // Step 2: Assign Claim -> ASSIGNED
+      // Step 2: Assign Claim -> PENDING_ACCEPTANCE
       const assignRes = await request(app)
         .post(`/api/v1/claims/${claimId}/assign`)
         .set('Authorization', `Bearer ${officerToken}`)
@@ -176,7 +176,15 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           notes: 'Urgent inspection needed',
         });
       expect(assignRes.status).toBe(200);
-      expect(assignRes.body.data.status).toBe('ASSIGNED');
+      expect(assignRes.body.data.status).toBe('PENDING_ACCEPTANCE');
+
+      // Step 2b: Accept Assignment -> ASSIGNED
+      const acceptRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/accept-assignment`)
+        .set('Authorization', `Bearer ${adjuster1Token}`)
+        .send({});
+      expect(acceptRes.status).toBe(200);
+      expect(acceptRes.body.data.status).toBe('ASSIGNED');
 
       // Step 3: Start Inspection -> IN_PROGRESS ('Inspection Started')
       const startRes1 = await request(app)
@@ -328,79 +336,84 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       expect(timeline[0].newStatus).toBeNull();
       expect(timeline[0].notes).toBeNull();
 
-      // 2. Claim Assigned
-      expect(timeline[1].action).toBe('Claim Assigned');
+      // 2. Assignment Pending Acceptance
+      expect(timeline[1].action).toBe('Assignment Pending Acceptance');
       expect(timeline[1].previousStatus).toBe('NEW');
-      expect(timeline[1].newStatus).toBe('ASSIGNED');
+      expect(timeline[1].newStatus).toBe('PENDING_ACCEPTANCE');
       expect(timeline[1].notes).toBe('Urgent inspection needed');
 
+      // 2b. Assignment Accepted
+      expect(timeline[2].action).toBe('Assignment Accepted');
+      expect(timeline[2].previousStatus).toBe('PENDING_ACCEPTANCE');
+      expect(timeline[2].newStatus).toBe('ASSIGNED');
+
       // 3. Inspection Started
-      expect(timeline[2].action).toBe('Inspection Started');
-      expect(timeline[2].previousStatus).toBe('ASSIGNED');
-      expect(timeline[2].newStatus).toBe('IN_PROGRESS');
+      expect(timeline[3].action).toBe('Inspection Started');
+      expect(timeline[3].previousStatus).toBe('ASSIGNED');
+      expect(timeline[3].newStatus).toBe('IN_PROGRESS');
 
       // 4. Vehicle Confirmed (non-status change)
-      expect(timeline[3].action).toBe('Vehicle Confirmed');
-      expect(timeline[3].previousStatus).toBeNull();
-      expect(timeline[3].newStatus).toBeNull();
-
-      // 5. Accident Details Recorded (non-status change)
-      expect(timeline[4].action).toBe('Accident Details Recorded');
+      expect(timeline[4].action).toBe('Vehicle Confirmed');
       expect(timeline[4].previousStatus).toBeNull();
       expect(timeline[4].newStatus).toBeNull();
 
-      // 6. Location Captured (non-status change)
-      expect(timeline[5].action).toBe('Location Captured');
+      // 5. Accident Details Recorded (non-status change)
+      expect(timeline[5].action).toBe('Accident Details Recorded');
       expect(timeline[5].previousStatus).toBeNull();
       expect(timeline[5].newStatus).toBeNull();
 
+      // 6. Location Captured (non-status change)
+      expect(timeline[6].action).toBe('Location Captured');
+      expect(timeline[6].previousStatus).toBeNull();
+      expect(timeline[6].newStatus).toBeNull();
+
       // 7. Inspection Submitted
-      expect(timeline[6].action).toBe('Inspection Submitted');
-      expect(timeline[6].previousStatus).toBe('IN_PROGRESS');
-      expect(timeline[6].newStatus).toBe('SUBMITTED');
+      expect(timeline[7].action).toBe('Inspection Submitted');
+      expect(timeline[7].previousStatus).toBe('IN_PROGRESS');
+      expect(timeline[7].newStatus).toBe('SUBMITTED');
 
       // 8. Review Started
-      expect(timeline[7].action).toBe('Review Started');
-      expect(timeline[7].previousStatus).toBe('SUBMITTED');
-      expect(timeline[7].newStatus).toBe('UNDER_REVIEW');
+      expect(timeline[8].action).toBe('Review Started');
+      expect(timeline[8].previousStatus).toBe('SUBMITTED');
+      expect(timeline[8].newStatus).toBe('UNDER_REVIEW');
 
       // 9. Correction Requested
-      expect(timeline[8].action).toBe('Correction Requested');
-      expect(timeline[8].previousStatus).toBe('UNDER_REVIEW');
-      expect(timeline[8].newStatus).toBe('CORRECTION_REQUIRED');
-      expect(timeline[8].notes).toBe('Please re-verify the damage description on front bumper');
+      expect(timeline[9].action).toBe('Correction Requested');
+      expect(timeline[9].previousStatus).toBe('UNDER_REVIEW');
+      expect(timeline[9].newStatus).toBe('CORRECTION_REQUIRED');
+      expect(timeline[9].notes).toBe('Please re-verify the damage description on front bumper');
 
       // 10. Inspection Resumed
-      expect(timeline[9].action).toBe('Inspection Resumed');
-      expect(timeline[9].previousStatus).toBe('CORRECTION_REQUIRED');
-      expect(timeline[9].newStatus).toBe('IN_PROGRESS');
+      expect(timeline[10].action).toBe('Inspection Resumed');
+      expect(timeline[10].previousStatus).toBe('CORRECTION_REQUIRED');
+      expect(timeline[10].newStatus).toBe('IN_PROGRESS');
 
       // 11. Accident Details Recorded (non-status change)
-      expect(timeline[10].action).toBe('Accident Details Recorded');
-      expect(timeline[10].previousStatus).toBeNull();
-      expect(timeline[10].newStatus).toBeNull();
+      expect(timeline[11].action).toBe('Accident Details Recorded');
+      expect(timeline[11].previousStatus).toBeNull();
+      expect(timeline[11].newStatus).toBeNull();
 
       // 12. Inspection Submitted
-      expect(timeline[11].action).toBe('Inspection Submitted');
-      expect(timeline[11].previousStatus).toBe('IN_PROGRESS');
-      expect(timeline[11].newStatus).toBe('SUBMITTED');
+      expect(timeline[12].action).toBe('Inspection Submitted');
+      expect(timeline[12].previousStatus).toBe('IN_PROGRESS');
+      expect(timeline[12].newStatus).toBe('SUBMITTED');
 
       // 13. Review Started
-      expect(timeline[12].action).toBe('Review Started');
-      expect(timeline[12].previousStatus).toBe('SUBMITTED');
-      expect(timeline[12].newStatus).toBe('UNDER_REVIEW');
+      expect(timeline[13].action).toBe('Review Started');
+      expect(timeline[13].previousStatus).toBe('SUBMITTED');
+      expect(timeline[13].newStatus).toBe('UNDER_REVIEW');
 
       // 14. Claim Approved
-      expect(timeline[13].action).toBe('Claim Approved');
-      expect(timeline[13].previousStatus).toBe('UNDER_REVIEW');
-      expect(timeline[13].newStatus).toBe('APPROVED');
-      expect(timeline[13].notes).toBe('Inspection complete and verified');
+      expect(timeline[14].action).toBe('Claim Approved');
+      expect(timeline[14].previousStatus).toBe('UNDER_REVIEW');
+      expect(timeline[14].newStatus).toBe('APPROVED');
+      expect(timeline[14].notes).toBe('Inspection complete and verified');
 
       // 15. Claim Closed
-      expect(timeline[14].action).toBe('Claim Closed');
-      expect(timeline[14].previousStatus).toBe('APPROVED');
-      expect(timeline[14].newStatus).toBe('CLOSED');
-      expect(timeline[14].notes).toBe('Payout completed');
+      expect(timeline[15].action).toBe('Claim Closed');
+      expect(timeline[15].previousStatus).toBe('APPROVED');
+      expect(timeline[15].newStatus).toBe('CLOSED');
+      expect(timeline[15].notes).toBe('Payout completed');
     });
   });
 

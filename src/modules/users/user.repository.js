@@ -126,6 +126,7 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         activeTasksCount: {
           $ifNull: [{ $arrayElemAt: ['$activeClaims.count', 0] }, 0],
         },
+        capacityLimit: Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3,
       },
     },
     {
@@ -155,6 +156,7 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         status: 1,
         availability: 1,
         activeTasksCount: 1,
+        capacityLimit: 1,
         location: {
           $ifNull: [
             '$location',
