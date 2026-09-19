@@ -84,6 +84,30 @@
 
 ---
 
+### 1.3 تسجيل وتحديث رمز جهاز الإشعارات (Register / Update Device FCM Token)
+* **المسار (Endpoint):** `PATCH /api/v1/users/me/fcm-token`
+* **Headers:** `Authorization: Bearer <ACCESS_TOKEN>`
+* **الوصف:** متاح لجميع الأدوار لتسجيل رمز الـ FCM لاستقبال إشعارات النظام الفورية.
+* **Request Body:**
+  ```json
+  {
+    "fcmToken": "c7x_sample_device_fcm_token_string"
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Device token updated successfully",
+    "data": {
+      "id": "6aa27838cda4d3dca00b83ab",
+      "fcmToken": "c7x_sample_device_fcm_token_string"
+    }
+  }
+  ```
+
+---
+
 ## 2. إدارة الموظفين والمستخدمين (User Management) — *خاص بالمدير*
 
 ### 2.1 استعراض جدول الموظفين (List Organization Users)

@@ -5,7 +5,7 @@
       "name": "InsurFlow",
       "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
       "createdAt": "2026-08-25T11:42:57.000Z",
-      "updatedAt": "2026-09-14T08:21:22.364Z",
+      "updatedAt": "2026-09-19T07:46:33.743Z",
       "lastUpdatedBy": "48167372",
       "uid": "48167372-2cc8307a-749f-4cf6-b547-29ee44495b82"
     },
@@ -1228,6 +1228,68 @@
               }
             ],
             "response": []
+          },
+          {
+            "name": "17. Register / Update FCM Device Token (Any Authenticated User)",
+            "id": "ce8fbadf-c43b-47ae-b995-e5be5c29b2aa",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/me/fcm-token",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "me",
+                  "fcm-token"
+                ]
+              },
+              "description": "Registers or updates Firebase Cloud Messaging (FCM) device push token for currently authenticated user (Admin, Claims Officer, Field Adjuster).",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"fcmToken\": \"fcm_mock_device_token_sample_abc123\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Device token updated successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.message).to.eql(\"Device token updated successfully\");",
+                    "    pm.expect(jsonData.data.fcmToken).to.eql(\"fcm_mock_device_token_sample_abc123\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
           }
         ],
         "id": "1c372911-672a-4205-929c-e82c036e7a2c",
@@ -1933,6 +1995,132 @@
               }
             ],
             "response": []
+          },
+          {
+            "name": "15. Accept Claim Assignment (Field Adjuster)",
+            "id": "ea0bab29-ce27-4c26-90f7-14fda9c00442",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/accept-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "accept-assignment"
+                ]
+              },
+              "description": "Field Adjuster accepts a claim assignment in PENDING_ACCEPTANCE status. Transitions status atomically to ASSIGNED and records [ASSIGNMENT ACCEPTED] timeline event.",
+              "body": {
+                "mode": "raw",
+                "raw": "{}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Assignment accepted successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.message).to.eql(\"Assignment accepted\");",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
+                    "    pm.expect(jsonData.data.assignedTo).to.not.be.null;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "16. Decline Claim Assignment (Field Adjuster)",
+            "id": "84c9dd02-33f0-4e4a-a85c-1686395f2c13",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decline-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decline-assignment"
+                ]
+              },
+              "description": "Field Adjuster declines a claim assignment in PENDING_ACCEPTANCE status. Resets status to NEW, nulls assignment metadata, and records [ASSIGNMENT DECLINED] timeline event.",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"reason\": \"Unable to attend incident location due to vehicle breakdown\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Assignment declined successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.message).to.eql(\"Assignment declined\");",
+                    "    pm.expect(jsonData.data.status).to.eql(\"NEW\");",
+                    "    pm.expect(jsonData.data.assignedTo).to.be.null;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
           }
         ],
         "id": "75fd566b-96d7-41ec-8e40-7be35cb40b24",
@@ -1946,7 +2134,7 @@
         "item": [
           {
             "name": "1. Login - Field Adjuster",
-            "id": "c1f9f059-7334-90e4-8b9b-0d9238e586f6",
+            "id": "1f384ff3-fa32-4bd4-b170-5605eae4ded7",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
@@ -2658,7 +2846,70 @@
             "response": []
           },
           {
-            "name": "14. Decline Assignment (Field Adjuster)",
+            "name": "14. Accept Assignment (Field Adjuster)",
+            "id": "fe3e586f-8312-42dd-8c94-f159465d1c9d",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/accept-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "accept-assignment"
+                ]
+              },
+              "description": "Field Adjuster accepts a claim assignment in PENDING_ACCEPTANCE status. Transitions status atomically to ASSIGNED and records [ASSIGNMENT ACCEPTED] timeline event.",
+              "body": {
+                "mode": "raw",
+                "raw": "{}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Assignment accepted successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.message).to.eql(\"Assignment accepted\");",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
+                    "    pm.expect(jsonData.data.assignedTo).to.not.be.null;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "15. Decline Assignment (Field Adjuster)",
             "id": "e33b5281-75d6-48d6-8ac8-063625cbe202",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -2711,6 +2962,67 @@
                     "    pm.expect(jsonData.success).to.be.true;",
                     "    pm.expect(jsonData.data.status).to.eql(\"NEW\");",
                     "    pm.expect(jsonData.data.assignedTo).to.be.null;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "16. Register / Update Push Notification Device Token (FCM)",
+            "id": "72422f66-0d0d-40fc-b205-d78f8d20bb52",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/me/fcm-token",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "me",
+                  "fcm-token"
+                ]
+              },
+              "description": "Mobile Field Adjuster registers their FCM device token upon login to receive instant dispatch push notifications.",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"fcmToken\": \"fcm_mobile_adjuster_device_token_xyz\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"FCM token registered\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.fcmToken).to.eql(\"fcm_mobile_adjuster_device_token_xyz\");",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -2772,7 +3084,7 @@
         "item": [
           {
             "name": "1. Create Claim with Incident Coordinates (Officer/Admin)",
-            "id": "9d5ca603-5292-4364-8be4-9952b951913d",
+            "id": "cf32a324-6145-48d1-ae82-5fc25fe964c4",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
@@ -2832,7 +3144,7 @@
           },
           {
             "name": "2. Transmit Adjuster GPS Location via HTTP Headers (Field Adjuster)",
-            "id": "d6afe963-2a70-4945-8b26-e994f40d72e1",
+            "id": "751b4cc4-e011-4a1c-9bf3-a68cda641bb5",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
@@ -2885,7 +3197,7 @@
           },
           {
             "name": "3. List Adjusters with Proximity by Claim ID (Officer/Admin)",
-            "id": "98c3dbef-7780-4675-966a-e23d0435b725",
+            "id": "32690d2b-9a9b-4d7c-b6af-2756b8a4fde3",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
@@ -2944,7 +3256,7 @@
           },
           {
             "name": "4. List Adjusters with Proximity by Direct Coordinates (Officer/Admin)",
-            "id": "9c20740f-98a6-4f04-8aa4-1aa78771d692",
+            "id": "3bfab116-80b0-4a54-a652-1b66e9943461",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
@@ -3001,7 +3313,7 @@
           },
           {
             "name": "5. Assign Adjuster with Capacity Override (Officer/Admin)",
-            "id": "f81aab04-fb1c-4575-96bd-1912f981b151",
+            "id": "0532c68a-6c0f-4c88-bb16-79ef7dd7c535",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
@@ -3122,7 +3434,68 @@
             "response": []
           },
           {
-            "name": "7. Decline Claim Assignment (Field Adjuster)",
+            "name": "7. Accept Claim Assignment (Field Adjuster)",
+            "id": "169121f3-7073-4610-b091-d2bb76d11313",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/accept-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "accept-assignment"
+                ]
+              },
+              "description": "Field Adjuster accepts a claim assignment in PENDING_ACCEPTANCE status. Transitions status atomically to ASSIGNED and records [ASSIGNMENT ACCEPTED] timeline event.",
+              "body": {
+                "mode": "raw",
+                "raw": "{}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Assignment accepted successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "8. Decline Claim Assignment (Field Adjuster)",
             "id": "2d285bc6-d42e-4f6c-b59e-b73f8fcfe67b",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
