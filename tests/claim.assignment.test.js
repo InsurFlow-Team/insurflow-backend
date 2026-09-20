@@ -43,7 +43,7 @@ const generateToken = (user) => {
 
 describe('POST /api/v1/claims/:claimId/assign', () => {
   let org1, org2;
-  let officer1, officer2, adjusterAvailable, adjusterBusy, adjusterInactive;
+  let officer1, officer2, adjusterAvailable, adjusterBusy, adjusterInactive, admin1;
   let claimOrg1, claimOrg2;
 
   beforeEach(async () => {
@@ -52,6 +52,8 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
 
     officer1 = await User.create({ name: 'O1', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
     officer2 = await User.create({ name: 'O2', employeeCode: 'O-2', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org2._id });
+
+    admin1 = await User.create({ name: 'ADM', employeeCode: 'ADM-1', password: 'p', role: 'ADMIN', organizationId: org1._id, status: 'ACTIVE' });
 
     adjusterAvailable = await User.create({ name: 'AA', employeeCode: 'AA-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
     adjusterBusy = await User.create({ name: 'AB', employeeCode: 'AB-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
@@ -151,6 +153,29 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
       .send({ adjusterId: adjusterAvailable._id });
 
     expect(response.status).toBe(403);
+  });
+
+  it('should successfully assign a claim when called by an ADMIN', async () => {
+    const token = generateToken(admin1); // ADMIN token
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimOrg1._id}/assign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ adjusterId: adjusterAvailable._id, priority: 'HIGH', notes: 'Assigned by admin' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.assignedTo).toBe(adjusterAvailable._id.toString());
+    expect(response.body.data.assignedBy).toBe(admin1._id.toString());
+    expect(response.body.data.status).toBe('PENDING_ACCEPTANCE');
+    expect(response.body.data.priority).toBe('HIGH');
+
+    // Verify timeline
+    const dbClaim = await Claim.findById(claimOrg1._id);
+    const timelineEvent = dbClaim.timeline.find((e) => e.action === 'Assignment Pending Acceptance');
+    expect(timelineEvent).toBeDefined();
+    expect(timelineEvent.performedBy.toString()).toBe(admin1._id.toString());
+    expect(timelineEvent.role).toBe('ADMIN');
+    expect(timelineEvent.notes).toBe('Assigned by admin');
   });
 
   it('should successfully assign with priority and notes', async () => {

@@ -13,7 +13,7 @@ const createClaim = async (req, res) => {
 
 /**
  * POST /api/v1/claims/:claimId/assign
- * Assigns a claim to a Field Adjuster. Authorized: CLAIMS_OFFICER only.
+ * Assigns a claim to a Field Adjuster. Authorized: CLAIMS_OFFICER, ADMIN.
  */
 const assignClaim = async (req, res) => {
   const { claimId } = req.params;

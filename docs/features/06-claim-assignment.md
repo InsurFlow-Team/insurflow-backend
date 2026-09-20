@@ -1,14 +1,14 @@
 # Feature Specification: Claim Assignment (Two-Step Workflow)
 
 ## 1. Feature Overview
-The **Claim Assignment** feature enables a Claims Officer to dispatch a newly created claim to an active, available Field Adjuster for on-site physical inspection using a **two-step workflow**:
-1. Dispatch: Claims Officer assigns the claim: **`NEW` → `PENDING_ACCEPTANCE`**.
+The **Claim Assignment** feature enables a Claims Officer or Admin to dispatch a newly created claim to an active, available Field Adjuster for on-site physical inspection using a **two-step workflow**:
+1. Dispatch: Claims Officer or Admin assigns the claim: **`NEW` → `PENDING_ACCEPTANCE`**.
 2. Explicit Response: Target Field Adjuster accepts (**`PENDING_ACCEPTANCE` → `ASSIGNED`**) or declines (**`PENDING_ACCEPTANCE` → `NEW`**).
 
 Key operational requirements:
 1. Only claims currently in status **`NEW`** can be dispatched for assignment.
 2. The target adjuster must belong to the same tenant, have role **`FIELD_ADJUSTER`**, and have status **`ACTIVE`**.
-3. The target adjuster must be available with **3 or fewer active tasks** (`activeTasksCount <= 3`), or the officer must explicitly provide `overrideCapacity: true`.
+3. The target adjuster must be available with **3 or fewer active tasks** (`activeTasksCount <= 3`), or the officer/admin must explicitly provide `overrideCapacity: true`.
 4. Claims in `PENDING_ACCEPTANCE` do **NOT** count towards adjuster capacity (`Claim.ACTIVE_ADJUSTER_STATUSES` strictly remains `['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED']`).
 5. Assignment dispatch, acceptance, and decline must execute **atomically** with optimistic concurrency checks to prevent race conditions.
 
@@ -18,10 +18,10 @@ Key operational requirements:
 
 ### Sequence Flow
 ```
-[Claims Officer]
+[Claims Officer / Admin]
    │
    ▼ POST /api/v1/claims/:claimId/assign
-[role.middleware(['CLAIMS_OFFICER'])] ──▶ 403 Forbidden for Adjusters/Admins
+[role.middleware(['CLAIMS_OFFICER', 'ADMIN'])] ──▶ 403 Forbidden for Adjusters
    │
    ▼
 [validateObjectId('claimId')] ──▶ 400 Bad Request on malformed ObjectId
@@ -68,7 +68,7 @@ Key operational requirements:
 ## 3. API Contract & Endpoints
 
 ### POST `/api/v1/claims/:claimId/assign`
-* **Authorized Roles:** `CLAIMS_OFFICER` only.
+* **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`.
 * **Authentication:** Required (JWT).
 * **URL Parameters:** `claimId` (24-character hexadecimal ObjectId).
 * **Request Body:**
@@ -145,6 +145,6 @@ Key operational requirements:
 ---
 
 ## 5. Automated Testing Suites
-* [tests/claim.assignment.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.assignment.test.js) (14 tests)
+* [tests/claim.assignment.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.assignment.test.js) (15 tests)
 * [tests/claim.twoStepAssignment.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.twoStepAssignment.test.js) (13 tests)
 * [tests/adjusterMapDispatch.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/adjusterMapDispatch.test.js) (19 tests)

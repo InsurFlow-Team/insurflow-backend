@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Two-Step Assignment Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (26 Suites / 356 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (26 Suites / 357 Tests - 100% Pass)** |
 
 ---
 
@@ -38,7 +38,7 @@
   - Claim creation accessible to `CLAIMS_OFFICER` and `ADMIN` (`POST /api/v1/claims`).
   - Single-query MongoDB `$lookup` aggregation for adjuster availability eliminating N+1 queries.
   - Adjuster workload capacity rule: adjusters with $\le 3$ active claims (`ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED`) remain `AVAILABLE`; more than 3 active claims transitions them to `UNAVAILABLE`. Exposes explicit numeric `capacityLimit` alongside `activeTasksCount` in `GET /api/v1/users/adjusters` for frontend workload rendering.
-  - Adjuster dispatch with atomic assignment checks (`POST /api/v1/claims/:claimId/assign`).
+  - Adjuster dispatch with atomic assignment checks (`POST /api/v1/claims/:claimId/assign`) accessible to both `CLAIMS_OFFICER` and `ADMIN`.
   - **Field Adjuster Visibility & Filtering on Claims Listing (`GET /api/v1/claims`):** Populates assigned Field Adjuster identity (`id` and `name`) in both `assignedTo` and `fieldAdjuster` fields (or `null` if unassigned) across all claims returned by `GET /api/v1/claims`. Supports filtering by assigned adjuster via `adjusterId` and alias `assignedTo` query parameters with Joi ObjectId validation. Tested in `tests/claim.read.test.js`.
 - [x] **Vehicle & Policy Lookup:**
   - Plate lookup (`GET /api/v1/vehicles/lookup`) with normalization and policy expiration warning (`POLICY_EXPIRED`).
@@ -104,7 +104,7 @@
   - **100% Complete & Synchronized Postman Collections:** All 30 Express 5 application routes are fully mapped and covered across 63 distinct requests, covering all positive flows, role authorizations, pagination, and negative test branches.
   - **Dual-State Postman Alignment:** Both local repository collection (`InsurFlow.postman_collection.json`) and live cloud workspace collection (`Mohammed Ferwana's Workspace`, collection UID `48167372-2cc8307a-749f-4cf6-b547-29ee44495b82`) are 100% synchronized with unique UUIDs and matching folder hierarchies (`auth`, `Users`, `Claims`, `Mobile (Field Adjuster)`, `adjesters`, `Map-Based Adjuster Dispatch & Location Tracking (Feature 18)`).
   - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`).
-  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** 35 end-to-end integration tests executing all 30 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **26 Suites / 356 Tests (100% Pass Rate)**.
+  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** 35 end-to-end integration tests executing all 30 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **26 Suites / 357 Tests (100% Pass Rate)**.
   - Team collaboration protocol (`docs/project/COLLABORATION_PROTOCOL.md`).
 
 ---

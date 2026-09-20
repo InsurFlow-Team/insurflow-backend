@@ -682,7 +682,8 @@ async function downloadClaimReport(claimId, claimNumber, token) {
 
 ### 5.2 تعيين المعاين بنظام الخطوتين وتجاوز السعة (Two-Step Assign & Capacity Override)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/assign`
-* **Headers:** `Authorization: Bearer <OFFICER_TOKEN>`
+* **المستخدم المصرح له:** موظف المطالبات والمسؤول (`CLAIMS_OFFICER`, `ADMIN`).
+* **Headers:** `Authorization: Bearer <OFFICER_TOKEN or ADMIN_TOKEN>`
 * **Request Body:**
   ```json
   {

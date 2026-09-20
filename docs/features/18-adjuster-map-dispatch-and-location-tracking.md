@@ -161,6 +161,7 @@ The **Map-Based Adjuster Dispatch & Location Tracking** capability enables Claim
   ```
 
 ### D. POST `/api/v1/claims/:claimId/assign` (Two-Step Dispatch with Capacity Override)
+* **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
 * **Request Body:**
   ```json
   {

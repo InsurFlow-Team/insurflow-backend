@@ -365,7 +365,7 @@ Valid status transitions (enforced by the Backend):
 
 ### `POST /claims/:claimId/assign`
 - **Purpose:** Assign a Field Adjuster to a Claim (Two-Step Workflow Step 1).
-- **Authorized Roles:** `CLAIMS_OFFICER`
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
 - **Authentication:** Required (JWT).
 - **Request Body:**
   ```json

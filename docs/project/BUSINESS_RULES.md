@@ -20,7 +20,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │              2. DISPATCH (TWO-STEP STEP 1)             │
-│  Claims Officer views available Field Adjusters        │
+│  Claims Officer or Admin views available Adjusters     │
 │  Dispatches claim to active Adjuster (workload <= 3)   │
 │  Status transitions: [ NEW ] ──▶ [ PENDING_ACCEPTANCE ]│
 └───────────────────────────┬────────────────────────────┘
@@ -112,14 +112,14 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 ---
 
 ### 2.3 Field Adjuster Assignment
-- **Rule BR-ASSIGN-1 (Assigner Role):** Only users with role **`CLAIMS_OFFICER`** can assign claims.
+- **Rule BR-ASSIGN-1 (Assigner Role):** Users with role **`CLAIMS_OFFICER`** or **`ADMIN`** can assign claims.
 - **Rule BR-ASSIGN-2 (State Invariant):** Claims can **only** be assigned if they are currently in status **`NEW`**. Attempting to assign an already `ASSIGNED`, `IN_PROGRESS`, or subsequent state claim must fail with `HTTP 409 Conflict`.
 - **Rule BR-ASSIGN-3 (Adjuster Qualification):** The target assignee must:
   1. Belong to the same organization as the claim.
   2. Possess role **`FIELD_ADJUSTER`**.
   3. Have user status **`ACTIVE`**.
 - **Rule BR-ASSIGN-4 (Workload Capacity & Advisory Override):** An adjuster is eligible for assignment (`AVAILABLE`) if and only if they have **3 or fewer active inspection tasks** (`activeTasksCount <= 3`) across active statuses: `['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED']`.
-  - If `activeTasksCount > 3`, assignment is rejected with `HTTP 409 Conflict` (`ADJUSTER_UNAVAILABLE`), **unless** the Claims Officer provides `"overrideCapacity": true` in the request body.
+  - If `activeTasksCount > 3`, assignment is rejected with `HTTP 409 Conflict` (`ADJUSTER_UNAVAILABLE`), **unless** the Claims Officer or Admin provides `"overrideCapacity": true` in the request body.
   - When overridden, the assignment succeeds and the audit timeline note is prefixed with:
     `"[CAPACITY OVERRIDE] Assigned while adjuster had <N> active tasks (max: 3)"`.
   - The backend is the single source of truth for capacity enforcement.

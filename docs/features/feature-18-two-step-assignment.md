@@ -41,7 +41,7 @@ In addition, `incidentCoordinates: { latitude, longitude, capturedAt } | null` i
 ## 3. Endpoints & API Contracts
 
 ### 3.1 POST `/api/v1/claims/:claimId/assign`
-* **Role:** `CLAIMS_OFFICER`
+* **Role:** `CLAIMS_OFFICER`, `ADMIN`
 * **Precondition:** Claim `status: 'NEW'`
 * **Request Body:**
   ```json

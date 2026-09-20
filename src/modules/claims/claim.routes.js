@@ -62,7 +62,7 @@ router.get(
 // POST /api/v1/claims/:claimId/assign — Assign claim to adjuster
 router.post(
   '/:claimId/assign',
-  authorizeRole(['CLAIMS_OFFICER']),
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
   validateObjectId('claimId'),
   validate(assignClaimSchema),
   claimController.assignClaim

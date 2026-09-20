@@ -45,7 +45,7 @@ The backend delivers the full operational lifecycle:
 4. `GET /api/v1/claims` — List claims (with pagination headers & role filtering)
 5. `GET /api/v1/claims/:claimId` — Detailed claim view with timeline audit trail
 6. `GET /api/v1/users/adjusters?status=available` — Filter available field adjusters ($\le 3$ active tasks)
-7. `POST /api/v1/claims/:claimId/assign` — Assign claim to field adjuster (`CLAIMS_OFFICER` only)
+7. `POST /api/v1/claims/:claimId/assign` — Assign claim to field adjuster (`CLAIMS_OFFICER`, `ADMIN`)
 8. `POST /api/v1/claims/:claimId/inspection/start` — Start/resume inspection (`FIELD_ADJUSTER` only)
 9. `GET /api/v1/vehicles/lookup?plateNumber=...` — Query vehicle, policy, customer data (`FIELD_ADJUSTER` only)
 10. `PUT /api/v1/claims/:claimId/vehicle` — Associate verified vehicle & policy to claim

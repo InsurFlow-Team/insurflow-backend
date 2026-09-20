@@ -11,7 +11,7 @@
 | **List Assigned Claims** (`GET /claims`) | ❌ | ❌ | ✅ | ❌ |
 | **View Claim Details** (`GET /claims/:claimId`) | ✅ | ✅ | ✅ *(Assigned only)* | ❌ |
 | **List Adjusters & Availability** (`GET /users/adjusters`) | ✅ | ✅ | ❌ | ❌ |
-| **Assign Claim to Adjuster** (`POST /claims/:claimId/assign`)| ❌ | ✅ | ❌ | ❌ |
+| **Assign Claim to Adjuster** (`POST /claims/:claimId/assign`)| ✅ | ✅ | ❌ | ❌ |
 | **Start / Resume Inspection** (`POST /claims/:id/inspection/start`) | ❌ | ❌ | ✅ *(Assigned only)* | ❌ |
 | **Lookup Vehicle & Policy** (`GET /vehicles/lookup`) | ❌ | ❌ | ✅ | ❌ |
 | **Update Vehicle Info on Claim** (`PUT /claims/:claimId/vehicle`) | ❌ | ❌ | ✅ *(Assigned only)* | ❌ |
