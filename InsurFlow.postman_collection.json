@@ -5,7 +5,7 @@
       "name": "InsurFlow",
       "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
       "createdAt": "2026-08-25T11:42:57.000Z",
-      "updatedAt": "2026-09-19T07:46:33.743Z",
+      "updatedAt": "2026-09-20T15:28:21.419Z",
       "lastUpdatedBy": "48167372",
       "uid": "48167372-2cc8307a-749f-4cf6-b547-29ee44495b82"
     },
@@ -239,6 +239,39 @@
             "createdAt": "2026-09-10T10:09:48.000Z",
             "updatedAt": "2026-09-10T10:09:48.000Z",
             "uid": "48167372-c1f9f059-7334-90e4-8b9b-0d9238e586f6"
+          },
+          {
+            "id": "43dd1095-af31-455e-aff7-b3d9157bfb03",
+            "name": "5. Health Check",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}health",
+                "host": [
+                  "{{URL}}health"
+                ]
+              },
+              "description": "System health check probe returning application uptime and status."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Server is healthy\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
           }
         ],
         "id": "885d4861-69e5-44a2-969e-140ee70a6b2f",
@@ -1301,17 +1334,26 @@
         "name": "Claims",
         "item": [
           {
-            "name": "madeClaim",
-            "id": "8c7521cc-f20d-4b8c-8746-322e162c49fa",
+            "name": "1. Create Claim with Incident Coordinates (Officer/Admin)",
+            "id": "9d5ca603-5292-4364-8be4-9952b951913d",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
             "request": {
               "method": "POST",
-              "header": [],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
               "body": {
                 "mode": "raw",
-                "raw": "{\r\n  \"customerName\": \"John Doe\",\r\n  \"customerPhone\": \"+1234567890\",\r\n  \"initialPlateNumber\": \"ABC-1234\",\r\n  \"incidentType\": \"COLLISION\",\r\n  \"incidentLocation\": \"طريق الملك فهد، الرياض\"\r\n}\r\n",
+                "raw": "{\n  \"customerName\": \"Ahmad Accident\",\n  \"customerPhone\": \"+970599123456\",\n  \"initialPlateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -1327,15 +1369,32 @@
                   "v1",
                   "claims"
                 ]
-              }
+              },
+              "description": "Create a new claim with optional incident GPS coordinates (latitude, longitude) stored in claim.incidentCoordinates, while preserving incidentLocation address text."
             },
-            "response": [],
-            "createdAt": "2026-08-28T15:18:25.000Z",
-            "updatedAt": "2026-09-01T08:30:46.000Z",
-            "uid": "48167372-8c7521cc-f20d-4b8c-8746-322e162c49fa"
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 201 Created\", function () {",
+                    "    pm.response.to.have.status(201);",
+                    "});",
+                    "pm.test(\"Claim created successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"id\");",
+                    "    pm.environment.set(\"claimId\", jsonData.data.id);",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
           },
           {
-            "name": "allClaims (List Claims & Filter by Adjuster)",
+            "name": "2. List All Claims (Officer/Admin)",
             "id": "eec530a1-d164-466d-9aa1-c47c63fd867c",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1425,7 +1484,7 @@
             ]
           },
           {
-            "name": "claimById",
+            "name": "3. Get Claim Details (Officer/Admin)",
             "id": "d7c6f926-0f55-4cc9-b77f-37c04dd84731",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1434,34 +1493,61 @@
               "method": "GET",
               "header": [],
               "url": {
-                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b",
+                "raw": "{{URL}}api/v1/claims/{{claimId}}",
                 "host": [
                   "{{URL}}api"
                 ],
                 "path": [
                   "v1",
                   "claims",
-                  "6a91ab09c9ff1dc54fabf15b"
+                  "{{claimId}}"
                 ]
               }
             },
             "response": [],
             "createdAt": "2026-08-28T18:52:53.000Z",
             "updatedAt": "2026-09-01T08:30:56.000Z",
-            "uid": "48167372-d7c6f926-0f55-4cc9-b77f-37c04dd84731"
+            "uid": "48167372-d7c6f926-0f55-4cc9-b77f-37c04dd84731",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim details retrieved\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"claimNumber\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
           },
           {
-            "name": "assign",
-            "id": "8db0a008-2650-4cfa-9dfc-4bfa8b410701",
+            "name": "4. Assign Adjuster with Capacity Override (Officer/Admin)",
+            "id": "f81aab04-fb1c-4575-96bd-1912f981b151",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
             "request": {
               "method": "POST",
-              "header": [],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
               "body": {
                 "mode": "raw",
-                "raw": "{\r\n  \"adjusterId\": \"6a919f4ee62778a597174335\",\r\n  \"priority\": \"HIGH\", \r\n  \"notes\": \"Please inspect this as soon as possible\"\r\n}",
+                "raw": "{\n  \"adjusterId\": \"6a91ab08c9ff1dc54fabf158\",\n  \"priority\": \"HIGH\",\n  \"notes\": \"Assigned with explicit capacity override due to proximity\",\n  \"overrideCapacity\": true\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -1469,25 +1555,41 @@
                 }
               },
               "url": {
-                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/assign",
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/assign",
                 "host": [
                   "{{URL}}api"
                 ],
                 "path": [
                   "v1",
                   "claims",
-                  "6a91ab09c9ff1dc54fabf15b",
+                  "{{claimId}}",
                   "assign"
                 ]
-              }
+              },
+              "description": "Assigns an adjuster to a claim. If adjuster activeTasksCount > 3, overrideCapacity: true bypasses the limit and prefixes timeline note with [CAPACITY OVERRIDE]."
             },
-            "response": [],
-            "createdAt": "2026-08-28T19:06:27.000Z",
-            "updatedAt": "2026-09-01T08:31:00.000Z",
-            "uid": "48167372-8db0a008-2650-4cfa-9dfc-4bfa8b410701"
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim assigned successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
           },
           {
-            "name": "Start Review claim",
+            "name": "5. Start Review Claim (Claims Officer)",
             "id": "2587a331-8a22-4c91-9c5e-2e2ac7c1d437",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1496,14 +1598,14 @@
               "method": "POST",
               "header": [],
               "url": {
-                "raw": "{{URL}}api/v1/claims/6a91ab09c9ff1dc54fabf15b/review/start",
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/review/start",
                 "host": [
                   "{{URL}}api"
                 ],
                 "path": [
                   "v1",
                   "claims",
-                  "6a91ab09c9ff1dc54fabf15b",
+                  "{{claimId}}",
                   "review",
                   "start"
                 ]
@@ -1512,10 +1614,27 @@
             "response": [],
             "createdAt": "2026-08-28T19:31:49.000Z",
             "updatedAt": "2026-09-01T08:31:09.000Z",
-            "uid": "48167372-2587a331-8a22-4c91-9c5e-2e2ac7c1d437"
+            "uid": "48167372-2587a331-8a22-4c91-9c5e-2e2ac7c1d437",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Review started successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
           },
           {
-            "name": "Request Correction (Claims Officer)",
+            "name": "6. Request Correction (Claims Officer)",
             "id": "b7c1234d-1234-4321-9876-abcdef123456",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1577,7 +1696,7 @@
             "response": []
           },
           {
-            "name": "Decide Claim - Approve / Reject (Admin/Officer)",
+            "name": "7. Decide Claim - Approve / Reject (Admin/Officer)",
             "event": [
               {
                 "script": {
@@ -1638,7 +1757,7 @@
             "uid": "48167372-8e3afa98-2d01-1cf7-9d92-4bcf740d565c"
           },
           {
-            "name": "Close Claim (Admin Only)",
+            "name": "8. Close Claim (Admin Only)",
             "event": [
               {
                 "script": {
@@ -1700,7 +1819,7 @@
             "uid": "48167372-bc79307d-9cb9-2f44-aef4-931c35fbdfcd"
           },
           {
-            "name": "Get Claim Stats (Admin - Organization Scope)",
+            "name": "9. Get Claim Stats (Admin - Organization Scope)",
             "id": "d4682cc1-dc54-43f7-a123-5aac57a1f58d",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1742,7 +1861,7 @@
             "response": []
           },
           {
-            "name": "Get Claim Stats (Claims Officer - Organization Scope)",
+            "name": "10. Get Claim Stats (Claims Officer - Organization Scope)",
             "id": "68e20a57-cce1-45fc-ba11-a99142eeec31",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1784,49 +1903,7 @@
             "response": []
           },
           {
-            "name": "Get Claim Stats (Field Adjuster - Assigned Scope)",
-            "id": "33b550bb-aafe-4d5c-a5c5-f750f2e4858a",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "GET",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{fieldAdjusterToken}}",
-                  "type": "text"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims/stats?from=2026-01-01&to=2026-12-31",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "stats"
-                ],
-                "query": [
-                  {
-                    "key": "from",
-                    "value": "2026-01-01",
-                    "description": "Optional start date (ISO 8601 or YYYY-MM-DD)"
-                  },
-                  {
-                    "key": "to",
-                    "value": "2026-12-31",
-                    "description": "Optional end date (ISO 8601 or YYYY-MM-DD)"
-                  }
-                ]
-              },
-              "description": "Aggregates self-assigned claim metrics across all statuses, actionable tasks, and active capacity limit for FIELD_ADJUSTER."
-            },
-            "response": []
-          },
-          {
-            "name": "Download Final Claim Report (PDF)",
+            "name": "11. Download Final Claim Report (PDF)",
             "id": "e2a4b81c-0f91-4d32-bc18-8f59d09a1234",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1873,253 +1950,6 @@
               },
               "description": "Download publication-grade final claim report PDF. Authorized roles: ADMIN, CLAIMS_OFFICER. Precondition: Claim must have a final decision (APPROVED, REJECTED, or CLOSED)."
             },
-            "response": []
-          },
-          {
-            "name": "13. Create Claim with Incident Coordinates (Officer/Admin)",
-            "id": "9d5ca603-5292-4364-8be4-9952b951913d",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                },
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{officerToken}}"
-                }
-              ],
-              "body": {
-                "mode": "raw",
-                "raw": "{\n  \"customerName\": \"Ahmad Accident\",\n  \"customerPhone\": \"+970599123456\",\n  \"initialPlateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              },
-              "url": {
-                "raw": "{{URL}}api/v1/claims",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims"
-                ]
-              },
-              "description": "Create a new claim with optional incident GPS coordinates (latitude, longitude) stored in claim.incidentCoordinates, while preserving incidentLocation address text."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "pm.test(\"Status code is 201 Created\", function () {",
-                    "    pm.response.to.have.status(201);",
-                    "});",
-                    "pm.test(\"Claim created successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data).to.have.property(\"id\");",
-                    "    pm.environment.set(\"claimId\", jsonData.data.id);",
-                    "});"
-                  ]
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "14. Assign Adjuster with Capacity Override (Officer/Admin)",
-            "id": "f81aab04-fb1c-4575-96bd-1912f981b151",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                },
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{officerToken}}"
-                }
-              ],
-              "body": {
-                "mode": "raw",
-                "raw": "{\n  \"adjusterId\": \"{{adjusterId}}\",\n  \"priority\": \"HIGH\",\n  \"notes\": \"Assigned with explicit capacity override due to proximity\",\n  \"overrideCapacity\": true\n}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              },
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/assign",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "assign"
-                ]
-              },
-              "description": "Assigns an adjuster to a claim. If adjuster activeTasksCount > 3, overrideCapacity: true bypasses the limit and prefixes timeline note with [CAPACITY OVERRIDE]."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Claim assigned successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
-                    "});"
-                  ]
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "15. Accept Claim Assignment (Field Adjuster)",
-            "id": "ea0bab29-ce27-4c26-90f7-14fda9c00442",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                },
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/accept-assignment",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "accept-assignment"
-                ]
-              },
-              "description": "Field Adjuster accepts a claim assignment in PENDING_ACCEPTANCE status. Transitions status atomically to ASSIGNED and records [ASSIGNMENT ACCEPTED] timeline event.",
-              "body": {
-                "mode": "raw",
-                "raw": "{}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              }
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Assignment accepted successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.message).to.eql(\"Assignment accepted\");",
-                    "    pm.expect(jsonData.data.status).to.eql(\"ASSIGNED\");",
-                    "    pm.expect(jsonData.data.assignedTo).to.not.be.null;",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "16. Decline Claim Assignment (Field Adjuster)",
-            "id": "84c9dd02-33f0-4e4a-a85c-1686395f2c13",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                },
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/decline-assignment",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "decline-assignment"
-                ]
-              },
-              "description": "Field Adjuster declines a claim assignment in PENDING_ACCEPTANCE status. Resets status to NEW, nulls assignment metadata, and records [ASSIGNMENT DECLINED] timeline event.",
-              "body": {
-                "mode": "raw",
-                "raw": "{\n  \"reason\": \"Unable to attend incident location due to vehicle breakdown\"\n}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              }
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Assignment declined successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.message).to.eql(\"Assignment declined\");",
-                    "    pm.expect(jsonData.data.status).to.eql(\"NEW\");",
-                    "    pm.expect(jsonData.data.assignedTo).to.be.null;",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
             "response": []
           }
         ],
@@ -2191,31 +2021,7 @@
             "response": []
           },
           {
-            "name": "2. List My Assigned Claims",
-            "id": "e4f8101a-82bc-4fa1-83cb-9a1b8c2d3e4f",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "GET",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims"
-                ]
-              },
-              "description": "Retrieves claims assigned to the logged-in Field Adjuster."
-            },
+            "name": "2. Change Password - Field Adjuster",
             "event": [
               {
                 "listen": "test",
@@ -2224,196 +2030,32 @@
                     "pm.test(\"Status code is 200 OK\", function () {",
                     "    pm.response.to.have.status(200);",
                     "});",
-                    "pm.test(\"Claims list retrieved\", function () {",
+                    "pm.test(\"Password changed successfully\", function () {",
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
-                    "    var claimsList = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data?.claims || []);",
-                    "    pm.expect(claimsList).to.be.an(\"array\");",
-                    "    if (claimsList.length > 0) {",
-                    "        pm.environment.set(\"claimId\", claimsList[0].id);",
-                    "    }",
+                    "    pm.expect(jsonData.message).to.include(\"Password changed successfully\");",
                     "});"
                   ],
                   "type": "text/javascript"
                 }
               }
             ],
-            "response": []
-          },
-          {
-            "name": "3. Get Claim Details",
-            "id": "f5a9212b-93cd-4eb2-94dc-ab2c9d3e4f5a",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "GET",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}"
-                ]
-              },
-              "description": "Get complete claim details for field inspection."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Claim details retrieved\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.id).to.be.ok;",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "4. Start / Resume Inspection",
-            "id": "a6b0323c-04de-4fc3-a5ed-bc3d0e4f5a6b",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/inspection/start",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "inspection",
-                  "start"
-                ]
-              },
-              "description": "Start or resume field inspection. Claim transitions from ASSIGNED or CORRECTION_REQUIRED to IN_PROGRESS."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Inspection started / resumed successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.status).to.eql(\"IN_PROGRESS\");",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "5. Vehicle & Policy Lookup",
-            "id": "caf93d93-59e3-4e48-9171-c071dc44947c",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "GET",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/vehicles/lookup?plateNumber=ABC-1234",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "vehicles",
-                  "lookup"
-                ],
-                "query": [
-                  {
-                    "key": "plateNumber",
-                    "value": "ABC-1234"
-                  }
-                ]
-              },
-              "description": "Query vehicle, customer, and insurance policy by plate number."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Vehicle and policy details retrieved\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    if (jsonData.data) {",
-                    "        if (jsonData.data.vehicle) pm.environment.set(\"vehicleId\", jsonData.data.vehicle.id);",
-                    "        if (jsonData.data.policy) pm.environment.set(\"policyId\", jsonData.data.policy.id);",
-                    "        if (jsonData.data.customer) pm.environment.set(\"customerId\", jsonData.data.customer.id);",
-                    "    }",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "6. Update Vehicle & Policy Info",
-            "id": "05dc5fac-262a-401f-a0b2-1c2f31374074",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
+            "id": "e17887e1-be23-4bce-9d96-9d641f3a4a89",
             "request": {
               "method": "PUT",
               "header": [
                 {
-                  "key": "Content-Type",
-                  "value": "application/json"
+                  "value": "application/json",
+                  "key": "Content-Type"
                 },
                 {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
+                  "value": "Bearer <TOKEN>",
+                  "key": "Authorization"
                 }
               ],
               "body": {
                 "mode": "raw",
-                "raw": "{\n  \"vehicleId\": \"6a919f50e62778a59717433c\",\n  \"policyId\": \"6a919f4fe62778a59717433a\",\n  \"customerId\": \"6a919f4ee62778a597174338\",\n  \"plateNumber\": \"123-ABC\"\n}",
+                "raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"NewPassword123!\"\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -2421,78 +2063,63 @@
                 }
               },
               "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/vehicle",
+                "raw": "{{URL}}api/v1/auth/change-password",
                 "host": [
                   "{{URL}}api"
                 ],
                 "path": [
                   "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "vehicle"
+                  "auth",
+                  "change-password"
                 ]
               },
-              "description": "Confirm and link vehicle, policy, and customer to claim during inspection."
+              "description": "Allows the authenticated Field Adjuster to change their password from the mobile application."
             },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Vehicle confirmed on claim\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
+            "response": [],
+            "createdAt": "2026-09-10T09:39:51.000Z",
+            "updatedAt": "2026-09-10T10:09:29.000Z",
+            "uid": "48167372-18995563-d5d6-2ff8-9c81-670718718736"
           },
           {
-            "name": "7. Update Accident Details",
-            "id": "dfc62cb9-5410-455c-aeed-7042150e5601",
+            "name": "3. Register / Update Push Notification Device Token (FCM)",
+            "id": "72422f66-0d0d-40fc-b205-d78f8d20bb52",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
             "request": {
-              "method": "PUT",
+              "method": "PATCH",
               "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                },
                 {
                   "key": "Authorization",
                   "value": "Bearer {{adjusterToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
                 }
               ],
+              "url": {
+                "raw": "{{URL}}api/v1/users/me/fcm-token",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "users",
+                  "me",
+                  "fcm-token"
+                ]
+              },
+              "description": "Mobile Field Adjuster registers their FCM device token upon login to receive instant dispatch push notifications.",
               "body": {
                 "mode": "raw",
-                "raw": "{\n  \"accidentType\": \"REAR_END_COLLISION\",\n  \"accidentDate\": \"2026-08-28\",\n  \"accidentTime\": \"14:30\",\n  \"description\": \"Car was hit from behind while waiting at a red light.\",\n  \"damageDescription\": \"Severe damage to the rear bumper and trunk.\"\n}",
+                "raw": "{\n  \"fcmToken\": \"fcm_mobile_adjuster_device_token_xyz\"\n}",
                 "options": {
                   "raw": {
                     "language": "json"
                   }
                 }
-              },
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/accident",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "accident"
-                ]
-              },
-              "description": "Record physical inspection accident narrative, date, time, and damage description."
+              }
             },
             "event": [
               {
@@ -2502,9 +2129,10 @@
                     "pm.test(\"Status code is 200 OK\", function () {",
                     "    pm.response.to.have.status(200);",
                     "});",
-                    "pm.test(\"Accident details recorded\", function () {",
+                    "pm.test(\"FCM token registered\", function () {",
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.fcmToken).to.eql(\"fcm_mobile_adjuster_device_token_xyz\");",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -2514,250 +2142,7 @@
             "response": []
           },
           {
-            "name": "8. Update Location (GPS)",
-            "id": "7e878dbf-09e6-4055-9b4b-69cb19560567",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "PUT",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                },
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "body": {
-                "mode": "raw",
-                "raw": "{\n  \"latitude\": 24.7136,\n  \"longitude\": 46.6753,\n  \"address\": \"King Fahd Road, Riyadh\",\n  \"capturedAt\": \"2026-08-28T14:35:00.000Z\"\n}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              },
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/location",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "location"
-                ]
-              },
-              "description": "Record device GPS coordinates and location address for the inspection."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Location captured\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "9. Upload Evidence Photo",
-            "id": "fc620a38-f771-bd57-1676-d383e9cf8a87",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "body": {
-                "mode": "formdata",
-                "formdata": [
-                  {
-                    "key": "file",
-                    "type": "file",
-                    "description": "Evidence image file (JPEG, PNG, WebP up to 10MB)"
-                  },
-                  {
-                    "key": "imageType",
-                    "value": "DAMAGE_CLOSEUP",
-                    "type": "text",
-                    "description": "Category: VEHICLE_FRONT, VEHICLE_REAR, VEHICLE_SIDE, DAMAGE_CLOSEUP, DRIVER_LICENSE, OTHER"
-                  },
-                  {
-                    "key": "caption",
-                    "value": "Cracked rear bumper and taillight damage",
-                    "type": "text",
-                    "description": "Optional descriptive caption"
-                  }
-                ]
-              },
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/evidence",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "evidence"
-                ]
-              },
-              "description": "Upload inspection evidence photo (JPEG, PNG, WebP up to 10MB). Stored securely on Cloudinary. Claim must be in IN_PROGRESS status."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Evidence photo uploaded successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.evidence).to.be.an(\"array\");",
-                    "    pm.expect(jsonData.data.evidence.length).to.be.above(0);",
-                    "    var lastEvidence = jsonData.data.evidence[jsonData.data.evidence.length - 1];",
-                    "    pm.expect(lastEvidence.url).to.be.a(\"string\");",
-                    "    pm.expect(lastEvidence.imageType).to.eql(\"DAMAGE_CLOSEUP\");",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "10. Upload Digital Signature",
-            "id": "6c9b0c44-c37c-52b5-26b9-48d55bbe05c0",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "body": {
-                "mode": "formdata",
-                "formdata": [
-                  {
-                    "key": "file",
-                    "type": "file",
-                    "description": "Digital signature image file (JPEG, PNG, WebP up to 10MB)"
-                  }
-                ]
-              },
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/signature",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "signature"
-                ]
-              },
-              "description": "Upload customer / adjuster digital signature (JPEG, PNG, WebP up to 10MB). Stored on Cloudinary. Overwrites any previous signature. Claim must be in IN_PROGRESS status."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Digital signature uploaded successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.signature).to.be.an(\"object\");",
-                    "    pm.expect(jsonData.data.signature.url).to.be.a(\"string\");",
-                    "    pm.expect(jsonData.data.signature.signedAt).to.be.ok;",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "11. Submit Inspection Report",
-            "id": "04f3e9ef-d56f-4fb5-91b6-8fae05cf4859",
-            "protocolProfileBehavior": {
-              "disableBodyPruning": true
-            },
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Authorization",
-                  "value": "Bearer {{adjusterToken}}"
-                }
-              ],
-              "url": {
-                "raw": "{{URL}}api/v1/claims/{{claimId}}/inspection/submit",
-                "host": [
-                  "{{URL}}api"
-                ],
-                "path": [
-                  "v1",
-                  "claims",
-                  "{{claimId}}",
-                  "inspection",
-                  "submit"
-                ]
-              },
-              "description": "Finalize and submit the inspection report to Claims Officer. Transitions claim to SUBMITTED."
-            },
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
-                    "    pm.response.to.have.status(200);",
-                    "});",
-                    "pm.test(\"Inspection submitted successfully\", function () {",
-                    "    var jsonData = pm.response.json();",
-                    "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.status).to.eql(\"SUBMITTED\");",
-                    "});"
-                  ],
-                  "type": "text/javascript"
-                }
-              }
-            ],
-            "response": []
-          },
-          {
-            "name": "12. Get My KPI Stats (Field Adjuster - Assigned Scope)",
+            "name": "4. Get My KPI Stats (Field Adjuster - Assigned Scope)",
             "id": "ff33b5b3-43e0-4ab1-bd4f-ad64097715c2",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -2793,7 +2178,7 @@
             "response": []
           },
           {
-            "name": "13. Transmit Location GPS via HTTP Headers (Passive Ingestion)",
+            "name": "5. Transmit Location GPS via HTTP Headers (Passive Ingestion)",
             "id": "d6afe963-2a70-4945-8b26-e994f40d72e1",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -2846,7 +2231,149 @@
             "response": []
           },
           {
-            "name": "14. Accept Assignment (Field Adjuster)",
+            "name": "6. List My Assigned Claims",
+            "id": "e4f8101a-82bc-4fa1-83cb-9a1b8c2d3e4f",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ]
+              },
+              "description": "Retrieves claims assigned to the logged-in Field Adjuster."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claims list retrieved\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    var claimsList = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data?.claims || []);",
+                    "    pm.expect(claimsList).to.be.an(\"array\");",
+                    "    if (claimsList.length > 0) {",
+                    "        pm.environment.set(\"claimId\", claimsList[0].id);",
+                    "    }",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "id": "bd864b5e-267e-44f6-82ae-3982aea8317d",
+            "name": "7. Filter Claims by Status (PENDING_ACCEPTANCE / ASSIGNED / IN_PROGRESS)",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims?status=PENDING_ACCEPTANCE",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims"
+                ],
+                "query": [
+                  {
+                    "key": "status",
+                    "value": "PENDING_ACCEPTANCE",
+                    "description": "Filter by PENDING_ACCEPTANCE, ASSIGNED, IN_PROGRESS, CORRECTION_REQUIRED, or SUBMITTED"
+                  }
+                ]
+              },
+              "description": "Enables mobile app tabs (e.g. New Invitations / Active Inspections) to filter assigned claims by specific lifecycle state."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Filtered claims array returned\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.be.an(\"array\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          },
+          {
+            "name": "8. Get Claim Details",
+            "id": "f5a9212b-93cd-4eb2-94dc-ab2c9d3e4f5a",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}"
+                ]
+              },
+              "description": "Get complete claim details for field inspection."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim details retrieved\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.id).to.be.ok;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "9. Accept Assignment (Field Adjuster)",
             "id": "fe3e586f-8312-42dd-8c94-f159465d1c9d",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -2909,7 +2436,7 @@
             "response": []
           },
           {
-            "name": "15. Decline Assignment (Field Adjuster)",
+            "name": "10. Decline Assignment (Field Adjuster)",
             "id": "e33b5281-75d6-48d6-8ac8-063625cbe202",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -2971,45 +2498,33 @@
             "response": []
           },
           {
-            "name": "16. Register / Update Push Notification Device Token (FCM)",
-            "id": "72422f66-0d0d-40fc-b205-d78f8d20bb52",
+            "name": "11. Start / Resume Inspection",
+            "id": "a6b0323c-04de-4fc3-a5ed-bc3d0e4f5a6b",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
             "request": {
-              "method": "PATCH",
+              "method": "POST",
               "header": [
                 {
                   "key": "Authorization",
                   "value": "Bearer {{adjusterToken}}"
-                },
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
                 }
               ],
               "url": {
-                "raw": "{{URL}}api/v1/users/me/fcm-token",
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/inspection/start",
                 "host": [
                   "{{URL}}api"
                 ],
                 "path": [
                   "v1",
-                  "users",
-                  "me",
-                  "fcm-token"
+                  "claims",
+                  "{{claimId}}",
+                  "inspection",
+                  "start"
                 ]
               },
-              "description": "Mobile Field Adjuster registers their FCM device token upon login to receive instant dispatch push notifications.",
-              "body": {
-                "mode": "raw",
-                "raw": "{\n  \"fcmToken\": \"fcm_mobile_adjuster_device_token_xyz\"\n}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              }
+              "description": "Start or resume field inspection. Claim transitions from ASSIGNED or CORRECTION_REQUIRED to IN_PROGRESS."
             },
             "event": [
               {
@@ -3019,10 +2534,10 @@
                     "pm.test(\"Status code is 200 OK\", function () {",
                     "    pm.response.to.have.status(200);",
                     "});",
-                    "pm.test(\"FCM token registered\", function () {",
+                    "pm.test(\"Inspection started / resumed successfully\", function () {",
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.fcmToken).to.eql(\"fcm_mobile_adjuster_device_token_xyz\");",
+                    "    pm.expect(jsonData.data.status).to.eql(\"IN_PROGRESS\");",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -3030,24 +2545,85 @@
               }
             ],
             "response": []
-          }
-        ]
-      },
-      {
-        "name": "adjesters",
-        "item": [
+          },
           {
-            "name": "allAdjesters",
-            "id": "7290ed9c-169b-4d1c-b34d-576570345f62",
+            "name": "12. Vehicle & Policy Lookup",
+            "id": "caf93d93-59e3-4e48-9171-c071dc44947c",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
             },
             "request": {
               "method": "GET",
-              "header": [],
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/vehicles/lookup?plateNumber=ABC-1234",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "vehicles",
+                  "lookup"
+                ],
+                "query": [
+                  {
+                    "key": "plateNumber",
+                    "value": "ABC-1234"
+                  }
+                ]
+              },
+              "description": "Query vehicle, customer, and insurance policy by plate number."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Vehicle and policy details retrieved\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    if (jsonData.data) {",
+                    "        if (jsonData.data.vehicle) pm.environment.set(\"vehicleId\", jsonData.data.vehicle.id);",
+                    "        if (jsonData.data.policy) pm.environment.set(\"policyId\", jsonData.data.policy.id);",
+                    "        if (jsonData.data.customer) pm.environment.set(\"customerId\", jsonData.data.customer.id);",
+                    "    }",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "13. Update Vehicle & Policy Info",
+            "id": "05dc5fac-262a-401f-a0b2-1c2f31374074",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
               "body": {
                 "mode": "raw",
-                "raw": "",
+                "raw": "{\n  \"vehicleId\": \"6a919f50e62778a59717433c\",\n  \"policyId\": \"6a919f4fe62778a59717433a\",\n  \"customerId\": \"6a919f4ee62778a597174338\",\n  \"plateNumber\": \"123-ABC\"\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -3055,27 +2631,525 @@
                 }
               },
               "url": {
-                "raw": "{{URL}}api/v1/users/adjusters",
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/vehicle",
                 "host": [
                   "{{URL}}api"
                 ],
                 "path": [
                   "v1",
-                  "users",
-                  "adjusters"
+                  "claims",
+                  "{{claimId}}",
+                  "vehicle"
                 ]
+              },
+              "description": "Confirm and link vehicle, policy, and customer to claim during inspection."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Vehicle confirmed on claim\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
               }
+            ],
+            "response": []
+          },
+          {
+            "name": "14. Update Accident Details",
+            "id": "dfc62cb9-5410-455c-aeed-7042150e5601",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"accidentType\": \"REAR_END_COLLISION\",\n  \"accidentDate\": \"2026-08-28\",\n  \"accidentTime\": \"14:30\",\n  \"description\": \"Car was hit from behind while waiting at a red light.\",\n  \"damageDescription\": \"Severe damage to the rear bumper and trunk.\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/accident",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "accident"
+                ]
+              },
+              "description": "Record physical inspection accident narrative, date, time, and damage description."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Accident details recorded\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "15. Update Location (GPS)",
+            "id": "7e878dbf-09e6-4055-9b4b-69cb19560567",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"latitude\": 24.7136,\n  \"longitude\": 46.6753,\n  \"address\": \"King Fahd Road, Riyadh\",\n  \"capturedAt\": \"2026-08-28T14:35:00.000Z\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/location",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "location"
+                ]
+              },
+              "description": "Record device GPS coordinates and location address for the inspection."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Location captured\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "16. Upload Evidence Photo",
+            "id": "fc620a38-f771-bd57-1676-d383e9cf8a87",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "body": {
+                "mode": "formdata",
+                "formdata": [
+                  {
+                    "key": "file",
+                    "type": "file",
+                    "description": "Evidence image file (JPEG, PNG, WebP up to 10MB)"
+                  },
+                  {
+                    "key": "imageType",
+                    "value": "DAMAGE_CLOSEUP",
+                    "type": "text",
+                    "description": "Category: VEHICLE_FRONT, VEHICLE_REAR, VEHICLE_SIDE, DAMAGE_CLOSEUP, DRIVER_LICENSE, OTHER"
+                  }
+                ]
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/evidence",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "evidence"
+                ]
+              },
+              "description": "Upload inspection evidence photo (JPEG, PNG, WebP up to 10MB). Stored securely on Cloudinary. Claim must be in IN_PROGRESS status."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Evidence photo uploaded successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.evidence).to.be.an(\"array\");",
+                    "    pm.expect(jsonData.data.evidence.length).to.be.above(0);",
+                    "    var lastEvidence = jsonData.data.evidence[jsonData.data.evidence.length - 1];",
+                    "    pm.expect(lastEvidence.url).to.be.a(\"string\");",
+                    "    pm.expect(lastEvidence.imageType).to.eql(\"DAMAGE_CLOSEUP\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "17. Upload Digital Signature",
+            "id": "6c9b0c44-c37c-52b5-26b9-48d55bbe05c0",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "body": {
+                "mode": "formdata",
+                "formdata": [
+                  {
+                    "key": "file",
+                    "type": "file",
+                    "description": "Digital signature image file (JPEG, PNG, WebP up to 10MB)"
+                  }
+                ]
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/signature",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "signature"
+                ]
+              },
+              "description": "Upload customer / adjuster digital signature (JPEG, PNG, WebP up to 10MB). Stored on Cloudinary. Overwrites any previous signature. Claim must be in IN_PROGRESS status."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Digital signature uploaded successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.signature).to.be.an(\"object\");",
+                    "    pm.expect(jsonData.data.signature.url).to.be.a(\"string\");",
+                    "    pm.expect(jsonData.data.signature.signedAt).to.be.ok;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "18. Submit Inspection Report",
+            "id": "04f3e9ef-d56f-4fb5-91b6-8fae05cf4859",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{adjusterToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/inspection/submit",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "inspection",
+                  "submit"
+                ]
+              },
+              "description": "Finalize and submit the inspection report to Claims Officer. Transitions claim to SUBMITTED."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Inspection submitted successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.eql(\"SUBMITTED\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "id": "ca65ce2a-06b4-49bf-b691-5054cbf41cca",
+            "name": "19. [Negative Test] Submit Incomplete Inspection (Expect 422 INSPECTION_INCOMPLETE)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"notes\": \"Trying to submit before completing all 5 mandatory pillars\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/inspection/submit",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "inspection",
+                  "submit"
+                ]
+              },
+              "description": "Enforces Business Rule BR-SUBMIT-2: Five Mandatory Pillars of Inspection (Vehicle, Accident, Location, Evidence photo, Signature). Missing any pillar yields 422 Unprocessable Entity with errorCode INSPECTION_INCOMPLETE."
             },
             "response": [],
-            "createdAt": "2026-08-28T15:57:17.000Z",
-            "updatedAt": "2026-09-01T08:31:14.000Z",
-            "uid": "48167372-7290ed9c-169b-4d1c-b34d-576570345f62"
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 422 Unprocessable Entity or 409\", function () {",
+                    "    pm.expect([422, 409]).to.include(pm.response.code);",
+                    "});",
+                    "pm.test(\"Error code indicates validation failure\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.error).to.exist;",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          },
+          {
+            "id": "33d03e02-9401-4b3c-bfe8-59105cb930a3",
+            "name": "20. [Negative Test] Start Inspection on PENDING_ACCEPTANCE (Expect 409 INVALID_STATUS_TRANSITION)",
+            "request": {
+              "method": "POST",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/inspection/start",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "inspection",
+                  "start"
+                ]
+              },
+              "description": "Feature 18 Two-Step Assignment guard: Field Adjuster cannot start inspection while claim is still in PENDING_ACCEPTANCE. The claim must be explicitly accepted first."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 409 Conflict\", function () {",
+                    "    pm.response.to.have.status(409);",
+                    "});",
+                    "pm.test(\"Invalid status transition rejected\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.error.code).to.equal(\"INVALID_STATUS_TRANSITION\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          },
+          {
+            "id": "9d5d75d9-4c31-4895-9d35-e7174f8e715f",
+            "name": "21. [Negative Test] Decline Assignment without Reason (Expect 400 VALIDATION_ERROR)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decline-assignment",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decline-assignment"
+                ]
+              },
+              "description": "Business Rule: Declining an assignment requires an explicit explanation reason (1-300 chars). Submitting empty body fails with 400 VALIDATION_ERROR."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                    "    pm.response.to.have.status(400);",
+                    "});",
+                    "pm.test(\"Validation error returned\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.error.code).to.equal(\"VALIDATION_ERROR\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          },
+          {
+            "id": "4f0eb3c9-48da-4ba1-9dea-8f798a31e474",
+            "name": "22. [Negative Test] Vehicle Lookup without Plate (Expect 400 VALIDATION_ERROR)",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{URL}}api/v1/vehicles/lookup",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "vehicles",
+                  "lookup"
+                ]
+              },
+              "description": "Vehicle lookup requires query parameter plateNumber. Missing plate number returns 400 VALIDATION_ERROR."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                    "    pm.response.to.have.status(400);",
+                    "});",
+                    "pm.test(\"Validation error on plateNumber required\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.error.code).to.equal(\"VALIDATION_ERROR\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
           }
-        ],
-        "id": "3252c40a-de6f-492c-bc31-f1116ef63304",
-        "createdAt": "2026-08-28T15:57:04.000Z",
-        "updatedAt": "2026-08-28T18:53:09.000Z",
-        "uid": "48167372-3252c40a-de6f-492c-bc31-f1116ef63304"
+        ]
       },
       {
         "name": "Map-Based Adjuster Dispatch & Location Tracking (Feature 18)",
@@ -3331,7 +3405,7 @@
               ],
               "body": {
                 "mode": "raw",
-                "raw": "{\n  \"adjusterId\": \"{{adjusterId}}\",\n  \"priority\": \"HIGH\",\n  \"notes\": \"Assigned with explicit capacity override due to proximity\",\n  \"overrideCapacity\": true\n}",
+                "raw": "{\n  \"adjusterId\": \"6a91ab08c9ff1dc54fabf158\",\n  \"priority\": \"HIGH\",\n  \"notes\": \"Assigned with explicit capacity override due to proximity\",\n  \"overrideCapacity\": true\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -3557,70 +3631,6 @@
             "response": []
           }
         ]
-      },
-      {
-        "name": "test the server",
-        "id": "91a830ee-bd2d-4f3a-94a7-3d6878cb9d68",
-        "protocolProfileBehavior": {
-          "disableBodyPruning": true
-        },
-        "request": {
-          "method": "GET",
-          "header": [],
-          "body": {
-            "mode": "formdata",
-            "formdata": [
-              {
-                "key": "coverImage",
-                "type": "file",
-                "uuid": "81aa4ae9-da18-4c1c-ab27-3b2f91b7a654",
-                "src": "/C:/Users/HP/Pictures/-3.jpg"
-              },
-              {
-                "key": "title",
-                "value": "{\"ar\": \"حملة تشجير\", \"en\": \"Tree Campaign\"}",
-                "type": "text",
-                "uuid": "caaba700-b729-40f4-b2f7-0ecb62f223a8"
-              },
-              {
-                "key": "description",
-                "value": "{\"ar\": \"وصف النشاط\", \"en\": \"Description\"}",
-                "type": "text",
-                "uuid": "e88e4e7f-ae5d-4a3c-93a8-2b8457983621"
-              },
-              {
-                "key": "category",
-                "value": "relief",
-                "type": "text",
-                "uuid": "56cc7ffd-1f1e-41df-9aa1-39b951032a80"
-              },
-              {
-                "key": "date",
-                "value": "2026-08-12",
-                "type": "text",
-                "uuid": "3e07ef3e-58f4-4867-9cea-5e7dbec01875"
-              }
-            ]
-          },
-          "url": {
-            "raw": "http://127.0.0.1:3000/health",
-            "protocol": "http",
-            "host": [
-              "127",
-              "0",
-              "0",
-              "1"
-            ],
-            "port": "3000",
-            "path": [
-              "health"
-            ]
-          }
-        },
-        "response": [],
-        "createdAt": "2026-08-25T11:43:19.000Z",
-        "updatedAt": "2026-08-28T19:10:18.000Z",
-        "uid": "48167372-91a830ee-bd2d-4f3a-94a7-3d6878cb9d68"
       }
     ]
   }
