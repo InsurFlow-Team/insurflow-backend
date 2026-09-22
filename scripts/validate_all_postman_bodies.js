@@ -22,6 +22,7 @@ const {
   closeClaimSchema,
   uploadEvidenceSchema
 } = require('../src/modules/claims/claim.validation');
+const { verifyPolicySchema } = require('../src/modules/policies/policy.validation');
 
 const collectionPath = path.resolve(__dirname, '../InsurFlow.postman_collection.json');
 const d = JSON.parse(fs.readFileSync(collectionPath, 'utf8'));
@@ -88,6 +89,9 @@ allReqs.forEach(({ folder, item }) => {
   } else if (normPath === '/api/v1/users/me/fcm-token' && method === 'PATCH') {
     schema = updateFcmTokenSchema;
     schemaName = 'updateFcmTokenSchema';
+  } else if (normPath === '/api/v1/policies/verify' && method === 'POST') {
+    schema = verifyPolicySchema;
+    schemaName = 'verifyPolicySchema';
   } else if (normPath === '/api/v1/claims' && method === 'POST') {
     schema = createClaimSchema;
     schemaName = 'createClaimSchema';

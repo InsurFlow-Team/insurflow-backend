@@ -1334,7 +1334,73 @@
         "name": "Claims",
         "item": [
           {
-            "name": "1. Create Claim with Incident Coordinates (Officer/Admin)",
+            "name": "1. Verify Policy Eligibility / Intake Gate (Officer/Admin)",
+            "id": "fbedbf54-69f6-48cc-9535-fc199438d688",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"policyNumber\": \"POL-1000\",\n  \"plateNumber\": \"ABC-1234\",\n  \"incidentDate\": \"2026-09-21\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/policies/verify",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "policies",
+                  "verify"
+                ]
+              },
+              "description": "Pre-claim verification / intake gate: validates that the policy exists for this organization, is currently active, covers the incident date, and matches the vehicle plate number before a claim is opened."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Policy is verified and eligible\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.isEligible).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"policy\");",
+                    "    pm.expect(jsonData.data).to.have.property(\"vehicle\");",
+                    "    pm.expect(jsonData.data).to.have.property(\"customer\");",
+                    "    pm.environment.set(\"verifiedPolicyNumber\", jsonData.data.policy.policyNumber);",
+                    "    pm.environment.set(\"verifiedPlateNumber\", jsonData.data.vehicle.plateNumber);",
+                    "});",
+                    "    pm.environment.set(\"policyId\", jsonData.data.policy.id);"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "2. Create Claim with Incident Coordinates (Officer/Admin)",
             "id": "9d5ca603-5292-4364-8be4-9952b951913d",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1353,7 +1419,7 @@
               ],
               "body": {
                 "mode": "raw",
-                "raw": "{\n  \"customerName\": \"Ahmad Accident\",\n  \"customerPhone\": \"+970599123456\",\n  \"initialPlateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
+                "raw": "{\n  \"policyId\": \"6a91ab08c9ff1dc54fabf150\",\n  \"plateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"incidentDate\": \"2026-06-15\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -1394,7 +1460,7 @@
             "response": []
           },
           {
-            "name": "2. List All Claims (Officer/Admin)",
+            "name": "3. List All Claims (Officer/Admin)",
             "id": "eec530a1-d164-466d-9aa1-c47c63fd867c",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1484,7 +1550,7 @@
             ]
           },
           {
-            "name": "3. Get Claim Details (Officer/Admin)",
+            "name": "4. Get Claim Details (Officer/Admin)",
             "id": "d7c6f926-0f55-4cc9-b77f-37c04dd84731",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1528,7 +1594,7 @@
             ]
           },
           {
-            "name": "4. Assign Adjuster with Capacity Override (Officer/Admin)",
+            "name": "5. Assign Adjuster with Capacity Override (Officer/Admin)",
             "id": "f81aab04-fb1c-4575-96bd-1912f981b151",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1589,7 +1655,7 @@
             "response": []
           },
           {
-            "name": "5. Start Review Claim (Claims Officer)",
+            "name": "6. Start Review Claim (Claims Officer)",
             "id": "2587a331-8a22-4c91-9c5e-2e2ac7c1d437",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1634,7 +1700,7 @@
             ]
           },
           {
-            "name": "6. Request Correction (Claims Officer)",
+            "name": "7. Request Correction (Claims Officer)",
             "id": "b7c1234d-1234-4321-9876-abcdef123456",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1696,7 +1762,7 @@
             "response": []
           },
           {
-            "name": "7. Decide Claim - Approve / Reject (Admin/Officer)",
+            "name": "8. Decide Claim - Approve / Reject (Admin/Officer)",
             "event": [
               {
                 "script": {
@@ -1757,7 +1823,7 @@
             "uid": "48167372-8e3afa98-2d01-1cf7-9d92-4bcf740d565c"
           },
           {
-            "name": "8. Close Claim (Admin Only)",
+            "name": "9. Close Claim (Admin Only)",
             "event": [
               {
                 "script": {
@@ -1819,7 +1885,7 @@
             "uid": "48167372-bc79307d-9cb9-2f44-aef4-931c35fbdfcd"
           },
           {
-            "name": "9. Get Claim Stats (Admin - Organization Scope)",
+            "name": "10. Get Claim Stats (Admin - Organization Scope)",
             "id": "d4682cc1-dc54-43f7-a123-5aac57a1f58d",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1861,7 +1927,7 @@
             "response": []
           },
           {
-            "name": "10. Get Claim Stats (Claims Officer - Organization Scope)",
+            "name": "11. Get Claim Stats (Claims Officer - Organization Scope)",
             "id": "68e20a57-cce1-45fc-ba11-a99142eeec31",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1903,7 +1969,7 @@
             "response": []
           },
           {
-            "name": "11. Download Final Claim Report (PDF)",
+            "name": "12. Download Final Claim Report (PDF)",
             "id": "e2a4b81c-0f91-4d32-bc18-8f59d09a1234",
             "protocolProfileBehavior": {
               "disableBodyPruning": true
@@ -1950,6 +2016,126 @@
               },
               "description": "Download publication-grade final claim report PDF. Authorized roles: ADMIN, CLAIMS_OFFICER. Precondition: Claim must have a final decision (APPROVED, REJECTED, or CLOSED)."
             },
+            "response": []
+          },
+          {
+            "name": "13. [Negative Test] Verify Policy - Vehicle Mismatch (Expect 422 VEHICLE_MISMATCH)",
+            "id": "15bcb4a0-def6-4202-a20b-c0c4c53ab50e",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"policyNumber\": \"POL-1000\",\n  \"plateNumber\": \"MISMATCH-999\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/policies/verify",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "policies",
+                  "verify"
+                ]
+              },
+              "description": "Attempt policy verification where the policy belongs to a different vehicle plate number, expecting 422 VEHICLE_MISMATCH."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                    "    pm.response.to.have.status(422);",
+                    "});",
+                    "pm.test(\"Error code is VEHICLE_MISMATCH\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.error.code).to.equal(\"VEHICLE_MISMATCH\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
+            "response": []
+          },
+          {
+            "name": "14. [Negative Test] Verify Policy - Expired Policy (Expect 422 POLICY_EXPIRED)",
+            "id": "c60beb1d-7978-4586-8097-2a8ba6d0b44a",
+            "protocolProfileBehavior": {
+              "disableBodyPruning": true
+            },
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{officerToken}}"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"policyNumber\": \"POL-2000\",\n  \"incidentDate\": \"2026-09-21\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/policies/verify",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "policies",
+                  "verify"
+                ]
+              },
+              "description": "Attempt policy verification with expired policy POL-2000, expecting 422 POLICY_EXPIRED."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                    "    pm.response.to.have.status(422);",
+                    "});",
+                    "pm.test(\"Error code is POLICY_EXPIRED\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.false;",
+                    "    pm.expect(jsonData.error.code).to.equal(\"POLICY_EXPIRED\");",
+                    "});"
+                  ]
+                }
+              }
+            ],
             "response": []
           }
         ],
@@ -3176,7 +3362,7 @@
               ],
               "body": {
                 "mode": "raw",
-                "raw": "{\n  \"customerName\": \"Ahmad Accident\",\n  \"customerPhone\": \"+970599123456\",\n  \"initialPlateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
+                "raw": "{\n  \"policyId\": \"6a91ab08c9ff1dc54fabf150\",\n  \"plateNumber\": \"77-888-99\",\n  \"incidentType\": \"COLLISION\",\n  \"incidentLocation\": \"Al-Irsal St, Ramallah\",\n  \"incidentDate\": \"2026-06-15\",\n  \"latitude\": 31.905,\n  \"longitude\": 35.204\n}",
                 "options": {
                   "raw": {
                     "language": "json"

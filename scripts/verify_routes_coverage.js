@@ -13,6 +13,7 @@ const routes = [
   { method: 'PATCH', path: '/api/v1/users/:userId/status' },
   { method: 'PATCH', path: '/api/v1/users/:userId/reset-password' },
   { method: 'GET', path: '/api/v1/vehicles/lookup' },
+  { method: 'POST', path: '/api/v1/policies/verify' },
   { method: 'POST', path: '/api/v1/claims' },
   { method: 'GET', path: '/api/v1/claims' },
   { method: 'GET', path: '/api/v1/claims/stats' },
@@ -78,12 +79,12 @@ routes.forEach((r, idx) => {
     console.log('[MISSING] ' + r.method + ' ' + r.path);
     allMatched = false;
   } else {
-    console.log('[OK ' + (idx + 1) + '/30] ' + r.method + ' ' + r.path + ' -> ' + matched.length + ' matching requests');
+    console.log('[OK ' + (idx + 1) + '/' + routes.length + '] ' + r.method + ' ' + r.path + ' -> ' + matched.length + ' matching requests');
   }
 });
 
 if (allMatched) {
-  console.log('\nSUCCESS: ALL 30 EXPRESS ROUTES ARE 100% COVERED IN POSTMAN COLLECTION!');
+  console.log('\nSUCCESS: ALL ' + routes.length + ' EXPRESS ROUTES ARE 100% COVERED IN POSTMAN COLLECTION!');
 } else {
   console.log('\nFAILURE: SOME ROUTES ARE STILL MISSING!');
   process.exit(1);
