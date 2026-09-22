@@ -63,6 +63,10 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
     .populate('createdBy', 'name employeeCode role')
     .populate('assignedTo', 'name employeeCode role')
     .populate('assignedBy', 'name employeeCode role')
+    .populate('policyId', 'policyNumber status startDate expiryDate')
+    .populate('vehicle.vehicleId', 'plateNumber make model year color')
+    .populate('vehicle.customerId', 'fullName phone')
+    .populate('evidence.uploadedBy', 'name employeeCode')
     .populate('timeline.performedBy', 'name employeeCode role')
     .lean();
 };

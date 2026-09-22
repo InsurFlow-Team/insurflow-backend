@@ -13,15 +13,82 @@ const { createAndSendNotification } = require('../notifications/notification.ser
 
 const createClaim = async (body, authUser) => {
   const {
-    customerName,
-    customerPhone,
-    initialPlateNumber,
+    policyId,
+    plateNumber: requestedPlate,
     incidentType,
     incidentLocation,
+    incidentDate,
     latitude,
     longitude,
   } = body;
 
+  // ── 1. Policy existence & tenant isolation ──────────────────────
+  const policy = await policyRepository.findByIdAndOrganization(policyId, authUser.organizationId);
+  if (!policy) {
+    throw new AppError('Policy not found', 404, 'POLICY_NOT_FOUND');
+  }
+
+  // ── 2. Policy status gate ──────────────────────────────────────
+  if (policy.status === 'CANCELLED') {
+    throw new AppError('Policy has been cancelled', 422, 'POLICY_CANCELLED');
+  }
+  if (policy.status === 'EXPIRED') {
+    throw new AppError('Policy has expired', 422, 'POLICY_EXPIRED');
+  }
+
+  // ── 3. Calendar expiry check ───────────────────────────────────
+  const now = new Date();
+
+  if (incidentDate) {
+    const incident = new Date(incidentDate + 'T00:00:00.000Z');
+
+    // Incident cannot be in the future
+    if (incident > now) {
+      throw new AppError('Incident date cannot be in the future', 400, 'INVALID_INCIDENT_DATE');
+    }
+
+    const start = new Date(policy.startDate);
+    const expiry = new Date(policy.expiryDate);
+    start.setUTCHours(0, 0, 0, 0);
+    expiry.setUTCHours(23, 59, 59, 999);
+
+    if (incident < start || incident > expiry) {
+      throw new AppError(
+        'Policy was not active on the incident date',
+        422,
+        'POLICY_NOT_ACTIVE_ON_DATE'
+      );
+    }
+  } else {
+    // No incidentDate — check current calendar expiry
+    if (policy.expiryDate && new Date(policy.expiryDate) < now) {
+      throw new AppError('Policy has expired', 422, 'POLICY_EXPIRED');
+    }
+  }
+
+  // ── 4. Resolve vehicle & customer from policy ──────────────────
+  const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, authUser.organizationId);
+
+  if (!vehicles || vehicles.length === 0) {
+    throw new AppError('No vehicle is registered under this policy', 422, 'NO_VEHICLE_ON_POLICY');
+  }
+
+  let vehicle = null;
+  if (requestedPlate) {
+    const normalizedInput = requestedPlate.trim().toUpperCase();
+    vehicle = vehicles.find((v) => v.plateNumber.trim().toUpperCase() === normalizedInput);
+    if (!vehicle) {
+      throw new AppError('Vehicle plate number does not match this policy', 422, 'VEHICLE_MISMATCH');
+    }
+  } else {
+    vehicle = vehicles[0];
+  }
+
+  const customerName = vehicle?.customerId?.fullName || 'Unknown';
+  const customerPhone = vehicle?.customerId?.phone || 'Unknown';
+  const plateNumber = vehicle?.plateNumber;
+
+  // ── 5. Build claim data ────────────────────────────────────────
   let incidentCoordinatesObj = null;
   if (typeof latitude === 'number' && typeof longitude === 'number') {
     incidentCoordinatesObj = {
@@ -34,6 +101,7 @@ const createClaim = async (body, authUser) => {
   const claimData = {
     organizationId: authUser.organizationId,
     createdBy: authUser.userId,
+    policyId: policy._id,
     status: 'NEW',
 
     customer: {
@@ -41,7 +109,7 @@ const createClaim = async (body, authUser) => {
       phone: customerPhone,
     },
     vehicle: {
-      plateNumber: initialPlateNumber,
+      plateNumber,
     },
     incidentType,
     incidentLocation,
@@ -145,29 +213,102 @@ const getClaimById = async (claimId, authUser) => {
     }
   }
 
+  // ── Format populated user ref → { id, name, employeeCode } ──────
+  const formatUser = (u) => {
+    if (!u || !u._id) return null;
+    return { id: u._id, name: u.name ?? null, employeeCode: u.employeeCode ?? null };
+  };
+
   return {
+    // ── 1. Claim Information ─────────────────────────────────────
     id: claim._id,
     claimNumber: claim.claimNumber,
     status: claim.status,
-    customer: claim.customer,
-    vehicle: claim.vehicle,
     incidentType: claim.incidentType,
     incidentLocation: claim.incidentLocation,
     incidentCoordinates: claim.incidentCoordinates ?? null,
-    assignment: {
-      assignedTo: claim.assignedTo,
-      assignedBy: claim.assignedBy,
-      assignedAt: claim.assignedAt,
-      priority: claim.priority,
-      assignmentNotes: claim.assignmentNotes,
-    },
-    accident: claim.accident,
-    location: claim.location,
-    evidence: claim.evidence,
-    signature: claim.signature,
-    timeline: claim.timeline,
     createdAt: claim.createdAt,
     updatedAt: claim.updatedAt,
+
+    // ── 2. Customer Information ──────────────────────────────────
+    customer: {
+      name: claim.customer?.name ?? null,
+      phone: claim.customer?.phone ?? null,
+    },
+
+    // ── 3. Vehicle Information ───────────────────────────────────
+    vehicle: {
+      plateNumber: claim.vehicle?.plateNumber ?? null,
+      make: claim.vehicle?.vehicleId?.make ?? null,
+      model: claim.vehicle?.vehicleId?.model ?? null,
+      year: claim.vehicle?.vehicleId?.year ?? null,
+      color: claim.vehicle?.vehicleId?.color ?? null,
+    },
+
+    // ── 4. Policy Information ────────────────────────────────────
+    policy: claim.policyId?._id
+      ? {
+          id: claim.policyId._id,
+          policyNumber: claim.policyId.policyNumber ?? null,
+          status: claim.policyId.status ?? null,
+          startDate: claim.policyId.startDate ?? null,
+          expiryDate: claim.policyId.expiryDate ?? null,
+        }
+      : null,
+
+    // ── 5. Assignment & Field Adjuster ───────────────────────────
+    assignment: {
+      assignedTo: formatUser(claim.assignedTo),
+      assignedBy: formatUser(claim.assignedBy),
+      assignedAt: claim.assignedAt ?? null,
+      priority: claim.priority ?? null,
+      assignmentNotes: claim.assignmentNotes ?? null,
+    },
+
+    // ── 6. Accident Details (from mobile inspection) ─────────────
+    accident: claim.accident ?? null,
+
+    // ── 7. Location (GPS from mobile inspection) ─────────────────
+    location: claim.location ?? null,
+
+    // ── 8. Evidence (from mobile inspection) ─────────────────────
+    evidence: (claim.evidence ?? []).map((e) => ({
+      imageType: e.imageType,
+      url: e.url,
+      uploadedBy: formatUser(e.uploadedBy),
+      uploadedAt: e.uploadedAt,
+    })),
+
+    // ── 9. Signature ─────────────────────────────────────────────
+    signature: claim.signature?.url
+      ? {
+          url: claim.signature.url,
+          capturedBy: claim.signature.capturedBy ?? null,
+          capturedAt: claim.signature.capturedAt ?? null,
+        }
+      : null,
+
+    // ── 10. Decision & Closure ───────────────────────────────────
+    decisionNotes: claim.decisionNotes ?? null,
+    closedBy: claim.closedBy ?? null,
+    closedAt: claim.closedAt ?? null,
+    closingNotes: claim.closingNotes ?? null,
+
+    // ── 11. Audit Timeline ───────────────────────────────────────
+    timeline: (claim.timeline ?? []).map((t) => ({
+      action: t.action,
+      previousStatus: t.previousStatus,
+      newStatus: t.newStatus,
+      notes: t.notes,
+      performedBy: t.performedBy
+        ? { id: t.performedBy._id, name: t.performedBy.name, employeeCode: t.performedBy.employeeCode, role: t.performedBy.role }
+        : null,
+      role: t.role,
+      timestamp: t.timestamp,
+    })),
+
+    // ── 12. Created By ───────────────────────────────────────────
+    createdBy: formatUser(claim.createdBy),
   };
 };
 

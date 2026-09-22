@@ -54,19 +54,27 @@ When a policyholder calls to report a motor accident or damage:
 * **Request Body:**
   ```json
   {
-    "customerName": "John Doe",
-    "customerPhone": "+971501234567",
-    "initialPlateNumber": "DXB-A-12345",
+    "policyId": "6a91ab09c9ff1dc54fabf160",
+    "plateNumber": "ABC-1234",
     "incidentType": "COLLISION",
-    "incidentLocation": "Sheikh Zayed Road near Exit 39"
+    "incidentLocation": "Al-Irsal St, Ramallah",
+    "incidentDate": "2026-09-08",
+    "latitude": 31.9050,
+    "longitude": 35.2040
   }
   ```
 * **Validation Rules:**
-  * `customerName`: String, required, trimmed.
-  * `customerPhone`: String, required, trimmed.
-  * `initialPlateNumber`: String, required, trimmed.
+  * `policyId`: Valid MongoDB ObjectId string, required.
+  * `plateNumber`: String, optional. If provided, must match the vehicle registered on the policy.
   * `incidentType`: Required enum: `['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER']`.
   * `incidentLocation`: String, required, trimmed.
+  * `incidentDate`: String `YYYY-MM-DD`, optional. Must fall within the policy period and not in the future.
+  * `latitude`: Number (-90 to 90), optional GPS coordinate.
+  * `longitude`: Number (-180 to 180), optional GPS coordinate.
+* **Intake Business Gates:**
+  * Validates policy existence and status (`ACTIVE`).
+  * Cross-verifies vehicle/plate against policy vehicle.
+  * Auto-populates customer name, customer phone, vehicle plate number, and `policyId` reference onto the new Claim record.
 * **Success Response (201 Created):**
   ```json
   {

@@ -7,17 +7,17 @@ const { objectIdPattern } = require('../../middlewares/validate.middleware');
  * organizationId, createdBy, status are set by the Backend — never from the client.
  */
 const createClaimSchema = Joi.object({
-  customerName: Joi.string().trim().required().messages({
-    'string.empty': 'Customer name is required',
-    'any.required': 'Customer name is required',
-  }),
-  customerPhone: Joi.string().trim().required().messages({
-    'string.empty': 'Customer phone is required',
-    'any.required': 'Customer phone is required',
-  }),
-  initialPlateNumber: Joi.string().trim().required().messages({
-    'string.empty': 'Initial plate number is required',
-    'any.required': 'Initial plate number is required',
+  policyId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'policyId must be a valid MongoDB ObjectId',
+      'string.empty': 'policyId is required',
+      'any.required': 'policyId is required',
+    }),
+  plateNumber: Joi.string().trim().optional().messages({
+    'string.base': 'Plate number must be a string',
   }),
   incidentType: Joi.string()
     .valid('COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER')
@@ -30,6 +30,12 @@ const createClaimSchema = Joi.object({
     'string.empty': 'Incident location is required',
     'any.required': 'Incident location is required',
   }),
+  incidentDate: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'incidentDate must be in YYYY-MM-DD format',
+    }),
   latitude: Joi.number().min(-90).max(90).optional().messages({
     'number.base': 'Latitude must be a valid number between -90 and 90',
     'number.min': 'Latitude must be at least -90',

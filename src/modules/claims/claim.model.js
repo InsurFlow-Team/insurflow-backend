@@ -57,6 +57,13 @@ const claimSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ── Verified Policy Reference (set at claim creation) ────────────
+    policyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Policy',
+      required: true,
+    },
+
     // ── Status & Lifecycle ──────────────────────────────────────────
     status: {
       type: String,
@@ -242,6 +249,7 @@ const claimSchema = new mongoose.Schema(
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
 claimSchema.index({ organizationId: 1, createdAt: -1, status: 1 });
 claimSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
+claimSchema.index({ organizationId: 1, policyId: 1 });
 
 
 // ─── Tenant-Scoped Claim Number Generation ───────────────────────────────────
