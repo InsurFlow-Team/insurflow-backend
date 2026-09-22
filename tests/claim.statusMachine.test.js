@@ -156,9 +156,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
         .send({
-          customerName: 'John Doe',
-          customerPhone: '1234567890',
-          initialPlateNumber: 'ABC-123',
+          policyId: policy._id.toString(),
+          plateNumber: 'ABC-123',
           incidentType: 'COLLISION',
           incidentLocation: 'Downtown',
         });
@@ -422,6 +421,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
     it('should transition UNDER_REVIEW -> REJECTED and block any transition out of REJECTED', async () => {
       const claim = await Claim.create({
         organizationId: org1._id,
+        policyId: policy._id,
         createdBy: officer._id,
         assignedTo: adjuster1._id,
         status: 'UNDER_REVIEW',
@@ -479,6 +479,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
     beforeEach(async () => {
       testClaim = await Claim.create({
         organizationId: org1._id,
+        policyId: policy._id,
         createdBy: officer._id,
         assignedTo: adjuster1._id,
         status: 'NEW',
@@ -585,6 +586,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
     it('should return 400 VALIDATION_ERROR when /review/request-correction has no notes or empty notes', async () => {
       const claim = await Claim.create({
         organizationId: org1._id,
+        policyId: policy._id,
         createdBy: officer._id,
         status: 'UNDER_REVIEW',
         customer: { name: 'C', phone: '1' },
@@ -617,6 +619,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
     beforeEach(async () => {
       assignedClaim = await Claim.create({
         organizationId: org1._id,
+        policyId: policy._id,
         createdBy: officer._id,
         assignedTo: adjuster1._id,
         status: 'ASSIGNED',
@@ -627,6 +630,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
 
       underReviewClaim = await Claim.create({
         organizationId: org1._id,
+        policyId: policy._id,
         createdBy: officer._id,
         assignedTo: adjuster1._id,
         status: 'UNDER_REVIEW',
@@ -690,9 +694,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          customerName: 'Admin Created Customer',
-          customerPhone: '+966500000001',
-          initialPlateNumber: 'ADM-999',
+          policyId: policy._id.toString(),
+          plateNumber: 'ABC-123',
           incidentType: 'COLLISION',
           incidentLocation: 'King Fahd Road',
         });
@@ -715,9 +718,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${adjuster1Token}`)
         .send({
-          customerName: 'Adjuster Customer',
-          customerPhone: '+966500000002',
-          initialPlateNumber: 'ADJ-111',
+          policyId: policy._id.toString(),
+          plateNumber: 'ABC-123',
           incidentType: 'COLLISION',
           incidentLocation: 'Olaya Street',
         });

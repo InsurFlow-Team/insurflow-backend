@@ -8,6 +8,7 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+const Policy = require('../src/modules/policies/policy.model');
 let mongoServer;
 
 beforeAll(async () => {
@@ -47,6 +48,7 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
   beforeEach(async () => {
     // Organizations
     org1 = await Organization.create({ name: 'Tenant Alpha', code: 'TALP' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Tenant Beta', code: 'TBET' });
 
     // Org 1 Users
@@ -131,8 +133,19 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
 
   // Helper to create claims with specific status, assignee, and createdAt
   const createClaim = async (orgId, creatorId, status, assignedTo = null, createdAt = null) => {
+    let pol = await Policy.findOne({ organizationId: orgId });
+    if (!pol) {
+      pol = await Policy.create({
+        policyNumber: `POL-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        status: 'ACTIVE',
+        startDate: new Date('2024-01-01'),
+        expiryDate: new Date('2028-12-31'),
+        organizationId: orgId,
+      });
+    }
     const claimData = {
       organizationId: orgId,
+      policyId: pol._id,
       createdBy: creatorId,
       status,
       customer: { name: 'John Doe', phone: '+1234567890' },

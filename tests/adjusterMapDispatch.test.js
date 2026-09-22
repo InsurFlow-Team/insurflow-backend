@@ -8,6 +8,8 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+const Policy = require('../src/modules/policies/policy.model');
+const Vehicle = require('../src/modules/vehicles/vehicle.model');
 let mongoServer;
 
 beforeAll(async () => {
@@ -44,7 +46,17 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Alpha Insurance', code: 'ALPHA' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    await Vehicle.create({
+      plateNumber: '77-888-99',
+      make: 'Toyota',
+      model: 'Corolla',
+      year: 2023,
+      organizationId: org1._id,
+      policyId: global.__testPol._id,
+    });
     org2 = await Organization.create({ name: 'Beta Insurance', code: 'BETA' });
+    global.__testPol2 = await Policy.create({ policyNumber: 'POL-FIX-002', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org2._id });
 
     officer1 = await User.create({
       name: 'Claims Officer One',
@@ -118,6 +130,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       // Unassigned claim for org1
       await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer1._id,
         status: 'ASSIGNED',
         assignedTo: adjuster1._id,
@@ -191,9 +204,8 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
         .send({
-          customerName: 'Ahmad Accident',
-          customerPhone: '0599123456',
-          initialPlateNumber: '77-888-99',
+          policyId: global.__testPol._id.toString(),
+          plateNumber: '77-888-99',
           incidentType: 'COLLISION',
           incidentLocation: 'Al-Irsal St, Ramallah',
           latitude: 31.9050,
@@ -226,9 +238,8 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
         .send({
-          customerName: 'No Coordinates Customer',
-          customerPhone: '0599123456',
-          initialPlateNumber: '11-222-33',
+          policyId: global.__testPol._id.toString(),
+          plateNumber: '77-888-99',
           incidentType: 'COLLISION',
           incidentLocation: 'Unknown Street 123',
         });
@@ -274,6 +285,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
     it('calculates distance based on claimId incidentCoordinates and sorts adjusters accordingly', async () => {
       const claim = await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer1._id,
         status: 'NEW',
         customer: { name: 'Customer Test', phone: '123' },
@@ -315,6 +327,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
     it('returns 404 CLAIM_NOT_FOUND when querying adjusters with a claimId belonging to another organization (multi-tenancy guard)', async () => {
       const betaClaim = await Claim.create({
         organizationId: org2._id,
+        policyId: global.__testPol2._id,
         createdBy: otherOrgAdjuster._id,
         status: 'NEW',
         customer: { name: 'Beta Customer', phone: '999' },
@@ -345,6 +358,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       for (let i = 1; i <= 4; i++) {
         await Claim.create({
           organizationId: org1._id,
+      policyId: global.__testPol._id,
           createdBy: officer1._id,
           status: 'ASSIGNED',
           assignedTo: adjuster1._id,
@@ -358,6 +372,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       // Create target claim in NEW status
       testClaim = await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer1._id,
         status: 'NEW',
         customer: { name: 'Target Claim', phone: '123' },
@@ -419,6 +434,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       // Create a claim assigned to adjuster1
       assignedClaim = await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer1._id,
         status: 'PENDING_ACCEPTANCE',
         assignedTo: adjuster1._id,

@@ -4,6 +4,9 @@ const app = require('../src/app');
 const User = require('../src/modules/users/user.model');
 const Organization = require('../src/modules/organizations/organization.model');
 const Claim = require('../src/modules/claims/claim.model');
+const Policy = require('../src/modules/policies/policy.model');
+const Vehicle = require('../src/modules/vehicles/vehicle.model');
+const Customer = require('../src/modules/customers/customer.model');
 const jwt = require('jsonwebtoken');
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
@@ -26,6 +29,9 @@ describe('Claim Read Endpoints', () => {
   let newClaim;
   let assignedClaim;
   let mongoServer;
+  let policy1;
+  let customer1;
+  let vehicle1;
 
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
@@ -42,6 +48,9 @@ describe('Claim Read Endpoints', () => {
     await Organization.deleteMany({});
     await User.deleteMany({});
     await Claim.deleteMany({});
+    await Policy.deleteMany({});
+    await Vehicle.deleteMany({});
+    await Customer.deleteMany({});
 
     org1 = await Organization.create({
       name: 'Test Org 1',
@@ -70,11 +79,38 @@ describe('Claim Read Endpoints', () => {
     });
     tokenAdjuster = generateToken(adjuster1);
 
+    // ── Policy, Customer, Vehicle fixtures ──────────────────────────
+    policy1 = await Policy.create({
+      policyNumber: 'POL-TEST-001',
+      status: 'ACTIVE',
+      startDate: new Date('2026-01-01'),
+      expiryDate: new Date('2027-12-31'),
+      organizationId: org1._id,
+    });
+
+    customer1 = await Customer.create({
+      fullName: 'John Doe',
+      phone: '0591234567',
+      organizationId: org1._id,
+    });
+
+    vehicle1 = await Vehicle.create({
+      plateNumber: 'ABC-123',
+      make: 'Toyota',
+      model: 'Camry',
+      year: 2024,
+      color: 'White',
+      customerId: customer1._id,
+      policyId: policy1._id,
+      organizationId: org1._id,
+    });
+
     newClaim = await Claim.create({
       organizationId: org1._id,
       createdBy: officer1._id,
+      policyId: policy1._id,
       status: 'NEW',
-      customer: { name: 'John Doe', phone: '123' },
+      customer: { name: 'John Doe', phone: '0591234567' },
       vehicle: { plateNumber: 'ABC-123' },
       incidentType: 'COLLISION',
       incidentLocation: 'Street A',
@@ -83,9 +119,14 @@ describe('Claim Read Endpoints', () => {
     assignedClaim = await Claim.create({
       organizationId: org1._id,
       createdBy: officer1._id,
+      policyId: policy1._id,
       status: 'ASSIGNED',
       customer: { name: 'Jane Doe', phone: '456' },
-      vehicle: { plateNumber: 'XYZ-987' },
+      vehicle: {
+        plateNumber: 'XYZ-987',
+        vehicleId: vehicle1._id,
+        customerId: customer1._id,
+      },
       incidentType: 'OTHER',
       incidentLocation: 'Street B',
       assignedTo: adjuster1._id,
@@ -95,6 +136,8 @@ describe('Claim Read Endpoints', () => {
       assignmentNotes: 'Please check ASAP',
     });
   });
+
+  // ─── GET /claims (list) tests ─────────────────────────────────────
 
   it('GET /api/v1/claims returns flat shapes without _id or nested objects', async () => {
     const res = await request(app)
@@ -219,7 +262,9 @@ describe('Claim Read Endpoints', () => {
     expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
   });
 
-  it('GET /api/v1/claims/:claimId returns mapped details without __v or organizationId', async () => {
+  // ─── GET /claims/:claimId (detail) tests ──────────────────────────
+
+  it('GET /api/v1/claims/:claimId returns structured response without _id, __v, or organizationId', async () => {
     const res = await request(app)
       .get(`/api/v1/claims/${assignedClaim._id}`)
       .set('Authorization', `Bearer ${tokenOfficer}`);
@@ -227,18 +272,116 @@ describe('Claim Read Endpoints', () => {
     expect(res.statusCode).toBe(200);
     const data = res.body.data;
 
+    // Core identity
     expect(data).toHaveProperty('id', assignedClaim._id.toString());
     expect(data).not.toHaveProperty('_id');
     expect(data).not.toHaveProperty('organizationId');
     expect(data).not.toHaveProperty('__v');
 
+    // Assignment section has formatted user objects
     expect(data.assignment).toBeDefined();
-    expect(data.assignment.assignedTo._id.toString()).toBe(adjuster1._id.toString());
+    expect(data.assignment.assignedTo).toEqual({
+      id: adjuster1._id.toString(),
+      name: 'Test Adjuster',
+      employeeCode: 'ADJ-1',
+    });
+    expect(data.assignment.assignedBy).toEqual({
+      id: officer1._id.toString(),
+      name: 'Test Officer',
+      employeeCode: 'CO-1',
+    });
     expect(data.assignment.priority).toBe('HIGH');
     expect(data.assignment.assignmentNotes).toBe('Please check ASAP');
   });
 
-  it('GET /api/v1/claims/:claimId on an assigned claim matches adjuster id', async () => {
+  it('GET /api/v1/claims/:claimId returns policy information when populated', async () => {
+    const res = await request(app)
+      .get(`/api/v1/claims/${assignedClaim._id}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(200);
+    const data = res.body.data;
+
+    // Policy section
+    expect(data.policy).toBeDefined();
+    expect(data.policy.id).toBe(policy1._id.toString());
+    expect(data.policy.policyNumber).toBe('POL-TEST-001');
+    expect(data.policy.status).toBe('ACTIVE');
+    expect(data.policy.startDate).toBeDefined();
+    expect(data.policy.expiryDate).toBeDefined();
+  });
+
+  it('GET /api/v1/claims/:claimId returns vehicle details from populated vehicleId', async () => {
+    const res = await request(app)
+      .get(`/api/v1/claims/${assignedClaim._id}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(200);
+    const data = res.body.data;
+
+    // Vehicle section (merged from claim plateNumber + populated Vehicle entity)
+    expect(data.vehicle).toBeDefined();
+    expect(data.vehicle.plateNumber).toBe('XYZ-987');
+    expect(data.vehicle.make).toBe('Toyota');
+    expect(data.vehicle.model).toBe('Camry');
+    expect(data.vehicle.year).toBe(2024);
+    expect(data.vehicle.color).toBe('White');
+  });
+
+  it('GET /api/v1/claims/:claimId returns null vehicle details when vehicleId not yet set', async () => {
+    const res = await request(app)
+      .get(`/api/v1/claims/${newClaim._id}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(200);
+    const data = res.body.data;
+
+    // NEW claim has plateNumber but no vehicleId populated yet
+    expect(data.vehicle.plateNumber).toBe('ABC-123');
+    expect(data.vehicle.make).toBeNull();
+    expect(data.vehicle.model).toBeNull();
+    expect(data.vehicle.year).toBeNull();
+    expect(data.vehicle.color).toBeNull();
+  });
+
+  it('GET /api/v1/claims/:claimId returns createdBy as formatted user object', async () => {
+    const res = await request(app)
+      .get(`/api/v1/claims/${assignedClaim._id}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(200);
+    const data = res.body.data;
+
+    expect(data.createdBy).toEqual({
+      id: officer1._id.toString(),
+      name: 'Test Officer',
+      employeeCode: 'CO-1',
+    });
+  });
+
+  it('GET /api/v1/claims/:claimId returns null for empty optional sections', async () => {
+    const res = await request(app)
+      .get(`/api/v1/claims/${newClaim._id}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(200);
+    const data = res.body.data;
+
+    // Unassigned claim
+    expect(data.assignment.assignedTo).toBeNull();
+    expect(data.assignment.assignedBy).toBeNull();
+    expect(data.assignment.assignedAt).toBeNull();
+
+    // No inspection data yet
+    expect(data.evidence).toEqual([]);
+    expect(data.signature).toBeNull();
+    expect(data.decisionNotes).toBeNull();
+    expect(data.closedBy).toBeNull();
+    expect(data.closedAt).toBeNull();
+    expect(data.closingNotes).toBeNull();
+  });
+
+  it('GET /api/v1/claims/:claimId on an assigned claim allows the assigned adjuster', async () => {
     const res = await request(app)
       .get(`/api/v1/claims/${assignedClaim._id}`)
       .set('Authorization', `Bearer ${tokenAdjuster}`);
@@ -246,7 +389,7 @@ describe('Claim Read Endpoints', () => {
     expect(res.statusCode).toBe(200);
     const data = res.body.data;
 
-    expect(data.assignment.assignedTo._id.toString()).toBe(adjuster1._id.toString());
+    expect(data.assignment.assignedTo.id).toBe(adjuster1._id.toString());
   });
 
   it('GET /api/v1/claims called by FIELD_ADJUSTER returns only assigned claims with adjuster info', async () => {

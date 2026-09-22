@@ -57,6 +57,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG1' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG2' });
 
     officer = await User.create({
@@ -127,6 +128,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
 
     inProgressClaim = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       assignedTo: adjuster1._id,
       assignedBy: officer._id,
@@ -140,6 +142,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
 
     assignedClaim = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       assignedTo: adjuster1._id,
       assignedBy: officer._id,

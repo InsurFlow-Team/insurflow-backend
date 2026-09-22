@@ -14,6 +14,7 @@ jest.mock('../src/modules/notifications/notification.service', () => ({
 
 const { createAndSendNotification } = require('../src/modules/notifications/notification.service');
 
+const Policy = require('../src/modules/policies/policy.model');
 let mongoServer;
 
 beforeAll(async () => {
@@ -48,6 +49,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
   beforeEach(async () => {
     org = await Organization.create({ name: 'Test Org', code: 'ORG-TRIGGERS' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org._id });
 
     officer = await User.create({
       name: 'Claims Officer',
@@ -74,6 +76,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
     it('should call createAndSendNotification with correct payload on claim assignment', async () => {
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         status: 'NEW',
         customer: { name: 'John Doe', phone: '0501112233' },
@@ -106,6 +109,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         status: 'NEW',
         customer: { name: 'John Doe', phone: '0501112233' },
@@ -128,6 +132,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
     it('should call createAndSendNotification with correct payload on correction request', async () => {
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         assignedTo: adjuster._id,
         status: 'UNDER_REVIEW',
@@ -161,6 +166,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         assignedTo: adjuster._id,
         status: 'UNDER_REVIEW',
@@ -184,6 +190,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
     it('should call createAndSendNotification with correct payload on claim approval', async () => {
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         assignedTo: adjuster._id,
         status: 'UNDER_REVIEW',
@@ -217,6 +224,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         assignedTo: adjuster._id,
         status: 'UNDER_REVIEW',
@@ -240,6 +248,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
     it('should call createAndSendNotification with correct payload on claim rejection', async () => {
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         assignedTo: adjuster._id,
         status: 'UNDER_REVIEW',
@@ -273,6 +282,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       const claim = await Claim.create({
         organizationId: org._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         assignedTo: adjuster._id,
         status: 'UNDER_REVIEW',

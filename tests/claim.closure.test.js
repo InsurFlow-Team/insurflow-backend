@@ -8,6 +8,7 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+const Policy = require('../src/modules/policies/policy.model');
 let mongoServer;
 
 beforeAll(async () => {
@@ -43,6 +44,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     admin1 = await User.create({
@@ -81,6 +83,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
     // Valid target state for closure: APPROVED
     claimApproved = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'APPROVED',
       customer: { name: 'Customer A', phone: '0500000001' },
@@ -92,6 +95,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
     // Invalid states for closure
     claimNew = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'NEW',
       customer: { name: 'Customer B', phone: '0500000002' },
@@ -101,6 +105,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
 
     claimAssigned = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'ASSIGNED',
@@ -111,6 +116,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
 
     claimSubmitted = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'SUBMITTED',
@@ -121,6 +127,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
 
     claimUnderReview = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'UNDER_REVIEW',
       customer: { name: 'Customer E', phone: '0500000005' },
@@ -130,6 +137,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
 
     claimRejected = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'REJECTED',
       customer: { name: 'Customer F', phone: '0500000006' },
@@ -140,6 +148,7 @@ describe('POST /api/v1/claims/:claimId/close', () => {
 
     claimClosed = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'CLOSED',
       customer: { name: 'Customer G', phone: '0500000007' },

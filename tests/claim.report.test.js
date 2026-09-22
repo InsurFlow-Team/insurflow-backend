@@ -63,6 +63,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     }));
 
     org1 = await Organization.create({ name: 'Apex Insurance', code: 'APX' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Beacon Mutual', code: 'BCN' });
 
     admin1 = await User.create({
@@ -118,6 +119,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     // ── APPROVED Claim ──
     claimApproved = await Claim.create({
       organizationId: org1._id,
+      policyId: policy1._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'APPROVED',
@@ -195,6 +197,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     // ── REJECTED Claim ──
     claimRejected = await Claim.create({
       organizationId: org1._id,
+      policyId: policy1._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'REJECTED',
@@ -229,6 +232,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     // ── CLOSED Claim ──
     claimClosed = await Claim.create({
       organizationId: org1._id,
+      policyId: policy1._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'CLOSED',
@@ -275,6 +279,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     // ── Non-Terminal Claims ──
     claimInProgress = await Claim.create({
       organizationId: org1._id,
+      policyId: policy1._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'IN_PROGRESS',
@@ -285,6 +290,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
 
     claimSubmitted = await Claim.create({
       organizationId: org1._id,
+      policyId: policy1._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'SUBMITTED',
@@ -295,6 +301,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
 
     claimUnderReview = await Claim.create({
       organizationId: org1._id,
+      policyId: policy1._id,
       createdBy: officer1._id,
       assignedTo: adjuster1._id,
       status: 'UNDER_REVIEW',

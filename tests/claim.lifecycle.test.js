@@ -42,10 +42,25 @@ const generateToken = (user) => {
 describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
   let org1, org2;
   let officer1, officer2, adjuster1, adjuster2;
+  let testPolicy, testPolicyOrg2;
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
+    testPolicy = await Policy.create({
+      policyNumber: 'POL-LIFE-001',
+      status: 'ACTIVE',
+      startDate: new Date('2025-01-01'),
+      expiryDate: new Date('2027-12-31'),
+      organizationId: org1._id,
+    });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
+    testPolicyOrg2 = await Policy.create({
+      policyNumber: 'POL-LIFE-ORG2',
+      status: 'ACTIVE',
+      startDate: new Date('2025-01-01'),
+      expiryDate: new Date('2027-12-31'),
+      organizationId: org2._id,
+    });
 
     officer1 = await User.create({ name: 'O1', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
     officer2 = await User.create({ name: 'O2', employeeCode: 'O-2', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
@@ -58,8 +73,18 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
     let claim, claimNew;
 
     beforeEach(async () => {
+      const testVehicle = await Vehicle.create({
+        plateNumber: 'XYZ-123',
+        make: 'Toyota',
+        model: 'Corolla',
+        year: 2023,
+        organizationId: org1._id,
+        policyId: testPolicy._id,
+      });
+
       claimNew = await Claim.create({
         organizationId: org1._id,
+        policyId: testPolicy._id,
         createdBy: officer1._id,
         status: 'NEW',
         customer: { name: 'C', phone: '1' },
@@ -70,11 +95,12 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
 
       claim = await Claim.create({
         organizationId: org1._id,
+        policyId: testPolicy._id,
         createdBy: officer1._id,
         assignedTo: adjuster1._id,
         status: 'IN_PROGRESS',
         customer: { name: 'C', phone: '1' },
-        vehicle: { plateNumber: 'XYZ-123', vehicleId: new mongoose.Types.ObjectId() },
+        vehicle: { plateNumber: 'XYZ-123', vehicleId: testVehicle._id },
         accident: { accidentType: 'COLLISION' },
         location: { latitude: 24, longitude: 46 },
         evidence: [
@@ -200,6 +226,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
     beforeEach(async () => {
       claimAssigned = await Claim.create({
         organizationId: org1._id,
+        policyId: testPolicy._id,
         createdBy: officer1._id,
         assignedTo: adjuster1._id,
         status: 'ASSIGNED',
@@ -211,6 +238,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
 
       claimSubmitted = await Claim.create({
         organizationId: org1._id,
+        policyId: testPolicy._id,
         createdBy: officer1._id,
         assignedTo: adjuster1._id,
         status: 'SUBMITTED',
@@ -222,6 +250,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
 
       claimOrg2 = await Claim.create({
         organizationId: org2._id,
+        policyId: testPolicyOrg2._id,
         createdBy: new mongoose.Types.ObjectId(),
         assignedTo: new mongoose.Types.ObjectId(),
         status: 'SUBMITTED',
@@ -291,8 +320,8 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
       const adjusterToken = generateToken(adjuster1);
 
       // Create mock vehicle, policy, customer for the adjuster to submit
-      const vehicle = await Vehicle.create({ plateNumber: 'XYZ-123', make: 'M', model: 'M', year: 2022, color: 'W', organizationId: org1._id });
-      const policy = await Policy.create({ policyNumber: 'P1', status: 'ACTIVE', startDate: '2023-01-01', expiryDate: '2024-01-01', organizationId: org1._id });
+      const policy = await Policy.create({ policyNumber: 'P1', status: 'ACTIVE', startDate: new Date('2025-01-01'), expiryDate: new Date('2027-01-01'), organizationId: org1._id });
+      const vehicle = await Vehicle.create({ plateNumber: 'XYZ-123', make: 'M', model: 'M', year: 2022, color: 'W', organizationId: org1._id, policyId: policy._id });
       const customer = await Customer.create({ fullName: 'C', phone: '1', organizationId: org1._id });
 
       // 1. Create -> NEW
@@ -300,9 +329,8 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
         .send({
-          customerName: 'C',
-          customerPhone: '1',
-          initialPlateNumber: 'XYZ-123',
+          policyId: policy._id.toString(),
+          plateNumber: 'XYZ-123',
           incidentType: 'COLLISION',
           incidentLocation: 'L'
         });

@@ -8,6 +8,7 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+const Policy = require('../src/modules/policies/policy.model');
 jest.mock('../src/modules/notifications/notification.service', () => ({
   createAndSendNotification: jest.fn().mockResolvedValue({}),
 }));
@@ -48,6 +49,7 @@ describe('Two-Step Assignment Flow', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     officer1 = await User.create({
@@ -81,6 +83,7 @@ describe('Two-Step Assignment Flow', () => {
   const createNewClaim = async (customFields = {}) => {
     return await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'NEW',
       customer: { name: 'Customer Test', phone: '0599000000' },
@@ -323,6 +326,7 @@ describe('Two-Step Assignment Flow', () => {
     for (let i = 0; i < 4; i++) {
       await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer1._id,
         assignedTo: adjusterA._id,
         assignedBy: officer1._id,

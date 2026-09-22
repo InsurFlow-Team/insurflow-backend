@@ -8,6 +8,7 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+const Policy = require('../src/modules/policies/policy.model');
 let mongoServer;
 
 beforeAll(async () => {
@@ -44,6 +45,7 @@ describe('GET /api/v1/users/adjusters', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     officer = await User.create({
@@ -105,6 +107,7 @@ describe('GET /api/v1/users/adjusters', () => {
     for (let i = 0; i < 4; i++) {
       await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         status: 'ASSIGNED',
         customer: { name: `C${i}`, phone: '1' },
@@ -188,6 +191,7 @@ describe('GET /api/v1/users/adjusters', () => {
     // Assign non-ASSIGNED claims to adjuster1
     await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'SUBMITTED',
       customer: { name: 'C1', phone: '1' },
@@ -197,6 +201,7 @@ describe('GET /api/v1/users/adjusters', () => {
     });
     await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'CLOSED',
       customer: { name: 'C2', phone: '2' },
@@ -223,6 +228,7 @@ describe('GET /api/v1/users/adjusters', () => {
     for (let i = 1; i <= 3; i++) {
       await Claim.create({
         organizationId: org1._id,
+      policyId: global.__testPol._id,
         createdBy: officer._id,
         status: 'ASSIGNED',
         customer: { name: `C${i}`, phone: '1' },
@@ -243,6 +249,7 @@ describe('GET /api/v1/users/adjusters', () => {
     // 2. Add a 4th active claim (> 3)
     await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'ASSIGNED',
       customer: { name: 'C4', phone: '1' },
@@ -266,6 +273,7 @@ describe('GET /api/v1/users/adjusters', () => {
 
     await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'IN_PROGRESS',
       customer: { name: 'C1', phone: '1' },
@@ -275,6 +283,7 @@ describe('GET /api/v1/users/adjusters', () => {
     });
     await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'CORRECTION_REQUIRED',
       customer: { name: 'C2', phone: '2' },

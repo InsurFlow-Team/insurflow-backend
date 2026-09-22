@@ -48,6 +48,7 @@ describe('Inspection Endpoints', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     officer = await User.create({ name: 'O', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
@@ -60,6 +61,7 @@ describe('Inspection Endpoints', () => {
 
     claimAssigned = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'IN_PROGRESS',
       assignedTo: adjuster1._id,
@@ -71,6 +73,7 @@ describe('Inspection Endpoints', () => {
 
     claimNew = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'NEW',
       customer: { name: 'C', phone: '1' },
@@ -81,6 +84,7 @@ describe('Inspection Endpoints', () => {
 
     claimSubmitted = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer._id,
       status: 'SUBMITTED',
       assignedTo: adjuster1._id,

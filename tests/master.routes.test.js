@@ -46,7 +46,7 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
-describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express Routes', () => {
+describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express Routes', () => {
   let org1, org2;
   let adminUser, officerUser, adjusterUser, otherOrgAdmin;
   let adminToken, officerToken, adjusterToken, otherOrgToken;
@@ -56,6 +56,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
 
   it('Setup: Seeds Organizations, Customer, Policy, Vehicle and Baseline Users', async () => {
     org1 = await Organization.create({ name: 'Demo Insurance Co', code: 'INS-A', status: 'ACTIVE' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Competitor Insurance Co', code: 'COMP-B', status: 'ACTIVE' });
 
     adminUser = await User.create({
@@ -101,11 +102,12 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
     });
 
     const now = new Date();
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneYearLater = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
     testPolicy = await Policy.create({
       organizationId: org1._id,
       policyNumber: 'POL-DEMO-2026',
-      startDate: now,
+      startDate: oneMonthAgo,
       expiryDate: oneYearLater,
       status: 'ACTIVE',
     });
@@ -312,16 +314,34 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 12: POST /api/v1/claims
+  // ROUTE 12: POST /api/v1/policies/verify
   // --------------------------------------------------------------------------
-  it('Route 12 [POST /api/v1/claims]: Claims Officer creates a new claim with incident coordinates', async () => {
+  it('Route 12 [POST /api/v1/policies/verify]: Claims Officer verifies policy eligibility before claim creation', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({
+        policyNumber: 'POL-DEMO-2026',
+        plateNumber: 'ABC-1234',
+        incidentDate: new Date().toISOString().slice(0, 10),
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.policy.policyNumber).toBe('POL-DEMO-2026');
+    expect(res.body.data.vehicle.plateNumber).toBe('ABC-1234');
+    expect(res.body.data.customer.fullName).toBe('Hassan Mahmoud');
+  });
+
+  // --------------------------------------------------------------------------
+  // ROUTE 13: POST /api/v1/claims
+  // --------------------------------------------------------------------------
+  it('Route 13 [POST /api/v1/claims]: Claims Officer creates a new claim with incident coordinates', async () => {
     const res = await request(app)
       .post('/api/v1/claims')
       .set('Authorization', `Bearer ${officerToken}`)
       .send({
-        customerName: 'Hassan Mahmoud',
-        customerPhone: '0599123456',
-        initialPlateNumber: 'ABC-1234',
+        policyId: testPolicy._id,
         incidentType: 'COLLISION',
         incidentLocation: 'Al-Irsal St, Ramallah',
         latitude: 31.9050,
@@ -335,9 +355,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 13: GET /api/v1/claims
+  // ROUTE 14: GET /api/v1/claims
   // --------------------------------------------------------------------------
-  it('Route 13 [GET /api/v1/claims]: Lists claims with role filtering and pagination headers', async () => {
+  it('Route 14 [GET /api/v1/claims]: Lists claims with role filtering and pagination headers', async () => {
     const res = await request(app)
       .get('/api/v1/claims?status=NEW&page=1&limit=5')
       .set('Authorization', `Bearer ${officerToken}`);
@@ -348,9 +368,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 14: GET /api/v1/claims/stats
+  // ROUTE 15: GET /api/v1/claims/stats
   // --------------------------------------------------------------------------
-  it('Route 14 [GET /api/v1/claims/stats]: Retrieves KPI statistics with date filtering', async () => {
+  it('Route 15 [GET /api/v1/claims/stats]: Retrieves KPI statistics with date filtering', async () => {
     const res = await request(app)
       .get('/api/v1/claims/stats?from=2026-01-01&to=2026-12-31')
       .set('Authorization', `Bearer ${officerToken}`);
@@ -362,9 +382,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 15: GET /api/v1/claims/:claimId
+  // ROUTE 16: GET /api/v1/claims/:claimId
   // --------------------------------------------------------------------------
-  it('Route 15 [GET /api/v1/claims/:claimId]: Retrieves detailed claim dossier', async () => {
+  it('Route 16 [GET /api/v1/claims/:claimId]: Retrieves detailed claim dossier', async () => {
     const res = await request(app)
       .get(`/api/v1/claims/${createdClaimId}`)
       .set('Authorization', `Bearer ${officerToken}`);
@@ -375,9 +395,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 16: POST /api/v1/claims/:claimId/assign
+  // ROUTE 17: POST /api/v1/claims/:claimId/assign
   // --------------------------------------------------------------------------
-  it('Route 16 [POST /api/v1/claims/:claimId/assign]: Officer dispatches claim (Two-Step Step 1: NEW -> PENDING_ACCEPTANCE)', async () => {
+  it('Route 17 [POST /api/v1/claims/:claimId/assign]: Officer dispatches claim (Two-Step Step 1: NEW -> PENDING_ACCEPTANCE)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/assign`)
       .set('Authorization', `Bearer ${officerToken}`)
@@ -393,9 +413,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 17: POST /api/v1/claims/:claimId/decline-assignment
+  // ROUTE 18: POST /api/v1/claims/:claimId/decline-assignment
   // --------------------------------------------------------------------------
-  it('Route 17 [POST /api/v1/claims/:claimId/decline-assignment]: Adjuster declines assignment (reverts to NEW)', async () => {
+  it('Route 18 [POST /api/v1/claims/:claimId/decline-assignment]: Adjuster declines assignment (reverts to NEW)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/decline-assignment`)
       .set('Authorization', `Bearer ${adjusterToken}`)
@@ -415,9 +435,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 18: POST /api/v1/claims/:claimId/accept-assignment
+  // ROUTE 19: POST /api/v1/claims/:claimId/accept-assignment
   // --------------------------------------------------------------------------
-  it('Route 18 [POST /api/v1/claims/:claimId/accept-assignment]: Adjuster accepts assignment (PENDING_ACCEPTANCE -> ASSIGNED)', async () => {
+  it('Route 19 [POST /api/v1/claims/:claimId/accept-assignment]: Adjuster accepts assignment (PENDING_ACCEPTANCE -> ASSIGNED)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/accept-assignment`)
       .set('Authorization', `Bearer ${adjusterToken}`)
@@ -429,9 +449,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 19: POST /api/v1/claims/:claimId/inspection/start
+  // ROUTE 20: POST /api/v1/claims/:claimId/inspection/start
   // --------------------------------------------------------------------------
-  it('Route 19 [POST /api/v1/claims/:claimId/inspection/start]: Adjuster starts inspection (ASSIGNED -> IN_PROGRESS)', async () => {
+  it('Route 20 [POST /api/v1/claims/:claimId/inspection/start]: Adjuster starts inspection (ASSIGNED -> IN_PROGRESS)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/inspection/start`)
       .set('Authorization', `Bearer ${adjusterToken}`);
@@ -441,9 +461,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 20: PUT /api/v1/claims/:claimId/vehicle
+  // ROUTE 21: PUT /api/v1/claims/:claimId/vehicle
   // --------------------------------------------------------------------------
-  it('Route 20 [PUT /api/v1/claims/:claimId/vehicle]: Adjuster saves verified vehicle & policy draft', async () => {
+  it('Route 21 [PUT /api/v1/claims/:claimId/vehicle]: Adjuster saves verified vehicle & policy draft', async () => {
     const res = await request(app)
       .put(`/api/v1/claims/${createdClaimId}/vehicle`)
       .set('Authorization', `Bearer ${adjusterToken}`)
@@ -458,9 +478,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 21: PUT /api/v1/claims/:claimId/accident
+  // ROUTE 22: PUT /api/v1/claims/:claimId/accident
   // --------------------------------------------------------------------------
-  it('Route 21 [PUT /api/v1/claims/:claimId/accident]: Adjuster saves accident circumstances draft', async () => {
+  it('Route 22 [PUT /api/v1/claims/:claimId/accident]: Adjuster saves accident circumstances draft', async () => {
     const res = await request(app)
       .put(`/api/v1/claims/${createdClaimId}/accident`)
       .set('Authorization', `Bearer ${adjusterToken}`)
@@ -476,9 +496,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 22: PUT /api/v1/claims/:claimId/location
+  // ROUTE 23: PUT /api/v1/claims/:claimId/location
   // --------------------------------------------------------------------------
-  it('Route 22 [PUT /api/v1/claims/:claimId/location]: Adjuster saves inspection GPS coordinates', async () => {
+  it('Route 23 [PUT /api/v1/claims/:claimId/location]: Adjuster saves inspection GPS coordinates', async () => {
     const res = await request(app)
       .put(`/api/v1/claims/${createdClaimId}/location`)
       .set('Authorization', `Bearer ${adjusterToken}`)
@@ -493,9 +513,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 23: POST /api/v1/claims/:claimId/evidence
+  // ROUTE 24: POST /api/v1/claims/:claimId/evidence
   // --------------------------------------------------------------------------
-  it('Route 23 [POST /api/v1/claims/:claimId/evidence]: Adjuster uploads multipart damage photo', async () => {
+  it('Route 24 [POST /api/v1/claims/:claimId/evidence]: Adjuster uploads multipart damage photo', async () => {
     const fakeImage = Buffer.from('fake-image-bytes');
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/evidence`)
@@ -508,9 +528,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 24: POST /api/v1/claims/:claimId/signature
+  // ROUTE 25: POST /api/v1/claims/:claimId/signature
   // --------------------------------------------------------------------------
-  it('Route 24 [POST /api/v1/claims/:claimId/signature]: Adjuster uploads multipart digital signature', async () => {
+  it('Route 25 [POST /api/v1/claims/:claimId/signature]: Adjuster uploads multipart digital signature', async () => {
     const fakeSig = Buffer.from('fake-signature-bytes');
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/signature`)
@@ -522,9 +542,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 25: POST /api/v1/claims/:claimId/inspection/submit
+  // ROUTE 26: POST /api/v1/claims/:claimId/inspection/submit
   // --------------------------------------------------------------------------
-  it('Route 25 [POST /api/v1/claims/:claimId/inspection/submit]: Adjuster submits complete inspection (IN_PROGRESS -> SUBMITTED)', async () => {
+  it('Route 26 [POST /api/v1/claims/:claimId/inspection/submit]: Adjuster submits complete inspection (IN_PROGRESS -> SUBMITTED)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/inspection/submit`)
       .set('Authorization', `Bearer ${adjusterToken}`);
@@ -534,9 +554,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 26: POST /api/v1/claims/:claimId/review/start
+  // ROUTE 27: POST /api/v1/claims/:claimId/review/start
   // --------------------------------------------------------------------------
-  it('Route 26 [POST /api/v1/claims/:claimId/review/start]: Claims Officer starts review (SUBMITTED -> UNDER_REVIEW)', async () => {
+  it('Route 27 [POST /api/v1/claims/:claimId/review/start]: Claims Officer starts review (SUBMITTED -> UNDER_REVIEW)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/review/start`)
       .set('Authorization', `Bearer ${officerToken}`);
@@ -546,9 +566,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 27: POST /api/v1/claims/:claimId/review/request-correction
+  // ROUTE 28: POST /api/v1/claims/:claimId/review/request-correction
   // --------------------------------------------------------------------------
-  it('Route 27 [POST /api/v1/claims/:claimId/review/request-correction]: Officer requests correction (UNDER_REVIEW -> CORRECTION_REQUIRED)', async () => {
+  it('Route 28 [POST /api/v1/claims/:claimId/review/request-correction]: Officer requests correction (UNDER_REVIEW -> CORRECTION_REQUIRED)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/review/request-correction`)
       .set('Authorization', `Bearer ${officerToken}`)
@@ -578,9 +598,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 28: POST /api/v1/claims/:claimId/decision
+  // ROUTE 29: POST /api/v1/claims/:claimId/decision
   // --------------------------------------------------------------------------
-  it('Route 28 [POST /api/v1/claims/:claimId/decision]: Claims Officer approves claim (UNDER_REVIEW -> APPROVED)', async () => {
+  it('Route 29 [POST /api/v1/claims/:claimId/decision]: Claims Officer approves claim (UNDER_REVIEW -> APPROVED)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/decision`)
       .set('Authorization', `Bearer ${officerToken}`)
@@ -594,9 +614,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 29: POST /api/v1/claims/:claimId/close
+  // ROUTE 30: POST /api/v1/claims/:claimId/close
   // --------------------------------------------------------------------------
-  it('Route 29 [POST /api/v1/claims/:claimId/close]: Admin closes approved claim (APPROVED -> CLOSED)', async () => {
+  it('Route 30 [POST /api/v1/claims/:claimId/close]: Admin closes approved claim (APPROVED -> CLOSED)', async () => {
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/close`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -609,9 +629,9 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 30 Express R
   });
 
   // --------------------------------------------------------------------------
-  // ROUTE 30: GET /api/v1/claims/:claimId/report
+  // ROUTE 31: GET /api/v1/claims/:claimId/report
   // --------------------------------------------------------------------------
-  it('Route 30 [GET /api/v1/claims/:claimId/report]: Officer downloads final compiled PDF dossier', async () => {
+  it('Route 31 [GET /api/v1/claims/:claimId/report]: Officer downloads final compiled PDF dossier', async () => {
     const res = await request(app)
       .get(`/api/v1/claims/${createdClaimId}/report`)
       .set('Authorization', `Bearer ${officerToken}`);

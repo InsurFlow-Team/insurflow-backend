@@ -8,6 +8,7 @@ const Claim = require('../src/modules/claims/claim.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
+const Policy = require('../src/modules/policies/policy.model');
 jest.mock('../src/modules/notifications/notification.service', () => ({
   createAndSendNotification: jest.fn().mockResolvedValue({}),
 }));
@@ -47,6 +48,7 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
+    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     officer1 = await User.create({ name: 'O1', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
@@ -57,6 +59,7 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     // Claim in UNDER_REVIEW status (the valid source state for decision)
     claimUnderReview = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'UNDER_REVIEW',
       customer: { name: 'Customer A', phone: '0500000001' },
@@ -67,6 +70,7 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     // Claim in NEW status (invalid for decision)
     claimNew = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'NEW',
       customer: { name: 'Customer B', phone: '0500000002' },
@@ -77,6 +81,7 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     // Claim already APPROVED (invalid for decision)
     claimApproved = await Claim.create({
       organizationId: org1._id,
+      policyId: global.__testPol._id,
       createdBy: officer1._id,
       status: 'APPROVED',
       customer: { name: 'Customer C', phone: '0500000003' },
