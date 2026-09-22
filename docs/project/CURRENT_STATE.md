@@ -1,6 +1,6 @@
 # InsurFlow — Current Project State & Progress Tracking
 
-> **Last Updated:** 2026-09-19  
+> **Last Updated:** 2026-09-22  
 > **Document Purpose:** Single source of truth for current project status, completed work, active blockers, and immediate next steps. Consult this document at the start of any new session or task.
 
 ---
@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2 & Feature 18 Two-Step Assignment Completed & Verified** |
+| **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20 (Policy Verification Intake Gate) Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (26 Suites / 357 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (27 Suites / 383 Tests - 100% Pass)** |
 
 ---
 
@@ -99,14 +99,28 @@
   - Device token registration endpoint `PATCH /api/v1/users/me/fcm-token` available to all authenticated roles with Joi validation and tenant/identity self-scoping.
   - Domain lifecycle trigger wiring (`src/modules/claims/claim.service.js`) connecting `createAndSendNotification` to 4 atomic state transitions (`ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`) with strict call-site `try/catch` error isolation.
   - Automated test coverage across 4 dedicated suites (`tests/push.service.test.js`, `tests/notification.service.test.js`, `tests/user.fcmToken.test.js`, `tests/claim.notificationTriggers.test.js`), bringing total coverage to 24 suites / 307 tests (100% pass).
+- [x] **Policy Verification / Intake Gate (Feature 20 Completed & Verified):**
+  - Mandatory eligibility check endpoint `POST /api/v1/policies/verify` implemented before claim intake.
+  - Restricted strictly to `CLAIMS_OFFICER` and `ADMIN` roles (`FIELD_ADJUSTER` receives 403).
+  - Business validations: tenant isolation, dual search support by `policyNumber` or `plateNumber` (or both), active status check (`422 POLICY_CANCELLED`, `422 POLICY_EXPIRED`), calendar expiration comparison, future incident date prevention (`400 INVALID_INCIDENT_DATE`), date range check against `[startDate, expiryDate]` (`422 POLICY_NOT_ACTIVE_ON_DATE`), and plate cross-matching with missing vehicle safety checks (`422 VEHICLE_MISMATCH`).
+  - Cross-tenant stealth rejection returning `404 POLICY_NOT_FOUND` to protect tenant isolation.
+  - Optimized database query performance via compound index `{ organizationId: 1, policyId: 1 }` on `Vehicle`.
+  - Dedicated 20 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **27 Suites / 378 Tests (100% Pass Rate)**.
+- [x] **Claim Detail Refactoring (Single Source of Truth):**
+  - Refactored `GET /api/v1/claims/:claimId` to return comprehensive 12-section response covering all claim data in a single request.
+  - Deep population of Policy (policyNumber, status, startDate, expiryDate), Vehicle (make, model, year, color), and Customer data via Mongoose populate chain.
+  - All user references (`assignedTo`, `assignedBy`, `createdBy`, `timeline[].performedBy`, `evidence[].uploadedBy`) resolved to `{ id, name, employeeCode }` objects — no secondary lookups required by frontend.
+  - Null-safe response: all optional sections return explicit `null` (assignment, accident, location, signature, decision/closure) or `[]` (evidence) when data not yet populated.
+  - Hardened `createClaim` with mandatory `policyId` validation, policy status/expiry gates, vehicle cross-matching, and auto-fill of customer/vehicle data from verified policy.
+  - Updated `claim.read.test.js` with Policy/Vehicle/Customer fixtures (17 tests passing).
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
-  - **100% Complete & Synchronized Postman Collections:** All 30 Express 5 application routes are fully mapped and covered across 63 distinct requests, covering all positive flows, role authorizations, pagination, and negative test branches.
-    - **Comprehensive Mobile Suite & Dual-State Postman Alignment:** The `Mobile (Field Adjuster)` folder has been fully consolidated and organized into a comprehensive 22-request end-to-end suite covering the entire Flutter mobile app lifecycle (Auth, Password Change, FCM Push Token, Assigned KPI Stats, Real-Time Passive GPS Location, Assigned Claims Queue & Tab Filtering, Claim Details, Two-Step Accept/Decline Assignment, On-Site Inspection Start, Vehicle/Policy Lookup, Draft PUTs for Vehicle/Accident/Location, Evidence & Digital Signature Uploads, Final 5-Pillar Submission, and 4 dedicated Negative Validation Tests). The `Claims` folder was simultaneously cleaned of mobile duplicates, dedicating it strictly to Back-Office Web Dashboard operations. Both local repository collection (`InsurFlow.postman_collection.json`) and live cloud workspace collection (`Mohammed Ferwana's Workspace`, collection UID `48167372-2cc8307a-749f-4cf6-b547-29ee44495b82`) are 100% synchronized with unique UUIDs.
-    - **Postman Collection Pruning & Duplicate Elimination:** Removed obsolete legacy endpoints (such as `madeClaim` with hardcoded John Doe payload, duplicate `assign`, the typo folder `adjesters`, and the loose root `test the server` request). Relocated the server health check into `auth/5. Health Check` (`GET {{URL}}health`), and sequentially re-indexed the `Claims` folder into 11 clean requests (1 to 11).
-  - **Full Request Body Audit & Schema Validation:** Systematically audited all 63 requests across the collection against backend Joi schemas (`auth.validation.js`, `user.validation.js`, `claim.validation.js`, `vehicle.validation.js`). Resolved all legacy payload discrepancies (removed forbidden `caption` from evidence upload, set valid 24-character hex ObjectIds for capacity-override assign requests, eliminated forbidden `phone` attributes from user creation, and removed stale charity request bodies from `GET /health` and `GET /users/adjusters`). 100% of request bodies now pass validation without schema errors (`scripts/validate_all_postman_bodies.js`).
-  - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`).
-  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** 35 end-to-end integration tests executing all 30 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **26 Suites / 357 Tests (100% Pass Rate)**.
+  - **100% Complete & Synchronized Postman Collections:** All 31 Express 5 application routes are fully mapped and covered across 66 distinct requests, covering all positive flows, role authorizations, pagination, and negative test branches.
+    - **Comprehensive Mobile Suite & Dual-State Postman Alignment:** The `Mobile (Field Adjuster)` folder has been fully consolidated and organized into a comprehensive 22-request end-to-end suite covering the entire Flutter mobile app lifecycle (Auth, Password Change, FCM Push Token, Assigned KPI Stats, Real-Time Passive GPS Location, Assigned Claims Queue & Tab Filtering, Claim Details, Two-Step Accept/Decline Assignment, On-Site Inspection Start, Vehicle/Policy Lookup, Draft PUTs for Vehicle/Accident/Location, Evidence & Digital Signature Uploads, Final 5-Pillar Submission, and 4 dedicated Negative Validation Tests). The `Claims` folder was simultaneously cleaned of mobile duplicates, dedicating it strictly to Back-Office Web Dashboard operations.
+    - **Postman Collection Pruning & Sequential Intake Flow:** The `Claims` folder begins with the new `1. Verify Policy Eligibility / Intake Gate (Officer/Admin)` step followed by sequentially indexed requests (1 to 14, including negative vehicle mismatch and expired policy tests). Both local repository collection (`InsurFlow.postman_collection.json`) and automated validation scripts are 100% synchronized with unique UUIDs.
+  - **Full Request Body Audit & Schema Validation:** Systematically audited all 66 requests across the collection against backend Joi schemas (`auth.validation.js`, `user.validation.js`, `claim.validation.js`, `vehicle.validation.js`, `policy.validation.js`). 100% of request bodies now pass validation without schema errors (`scripts/validate_all_postman_bodies.js`).
+  - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`) confirming 100% coverage across all 31 routes.
+  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** 36 end-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **27 Suites / 383 Tests (100% Pass Rate)**.
   - Team collaboration protocol (`docs/project/COLLABORATION_PROTOCOL.md`).
 
 ---

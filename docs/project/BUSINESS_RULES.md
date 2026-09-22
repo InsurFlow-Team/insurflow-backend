@@ -11,6 +11,16 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 
 ```
 ┌────────────────────────────────────────────────────────┐
+│           0. PRE-INTAKE POLICY VERIFICATION GATE       │
+│  Claims Officer or Admin verifies policy eligibility:  │
+│  POST /api/v1/policies/verify                          │
+│  Checks existence, ACTIVE status, date & plate match   │
+│  ❌ Not found/invalid ──▶ Block claim creation         │
+│  ✅ Verified ──────────▶ Auto-fill & Proceed to Intake │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
 │                   1. INTAKE & CREATION                 │
 │  Claims Officer or Admin logs in to Web Dashboard      │
 │  Creates Claim with customer & incident details        │
@@ -103,7 +113,25 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 
 ---
 
-### 2.2 Claim Creation
+### 2.2 Policy Verification & Pre-Intake Gate (Feature 20)
+- **Rule BR-POL-VERIFY-1 (Intake Gate Invariant):** Before creating a new claim, the Claims Officer or Admin must verify that the policyholder and vehicle belong to the organization and that the policy was valid and active at the time of the incident (`POST /api/v1/policies/verify`).
+- **Rule BR-POL-VERIFY-2 (Eligibility vs. Coverage Boundary):** Policy verification certifies policyholder and vehicle eligibility (contract validity). It does **not** adjudicate coverage type or damage liability; coverage determination occurs during post-inspection adjudication (`POST /decision`).
+- **Rule BR-POL-VERIFY-3 (Authorized Roles):** Policy verification is restricted strictly to users with role **`CLAIMS_OFFICER`** or **`ADMIN`** (same roles authorized to create claims). Field Adjusters receive `403 Forbidden`.
+- **Rule BR-POL-VERIFY-4 (Strict Multi-Tenancy & Stealth 404):** Policies are queried strictly by `{ policyNumber, organizationId }` where `organizationId` is derived exclusively from JWT. Inquiries into policies belonging to another organization return `404 Not Found` (`POLICY_NOT_FOUND`) per BR-TENANT-3.
+- **Rule BR-POL-VERIFY-5 (Cross-Validation Rules & Dual Input):**
+  - Accepts `policyNumber`, `plateNumber`, or both. At least one must be provided.
+  - If queried by `policyNumber`: policy must exist in the caller's organization (`404 POLICY_NOT_FOUND`).
+  - If queried by `plateNumber` alone: vehicle must exist in the organization (`404 VEHICLE_NOT_FOUND`) and have a linked policy (`404 POLICY_NOT_FOUND`).
+  - Policy status must not be `CANCELLED` (`422 POLICY_CANCELLED`).
+  - Policy status must not be `EXPIRED` and current date must not exceed `expiryDate` (`422 POLICY_EXPIRED`).
+  - If `incidentDate` is provided:
+    - Must not be in the future (`400 INVALID_INCIDENT_DATE`).
+    - Must fall within `[startDate, expiryDate]` (`422 POLICY_NOT_ACTIVE_ON_DATE`).
+  - If `plateNumber` is provided alongside `policyNumber`, the plate is case-insensitively verified against the policy's registered vehicle; mismatch or lack of linked vehicle record returns `422 VEHICLE_MISMATCH`.
+
+---
+
+### 2.3 Claim Creation
 - **Rule BR-CLAIM-1 (Creator Role):** Claim creation is restricted strictly to users with role **`CLAIMS_OFFICER`** or **`ADMIN`**. Field Adjusters do **not** create claims in the backend; they inspect claims dispatched to them.
 - **Rule BR-CLAIM-2 (Initial Status):** Every newly created claim is unconditionally assigned status **`NEW`**.
 - **Rule BR-CLAIM-3 (Audit Log Initiation):** Every new claim initializes an immutable timeline array with an initial event: `action: 'Claim Created'`, recording the creator's user ID, role, and current timestamp.

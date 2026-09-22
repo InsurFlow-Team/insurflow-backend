@@ -115,7 +115,7 @@ src/
     ├── users/               # Users, adjusters, admin management
     ├── organizations/       # Tenant organization records
     ├── vehicles/            # Vehicle registry & plate lookup
-    ├── policies/            # Insurance policy records
+    ├── policies/            # Policy verification gate, validation, service & repo
     └── customers/           # Policyholder contact entities
 ```
 
@@ -161,9 +161,9 @@ src/
   Claim.findOneAndUpdate({ _id: claimId, organizationId, status: 'NEW' }, ...);
   ```
 - **Index-Level Guarantee:** Data models maintain compound unique indexes combining `organizationId` with natural keys:
-  - Claim: `{ organizationId: 1, claimNumber: 1 }` (unique)
+  - Claim: `{ organizationId: 1, claimNumber: 1 }` (unique), plus mandatory `policyId` reference to verified `Policy`
   - User: `{ organizationId: 1, employeeCode: 1 }` (unique)
-  - Vehicle: `{ organizationId: 1, plateNumber: 1 }` (unique)
+  - Vehicle: `{ organizationId: 1, plateNumber: 1 }` (unique), `{ organizationId: 1, policyId: 1 }` (compound query index)
   - Policy: `{ organizationId: 1, policyNumber: 1 }` (unique)
   - Notification: `{ organizationId: 1, recipientId: 1, createdAt: -1 }`
 
@@ -262,4 +262,18 @@ Every endpoint in the system complies with the unified structure provided by `sr
   - Resides within the `users` module.
   - Mounted before `/:userId` parameter routes to prevent routing conflicts.
   - Accessible to all authenticated users regardless of role, updating exclusively the calling user's document (`req.user.userId`) scoped to their authenticated `organizationId`.
+
+### 5.10 Policy Verification & Pre-Intake Gate Architecture (Feature 20)
+- **5-Layer Architecture in `src/modules/policies/`:**
+  - `policy.validation.js`: Joi schema supporting dual input (`.or('policyNumber', 'plateNumber')`), optional `plateNumber`, and ISO 8601 `incidentDate`.
+  - `policy.routes.js`: Composes pipeline `authenticate` → `adjusterLocationMiddleware` → `authorizeRole(['CLAIMS_OFFICER', 'ADMIN'])` → `validate(verifyPolicySchema)` → `policyController.verifyPolicy`.
+  - `policy.controller.js`: Unpacks `policyNumber`, `plateNumber`, `incidentDate`, passes with `req.user.organizationId` to service layer, wraps with `asyncWrapper`, and returns `successResponse(res, 200, ...)`.
+  - `policy.service.js`: Enforces business rules: supports primary lookup by `policyNumber` or `plateNumber`, checks status (`CANCELLED`, `EXPIRED`), rejects future incident dates (`INVALID_INCIDENT_DATE`), verifies calendar expiry date, enforces plate match or missing vehicle rejection (`VEHICLE_MISMATCH`), and returns `{ isEligible: true, policy, vehicle, customer }`.
+  - `policy.repository.js`: Encapsulates Mongoose queries (`findByPolicyNumberAndOrganization`, `findByIdAndOrganization`) enforcing tenant boundary and `.lean()`.
+- **Inter-Repository Orchestration & Database Indexing:**
+  - Policy verification utilizes `vehicleRepository.findByPolicyAndOrganization` (and `findByPlateAndOrganization`) to retrieve associated vehicle and customer without circular dependencies.
+  - Optimized database query performance by adding compound index `{ organizationId: 1, policyId: 1 }` on `Vehicle`.
+- **Stealth Multi-Tenancy:**
+  - Queries filtered by `organizationId` from authenticated user token; cross-tenant inquiries produce `404 Not Found` (`POLICY_NOT_FOUND` / `VEHICLE_NOT_FOUND`) without information disclosure.
+
 

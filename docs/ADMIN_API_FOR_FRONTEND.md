@@ -329,6 +329,69 @@
 
 ## 3. إدارة ومراقبة المطالبات (Claims Operations)
 
+### 3.0 بوابة التحقق المسبق من وثيقة التأمين (Policy Verification / Intake Gate — Feature 20)
+* **المسار (Endpoint):** `POST /api/v1/policies/verify`
+* **Headers:** `Authorization: Bearer <ADMIN_TOKEN or CLAIMS_OFFICER_TOKEN>`
+* **الأدوار المصرح لها:** `ADMIN`, `CLAIMS_OFFICER`.
+* **المكان وتجربة المستخدم في الواجهة الأمامية (UI Placement & Business Flow):**
+  - **الخطوة الإلزامية الأولى قبل إنشاء المطالبة (Pre-Claim Intake Gate):**
+    عندما يتصل العميل للإبلاغ عن حادث أو فتح مطالبة، يدخل الموظف في شاشة الـ Intake **رقم وثيقة التأمين (`policyNumber`) أو رقم لوحة السيارة (`plateNumber`) أو كلاهما معاً**، ويمكنه اختيارياً إدخال تاريخ وقوع الحادث (`incidentDate`).
+  - **إذا كانت الوثيقة غير مؤهلة أو غير صالحة:** يرجع الباك إند رسالة خطأ صريحة ويتم منع الانتقال لإنشاء المطالبة (`POST /api/v1/claims`).
+  - **إذا كانت الوثيقة صالحة وفعالة:** يرجع الباك إند كائن التأكيد وفيه بيانات الوثيقة والسيارة والعميل، ويقوم الفرونت إند بملء حقول العميل والسيارة تلقائياً في شاشة إنشاء المطالبة وتفعيل زر المتابعة.
+* **Request Body:**
+  ```json
+  {
+    "policyNumber": "POL-1000",
+    "plateNumber": "ABC-1234",
+    "incidentDate": "2026-09-21"
+  }
+  ```
+  *(ملاحظة: يدعم النظام البحث والتحقق برقم الوثيقة أو برقم اللوحة مباشرة `policyNumber` OR `plateNumber`، ويجب إرسال أحدهما على الأقل. بينما `incidentDate` اختياري ويُشترط ألا يكون تاريخاً في المستقبل).*
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Policy verified successfully",
+    "data": {
+      "isEligible": true,
+      "policy": {
+        "id": "60d0fe4f5311236168a109d1",
+        "policyNumber": "POL-1000",
+        "status": "ACTIVE",
+        "startDate": "2025-01-01T00:00:00.000Z",
+        "expiryDate": "2026-12-31T23:59:59.999Z"
+      },
+      "vehicle": {
+        "id": "60d0fe4f5311236168a109d0",
+        "plateNumber": "ABC-1234",
+        "make": "Toyota",
+        "model": "Camry",
+        "year": 2022,
+        "color": "White"
+      },
+      "customer": {
+        "id": "60d0fe4f5311236168a109d2",
+        "fullName": "Ahmad Ali",
+        "phone": "+962791234567"
+      }
+    }
+  }
+  ```
+* **الأخطاء المحتملة (Validation & Rejection Rules):**
+  * `400 Bad Request`:
+    * `VALIDATION_ERROR`: عدم إرسال كل من `policyNumber` و `plateNumber`، أو صيغة تاريخ غير صالحة.
+    * `INVALID_INCIDENT_DATE`: تاريخ وقوع الحادث في المستقبل (يمنع النظام فتح مطالبة لحادث لم يقع بعد).
+  * `404 Not Found`:
+    * `POLICY_NOT_FOUND`: الوثيقة غير مسجلة في الشركة (أو تتبع شركة أخرى - Stealth Tenancy)، أو المركبة لا تملك وثيقة مرتبطة.
+    * `VEHICLE_NOT_FOUND`: المركبة غير موجودة باللوحة المدخلة في قاعدة بيانات الشركة.
+  * `422 Unprocessable Entity`:
+    * `POLICY_EXPIRED`: الوثيقة منتهية الصلاحية (سواء بحالتها أو بانتهاء تاريخ سريانها التقويمي).
+    * `POLICY_CANCELLED`: الوثيقة ملغاة.
+    * `POLICY_NOT_ACTIVE_ON_DATE`: تاريخ وقوع الحادث خارج فترة سريان الوثيقة `[startDate, expiryDate]`.
+    * `VEHICLE_MISMATCH`: رقم اللوحة المدخل لا يطابق المركبة المؤمن عليها، أو لا توجد مركبة مسجلة تحت الوثيقة لمطابقتها.
+
+---
+
 ### 3.1 إحصائيات ومؤشرات لوحة التحكم الرئيسية (Dashboard KPIs & Analytics)
 * **المسار (Endpoint):** `GET /api/v1/claims/stats`
 * **Headers:** `Authorization: Bearer <TOKEN>`
@@ -470,12 +533,134 @@
 
 ---
 
-### 3.3 تفاصيل المطالبة بالكامل (Claim Details & Timeline)
+### 3.3 تفاصيل المطالبة بالكامل (Claim Details — Single Source of Truth)
 * **المسار (Endpoint):** `GET /api/v1/claims/:claimId`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
-* **الوظيفة:** يعرض بيانات العميل، المركبة، صور وأضرار الحادث، والموقع الجغرافي، وسجل التايم لاين (`timeline`) الكامل بالأحداث ومن قام بها.
+* **الوظيفة:** يعرض جميع البيانات المطلوبة لصفحة تفاصيل المطالبة في طلب واحد — لا حاجة لطلبات إضافية.
+* **البيانات المتوفرة:**
+  1. **معلومات المطالبة:** `id`, `claimNumber`, `status`, `incidentType`, `incidentLocation`, `incidentCoordinates`, `createdAt`, `updatedAt`
+  2. **بيانات العميل:** `customer.name`, `customer.phone`
+  3. **بيانات المركبة:** `vehicle.plateNumber`, `vehicle.make`, `vehicle.model`, `vehicle.year`, `vehicle.color` — *(make/model/year/color تكون `null` حتى يؤكد المعاين المركبة أثناء المعاينة)*
+  4. **بيانات البوليصة:** `policy.id`, `policy.policyNumber`, `policy.status`, `policy.startDate`, `policy.expiryDate`
+  5. **بيانات التعيين:** `assignment.assignedTo` (كائن `{ id, name, employeeCode }`), `assignment.assignedBy`, `assignment.assignedAt`, `assignment.priority`, `assignment.assignmentNotes` — *تكون `null` للمطالبات الجديدة غير المعينة*
+  6. **تفاصيل الحادث:** `accident` — *تكون `null` حتى يدخلها المعاين عبر الموبايل*
+  7. **الموقع الجغرافي:** `location` — *تكون `null` حتى يلتقطها المعاين GPS*
+  8. **الصور والأدلة:** `evidence[]` مصفوفة مع `imageType`, `url`, `uploadedBy: { id, name, employeeCode }`, `uploadedAt`
+  9. **التوقيع:** `signature` — *تكون `null` حتى يلتقط التوقيع*
+  10. **القرار والإغلاق:** `decisionNotes`, `closedBy`, `closedAt`, `closingNotes`
+  11. **سجل الأحداث:** `timeline[]` — كل حدث يحتوي `performedBy: { id, name, employeeCode, role }`
+  12. **منشئ المطالبة:** `createdBy: { id, name, employeeCode }`
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Claim retrieved successfully",
+    "data": {
+      "id": "6a91ab09c9ff1dc54fabf15b",
+      "claimNumber": "CLM-DEMO-0001",
+      "status": "ASSIGNED",
+      "incidentType": "COLLISION",
+      "incidentLocation": "Al-Irsal St, Ramallah",
+      "incidentCoordinates": {
+        "latitude": 31.905,
+        "longitude": 35.204,
+        "capturedAt": "2026-08-26T15:00:00.000Z"
+      },
+      "createdAt": "2026-08-26T15:00:00.000Z",
+      "updatedAt": "2026-08-26T15:10:00.000Z",
+      "customer": {
+        "name": "John Doe",
+        "phone": "0591234567"
+      },
+      "vehicle": {
+        "plateNumber": "ABC-1234",
+        "make": "Toyota",
+        "model": "Camry",
+        "year": 2024,
+        "color": "White"
+      },
+      "policy": {
+        "id": "6a91ab09c9ff1dc54fabf160",
+        "policyNumber": "POL-INS-001",
+        "status": "ACTIVE",
+        "startDate": "2026-01-01T00:00:00.000Z",
+        "expiryDate": "2027-12-31T00:00:00.000Z"
+      },
+      "assignment": {
+        "assignedTo": {
+          "id": "6a91ab09c9ff1dc54fabf15c",
+          "name": "Ahmed Ali",
+          "employeeCode": "FA-001"
+        },
+        "assignedBy": {
+          "id": "6a91ab09c9ff1dc54fabf15d",
+          "name": "Sara Khan",
+          "employeeCode": "CO-001"
+        },
+        "assignedAt": "2026-08-26T15:10:00.000Z",
+        "priority": "HIGH",
+        "assignmentNotes": "Urgent case"
+      },
+      "accident": {
+        "accidentType": "COLLISION",
+        "accidentDate": "2026-08-25",
+        "accidentTime": "14:30",
+        "description": "Front collision at intersection",
+        "damageDescription": "Front bumper and hood damage"
+      },
+      "location": {
+        "latitude": 31.905,
+        "longitude": 35.204,
+        "address": "Main St, Ramallah",
+        "capturedAt": "2026-08-26T16:00:00.000Z"
+      },
+      "evidence": [
+        {
+          "imageType": "VEHICLE_FRONT",
+          "url": "https://res.cloudinary.com/...",
+          "uploadedBy": {
+            "id": "6a91ab09c9ff1dc54fabf15c",
+            "name": "Ahmed Ali",
+            "employeeCode": "FA-001"
+          },
+          "uploadedAt": "2026-08-26T16:05:00.000Z"
+        }
+      ],
+      "signature": {
+        "url": "https://res.cloudinary.com/...",
+        "capturedBy": "6a91ab09c9ff1dc54fabf15c",
+        "capturedAt": "2026-08-26T16:30:00.000Z"
+      },
+      "decisionNotes": null,
+      "closedBy": null,
+      "closedAt": null,
+      "closingNotes": null,
+      "timeline": [
+        {
+          "action": "Claim Created",
+          "previousStatus": null,
+          "newStatus": null,
+          "notes": null,
+          "performedBy": {
+            "id": "6a91ab09c9ff1dc54fabf15d",
+            "name": "Sara Khan",
+            "employeeCode": "CO-001",
+            "role": "CLAIMS_OFFICER"
+          },
+          "role": "CLAIMS_OFFICER",
+          "timestamp": "2026-08-26T15:00:00.000Z"
+        }
+      ],
+      "createdBy": {
+        "id": "6a91ab09c9ff1dc54fabf15d",
+        "name": "Sara Khan",
+        "employeeCode": "CO-001"
+      }
+    }
+  }
+  ```
+* **ملاحظة مهمة:** جميع مراجع المستخدمين (المعاين، الموظف، المنشئ) يتم إرجاعها ككائنات `{ id, name, employeeCode }` — لا حاجة لطلبات بحث إضافية.
 
----
 
 ### 3.4 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decision`

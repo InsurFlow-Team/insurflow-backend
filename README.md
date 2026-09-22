@@ -133,11 +133,15 @@ INSURFLOW/
 │       │   ├── customer.model.js
 │       │   └── customer.repository.js
 │       │
-│       └── policies/             ← وحدة وثائق التأمين (Model + Repository فقط)
+│       └── policies/             ← وحدة وثائق التأمين والتحقق المسبق
+│           ├── policy.routes.js
+│           ├── policy.controller.js
+│           ├── policy.service.js
+│           ├── policy.repository.js
 │           ├── policy.model.js
-│           └── policy.repository.js
+│           └── policy.validation.js
 │
-├── tests/                        ← الاختبارات التلقائية (25 Suites / 321 Tests)
+├── tests/                        ← الاختبارات التلقائية (27 Suites / 383 Tests - 100% Pass)
 ├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json
@@ -391,6 +395,7 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 | Method | Endpoint | من يستخدمه | الوصف |
 |--------|----------|-----------|-------|
 | `GET` | `/vehicles/lookup?plateNumber=ABC-1234` | FIELD_ADJUSTER | البحث برقم اللوحة (مركبة، وثيقة، عميل، تنبيه الانتهاء) |
+| `POST` | `/policies/verify` | CLAIMS_OFFICER / ADMIN | التحقق المسبق من وثيقة التأمين وصلاحيتها ومطابقة المركبة قبل إنشاء المطالبة (بوابة الـ Intake) |
 
 ---
 

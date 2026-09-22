@@ -40,8 +40,8 @@ These headers are processed asynchronously by a lightweight middleware mounted a
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
 ## 4. Roles & Authorization
-- **ADMIN:** Administrative user management, Oversight of all organization claims, Create Claim, Make Claim decision, Final claim closure, Download Final Claim Report.
-- **CLAIMS_OFFICER:** Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision, Download Final Claim Report.
+- **ADMIN:** Administrative user management, Oversight of all organization claims, Verify Policy Eligibility, Create Claim, Make Claim decision, Final claim closure, Download Final Claim Report.
+- **CLAIMS_OFFICER:** Verify Policy Eligibility, Create Claim, List organization Claims, View Claim Details, View available Field Adjusters, Assign Field Adjuster, Start Claim Review, Request Correction, Make Claim decision, Download Final Claim Report.
 - **FIELD_ADJUSTER:** View Claims assigned to them, View assigned Claim Details, Accept Assignment, Decline Assignment, Start / Resume inspection, Perform inspection drafts, Submit completed inspection.
 
 *(No additional permissions are invented outside of these scopes).*
@@ -193,45 +193,138 @@ Valid status transitions (enforced by the Backend):
   ```
 
 ### `GET /claims/:claimId`
-- **Purpose:** Retrieve detailed Claim information.
+- **Purpose:** Retrieve comprehensive Claim details (Single Source of Truth for claim detail pages).
 - **Authorized Roles:** `CLAIMS_OFFICER`, `FIELD_ADJUSTER`, `ADMIN`
 - **Authentication:** Required (JWT).
-- **Business Rules:** Scope applies based on organization isolation and assignment rules.
-- **Success Response (200):** *(Note: Fields like vehicle, accident, evidence will be null or omitted until populated during the inspection)*
+- **Business Rules:** Scope applies based on organization isolation and assignment rules. `FIELD_ADJUSTER` can only view claims assigned to them.
+- **Success Response (200):** *(Fields like vehicle make/model, accident, evidence will be null or empty until populated during the inspection)*
   ```json
   {
     "success": true,
+    "message": "Claim retrieved successfully",
     "data": {
       "id": "claim-uuid",
+      "claimNumber": "CLM-DEMO-0001",
       "status": "ASSIGNED",
-      "customer": { "name": "John Doe", "phone": "0591234567" },
-      "vehicle": { "plateNumber": "ABC-1234" },
+      "incidentType": "COLLISION",
       "incidentLocation": "Al-Irsal St, Ramallah",
       "incidentCoordinates": {
         "latitude": 31.9050,
         "longitude": 35.2040,
-        "capturedAt": "2026-08-26T15:00:00Z"
+        "capturedAt": "2026-08-26T15:00:00.000Z"
       },
-      "assignment": { 
-        "assignedTo": "adjuster-id", 
-        "assignedBy": "officer-id", 
-        "assignedAt": "2026-08-26T15:10:00Z" 
+      "createdAt": "2026-08-26T15:00:00.000Z",
+      "updatedAt": "2026-08-26T15:10:00.000Z",
+
+      "customer": {
+        "name": "John Doe",
+        "phone": "0591234567"
       },
+
+      "vehicle": {
+        "plateNumber": "ABC-1234",
+        "make": "Toyota",
+        "model": "Camry",
+        "year": 2024,
+        "color": "White"
+      },
+
+      "policy": {
+        "id": "policy-uuid",
+        "policyNumber": "POL-INS-001",
+        "status": "ACTIVE",
+        "startDate": "2026-01-01T00:00:00.000Z",
+        "expiryDate": "2027-12-31T00:00:00.000Z"
+      },
+
+      "assignment": {
+        "assignedTo": {
+          "id": "adjuster-uuid",
+          "name": "Ahmed Ali",
+          "employeeCode": "FA-001"
+        },
+        "assignedBy": {
+          "id": "officer-uuid",
+          "name": "Sara Khan",
+          "employeeCode": "CO-001"
+        },
+        "assignedAt": "2026-08-26T15:10:00.000Z",
+        "priority": "HIGH",
+        "assignmentNotes": "Urgent case"
+      },
+
+      "accident": {
+        "accidentType": "COLLISION",
+        "accidentDate": "2026-08-25",
+        "accidentTime": "14:30",
+        "description": "Front collision at intersection",
+        "damageDescription": "Front bumper and hood damage"
+      },
+
+      "location": {
+        "latitude": 31.9050,
+        "longitude": 35.2040,
+        "address": "Main St, Ramallah",
+        "capturedAt": "2026-08-26T16:00:00.000Z"
+      },
+
+      "evidence": [
+        {
+          "imageType": "VEHICLE_FRONT",
+          "url": "https://res.cloudinary.com/...",
+          "uploadedBy": {
+            "id": "adjuster-uuid",
+            "name": "Ahmed Ali",
+            "employeeCode": "FA-001"
+          },
+          "uploadedAt": "2026-08-26T16:05:00.000Z"
+        }
+      ],
+
+      "signature": {
+        "url": "https://res.cloudinary.com/...",
+        "capturedBy": "adjuster-uuid",
+        "capturedAt": "2026-08-26T16:30:00.000Z"
+      },
+
+      "decisionNotes": null,
+      "closedBy": null,
+      "closedAt": null,
+      "closingNotes": null,
+
       "timeline": [
-        { 
-          "action": "Claim Created", 
+        {
+          "action": "Claim Created",
           "previousStatus": null,
           "newStatus": null,
           "notes": null,
-          "performedBy": "officer-id", 
-          "role": "CLAIMS_OFFICER", 
-          "timestamp": "2026-08-26T15:00:00Z" 
+          "performedBy": {
+            "id": "officer-uuid",
+            "name": "Sara Khan",
+            "employeeCode": "CO-001",
+            "role": "CLAIMS_OFFICER"
+          },
+          "role": "CLAIMS_OFFICER",
+          "timestamp": "2026-08-26T15:00:00.000Z"
         }
       ],
-      "createdAt": "2026-08-26T15:00:00Z"
+
+      "createdBy": {
+        "id": "officer-uuid",
+        "name": "Sara Khan",
+        "employeeCode": "CO-001"
+      }
     }
   }
   ```
+- **Response Field Notes:**
+  - `vehicle.make`, `vehicle.model`, `vehicle.year`, `vehicle.color` are `null` until the Field Adjuster confirms a vehicle during inspection.
+  - `policy` is populated from the top-level `policyId` reference set at claim creation.
+  - `assignment.assignedTo`, `assignment.assignedBy` are `null` for unassigned (NEW) claims.
+  - `accident`, `location` are `null` until populated during inspection.
+  - `evidence` is `[]` until photos are uploaded during inspection.
+  - `signature` is `null` until captured during inspection.
+  - All user references are resolved to `{ id, name, employeeCode }` objects.
 
 ### `GET /claims/stats`
 - **Purpose:** Retrieve aggregated KPI statistics and workload metrics for the dashboard.
@@ -498,6 +591,74 @@ Valid status transitions (enforced by the Backend):
     }
   }
   ```
+
+### `POST /policies/verify`
+- **Purpose:** Claims Officer or Admin verifies policy eligibility before creating a new claim (Intake Gate).
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
+- **Authentication:** Required (JWT).
+- **Request Body:**
+  ```json
+  {
+    "policyNumber": "POL-1000",
+    "plateNumber": "ABC-1234",
+    "incidentDate": "2026-09-21"
+  }
+  ```
+- **Validation Rules:**
+  - `policyNumber` (string, optional if `plateNumber` provided, trimmed).
+  - `plateNumber` (string, optional if `policyNumber` provided, trimmed).
+  - At least one of `policyNumber` or `plateNumber` must be provided.
+  - `incidentDate` (ISO 8601 string `YYYY-MM-DD`, optional, cannot be in the future).
+- **Business Invariants:**
+  - Enforces tenant isolation (policy and vehicle must belong to caller's `organizationId`).
+  - Supports verification by `policyNumber`, `plateNumber`, or both.
+  - Rejects policies that do not exist (404 `POLICY_NOT_FOUND`, cross-tenant stealth rejection).
+  - Rejects vehicles that do not exist when querying by plate (404 `VEHICLE_NOT_FOUND`).
+  - Rejects policies with status `CANCELLED` (422 `POLICY_CANCELLED`).
+  - Rejects policies with status `EXPIRED` or past calendar expiryDate (422 `POLICY_EXPIRED`).
+  - Validates `incidentDate` falls within `[startDate, expiryDate]` (422 `POLICY_NOT_ACTIVE_ON_DATE`).
+  - Rejects `incidentDate` in the future (400 `INVALID_INCIDENT_DATE`).
+  - Cross-matches `plateNumber` against the vehicle registered with the policy; rejects if plate mismatches or if policy has no vehicle record linked (422 `VEHICLE_MISMATCH`).
+- **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Policy verified successfully",
+    "data": {
+      "isEligible": true,
+      "policy": {
+        "id": "policy-uuid",
+        "policyNumber": "POL-1000",
+        "status": "ACTIVE",
+        "startDate": "2025-01-01T00:00:00.000Z",
+        "expiryDate": "2026-12-31T23:59:59.999Z"
+      },
+      "vehicle": {
+        "id": "vehicle-uuid",
+        "plateNumber": "ABC-1234",
+        "make": "Toyota",
+        "model": "Camry",
+        "year": 2022,
+        "color": "White"
+      },
+      "customer": {
+        "id": "customer-uuid",
+        "fullName": "Ahmad Ali",
+        "phone": "+962791234567"
+      }
+    }
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`:
+    - `VALIDATION_ERROR` (neither `policyNumber` nor `plateNumber` provided, or invalid date format).
+    - `INVALID_INCIDENT_DATE` (incident date cannot be in the future).
+  - `401 Unauthorized`: Missing or invalid JWT.
+  - `403 Forbidden`: Authenticated user is not `CLAIMS_OFFICER` or `ADMIN`.
+  - `404 Not Found`:
+    - `POLICY_NOT_FOUND` (non-existent policy, vehicle has no linked policy, or cross-tenant stealth rejection).
+    - `VEHICLE_NOT_FOUND` (vehicle not found with provided plate number).
+  - `422 Unprocessable Entity`: `POLICY_EXPIRED`, `POLICY_CANCELLED`, `POLICY_NOT_ACTIVE_ON_DATE`, `VEHICLE_MISMATCH`.
 
 ## 11. Inspection APIs
 
@@ -1098,7 +1259,7 @@ Valid status transitions (enforced by the Backend):
 ## 17. Error Contract
 - Error responses align with the utility found in `src/utils/apiResponse.js`.
 - Common HTTP Status Codes: `400`, `401`, `403`, `404`, `409`, `422`, `429`, `500`.
-- Common Error Codes: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `FORBIDDEN`, `CLAIM_NOT_FOUND`, `ADJUSTER_NOT_FOUND`, `ADJUSTER_UNAVAILABLE`, `INVALID_STATUS_TRANSITION`, `CLAIM_NOT_ASSIGNED`, `POLICY_EXPIRED`, `TOO_MANY_REQUESTS`.
+- Common Error Codes: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `FORBIDDEN`, `CLAIM_NOT_FOUND`, `ADJUSTER_NOT_FOUND`, `ADJUSTER_UNAVAILABLE`, `INVALID_STATUS_TRANSITION`, `CLAIM_NOT_ASSIGNED`, `POLICY_EXPIRED`, `POLICY_NOT_FOUND`, `POLICY_CANCELLED`, `POLICY_NOT_ACTIVE_ON_DATE`, `VEHICLE_NOT_FOUND`, `VEHICLE_MISMATCH`, `INVALID_INCIDENT_DATE`, `TOO_MANY_REQUESTS`.
 
 ## 18. Status Transitions
 The backend is the sole authority enforcing these transitions:
