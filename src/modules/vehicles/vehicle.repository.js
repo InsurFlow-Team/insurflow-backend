@@ -18,8 +18,15 @@ const findByIdAndOrganization = async (vehicleId, organizationId) => {
   return await Vehicle.findOne({ _id: vehicleId, organizationId }).lean();
 };
 
+const findAllByPolicyAndOrganization = async (policyId, organizationId) => {
+  return await Vehicle.find({ policyId, organizationId })
+    .populate('customerId')
+    .lean();
+};
+
 module.exports = {
   findByPlateAndOrganization,
   findByIdAndOrganization,
+  findAllByPolicyAndOrganization,
   create,
 };

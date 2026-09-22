@@ -87,6 +87,13 @@ const seedMockData = async () => {
         expiryDate: new Date('2023-12-31'),
         organizationId: organization._id,
       },
+      {
+        policyNumber: 'POL-3000',
+        status: 'CANCELLED',
+        startDate: new Date('2025-06-01'),
+        expiryDate: new Date('2026-06-01'),
+        organizationId: organization._id,
+      },
     ];
 
     await Policy.deleteMany({ organizationId: organization._id });

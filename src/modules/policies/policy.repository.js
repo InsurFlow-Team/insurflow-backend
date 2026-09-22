@@ -4,4 +4,8 @@ const findByIdAndOrganization = async (policyId, organizationId) => {
   return await Policy.findOne({ _id: policyId, organizationId }).lean();
 };
 
-module.exports = { findByIdAndOrganization };
+const findByPolicyNumberAndOrganization = async (policyNumber, organizationId) => {
+  return await Policy.findOne({ policyNumber, organizationId }).lean();
+};
+
+module.exports = { findByIdAndOrganization, findByPolicyNumberAndOrganization };

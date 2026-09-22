@@ -38,5 +38,6 @@ const vehicleSchema = new mongoose.Schema(
 
 // Indexes
 vehicleSchema.index({ organizationId: 1, plateNumber: 1 }, { unique: true });
+vehicleSchema.index({ organizationId: 1, policyId: 1 });
 
 module.exports = mongoose.model('Vehicle', vehicleSchema);
