@@ -121,6 +121,21 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       plateNumber: 'NO-POL-VEH', make: 'Ford', model: 'Focus', year: 2018, color: 'Red',
       organizationId: org1._id,
     });
+
+    // ── Policy with multiple vehicles ──
+    const multiVehPolicy = await Policy.create({
+      policyNumber: 'POL-V-MULTI', status: 'ACTIVE',
+      startDate: new Date('2025-01-01T00:00:00Z'), expiryDate: new Date('2026-12-31T00:00:00Z'),
+      organizationId: org1._id,
+    });
+    await Vehicle.create({
+      plateNumber: 'MULTI-1', make: 'Hyundai', model: 'Elantra', year: 2021, color: 'Silver',
+      customerId: customer1._id, policyId: multiVehPolicy._id, organizationId: org1._id,
+    });
+    await Vehicle.create({
+      plateNumber: 'MULTI-2', make: 'Kia', model: 'Cerato', year: 2022, color: 'White',
+      customerId: customer1._id, policyId: multiVehPolicy._id, organizationId: org1._id,
+    });
   });
 
   afterAll(async () => {
@@ -381,5 +396,28 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
 
     expect(res.status).toBe(422);
     expect(res.body.errors[0].code).toBe('POLICY_EXPIRED');
+  });
+
+  it('should reject with 422 AMBIGUOUS_VEHICLE_SELECTION when policy has multiple vehicles and plateNumber is not provided', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-MULTI' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errors[0].code).toBe('AMBIGUOUS_VEHICLE_SELECTION');
+  });
+
+  it('should verify successfully when policy has multiple vehicles and plateNumber is specified', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-MULTI', plateNumber: 'MULTI-1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.vehicle.plateNumber).toBe('MULTI-1');
   });
 });

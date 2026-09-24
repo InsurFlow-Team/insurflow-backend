@@ -173,7 +173,7 @@ Only after successful verification does the system allow the officer to proceed 
 
 ## 7. Automated Testing Suite
 
-Tested in [tests/policy.verification.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/policy.verification.test.js) (20 tests):
+Tested in [tests/policy.verification.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/policy.verification.test.js) (22 tests):
 * Successful verification with active policy (CLAIMS_OFFICER and ADMIN).
 * Successful verification with incidentDate within policy period.
 * Successful verification with case-insensitive plate match.
@@ -185,6 +185,8 @@ Tested in [tests/policy.verification.test.js](file:///c:/Users/HP/Desktop/INSURF
 * Rejection when incidentDate outside policy period (422 `POLICY_NOT_ACTIVE_ON_DATE`).
 * Rejection when plate number does not match (422 `VEHICLE_MISMATCH`).
 * Rejection when policy has no linked vehicle to match plate (422 `VEHICLE_MISMATCH`).
+* Rejection when policy has multiple vehicles and plateNumber is omitted (422 `AMBIGUOUS_VEHICLE_SELECTION`).
+* Successful verification when policy has multiple vehicles and valid plateNumber is specified.
 * Non-existent policy (404 `POLICY_NOT_FOUND`).
 * Non-existent vehicle by plate (404 `VEHICLE_NOT_FOUND`).
 * Vehicle without linked policy (404 `POLICY_NOT_FOUND`).

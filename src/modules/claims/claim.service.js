@@ -8,7 +8,7 @@ const Organization = require('../organizations/organization.model');
 const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const { generateClaimReportPdf } = require('./claim.report.builder');
-const { createAndSendNotification } = require('../notifications/notification.service');
+const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 
 
 const createClaim = async (body, authUser) => {
@@ -81,6 +81,13 @@ const createClaim = async (body, authUser) => {
       throw new AppError('Vehicle plate number does not match this policy', 422, 'VEHICLE_MISMATCH');
     }
   } else {
+    if (vehicles.length > 1) {
+      throw new AppError(
+        'Policy has multiple vehicles. Please specify plateNumber.',
+        422,
+        'AMBIGUOUS_VEHICLE_SELECTION'
+      );
+    }
     vehicle = vehicles[0];
   }
 
@@ -110,6 +117,9 @@ const createClaim = async (body, authUser) => {
     },
     vehicle: {
       plateNumber,
+      vehicleId: vehicle?._id || null,
+      policyId: policy._id,
+      customerId: vehicle?.customerId?._id || vehicle?.customerId || null,
     },
     incidentType,
     incidentLocation,
@@ -129,6 +139,21 @@ const createClaim = async (body, authUser) => {
   };
 
   const claim = await claimRepository.create(claimData);
+
+  try {
+    if (typeof sendToOrganization === 'function') {
+      await sendToOrganization({
+        organizationId: authUser.organizationId,
+        type: 'NEW_CLAIM',
+        relatedClaimId: claim._id,
+        title: 'New Claim Created',
+        body: `New claim ${claim.claimNumber} has been created.`,
+        excludeUserId: authUser.userId,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to send notification for claim creation:', err);
+  }
 
   return {
     id: claim._id,
@@ -504,6 +529,20 @@ const declineAssignment = async (claimId, reason, authUser) => {
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
   }
 
+  try {
+    if (typeof sendToOrganization === 'function') {
+      await sendToOrganization({
+        organizationId: authUser.organizationId,
+        type: 'ASSIGNMENT_DECLINED',
+        relatedClaimId: updatedClaim._id,
+        title: 'Assignment Declined',
+        body: `${employeeCode} declined claim ${updatedClaim.claimNumber}. Reason: ${reason}`,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to send notification for assignment decline:', err);
+  }
+
   return {
     id: updatedClaim._id,
     claimNumber: updatedClaim.claimNumber,
@@ -767,6 +806,20 @@ const submitInspection = async (claimId, authUser) => {
 
   if (!updatedClaim) {
     throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  try {
+    if (typeof sendToOrganization === 'function') {
+      await sendToOrganization({
+        organizationId: authUser.organizationId,
+        type: 'INSPECTION_COMPLETED',
+        relatedClaimId: updatedClaim._id,
+        title: 'Inspection Completed',
+        body: `Inspection completed for claim ${updatedClaim.claimNumber}.`,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to send notification for inspection completion:', err);
   }
 
   return { status: updatedClaim.status };

@@ -344,6 +344,37 @@ describe('Claim Read Endpoints', () => {
     expect(data.vehicle.color).toBeNull();
   });
 
+  it('POST /api/v1/claims intake followed by GET /api/v1/claims/:claimId populates non-null vehicle make/model/year/color', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/claims')
+      .set('Authorization', `Bearer ${tokenOfficer}`)
+      .send({
+        policyId: policy1._id.toString(),
+        plateNumber: 'ABC-123',
+        incidentType: 'COLLISION',
+        incidentLocation: 'King Abdullah St, Amman',
+      });
+
+    expect(createRes.statusCode).toBe(201);
+    const createdClaimId = createRes.body.data.id;
+
+    const getRes = await request(app)
+      .get(`/api/v1/claims/${createdClaimId}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(getRes.statusCode).toBe(200);
+    const vehicle = getRes.body.data.vehicle;
+
+    expect(vehicle.plateNumber).toBe('ABC-123');
+    expect(vehicle.make).toBe('Toyota');
+    expect(vehicle.model).toBe('Camry');
+    expect(vehicle.year).toBe(2024);
+    expect(vehicle.color).toBe('White');
+
+    expect(getRes.body.data.customer.name).toBe('John Doe');
+    expect(getRes.body.data.customer.phone).toBe('0591234567');
+  });
+
   it('GET /api/v1/claims/:claimId returns createdBy as formatted user object', async () => {
     const res = await request(app)
       .get(`/api/v1/claims/${assignedClaim._id}`)

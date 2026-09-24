@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20 (Policy Verification Intake Gate) Completed & Verified** |
+| **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20, 21 (Dashboard Notification Center) Completed & Verified** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (27 Suites / 383 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 414 Tests - 100% Pass)** |
 
 ---
 
@@ -106,21 +106,34 @@
   - Cross-tenant stealth rejection returning `404 POLICY_NOT_FOUND` to protect tenant isolation.
   - Optimized database query performance via compound index `{ organizationId: 1, policyId: 1 }` on `Vehicle`.
   - Dedicated 20 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **27 Suites / 378 Tests (100% Pass Rate)**.
+- [x] **Dashboard Notification Center (Feature 21 Completed & Verified):**
+  - Notification persistence model updated with `readAt: Date` (default `null`) replacing boolean `read`, type enum extended to 8 types, and compound index `{ organizationId: 1, recipientId: 1, readAt: 1 }`.
+  - In-app notification center endpoints for all authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`):
+    - `GET /api/v1/notifications`: Paginated listing, newest first, standard pagination headers (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`), read-time resolution of `relatedClaimId.claimNumber`, and optional `?unreadOnly=true` filter.
+    - `GET /api/v1/notifications/unread-count`: Lightweight counter endpoint returning `{ count }` for header badge rendering.
+    - `PATCH /api/v1/notifications/:id/read`: Idempotent read-status marking with `readAt` timestamp and stealth-tenancy 404 on cross-user or cross-tenant access.
+  - Loop-per-recipient organization notification fan-out helper (`sendToOrganization`) delivering 1 document per active `CLAIMS_OFFICER` and `ADMIN` (empty array if none exist, never throws).
+  - Three new isolated lifecycle notification triggers in `src/modules/claims/claim.service.js`:
+    - `NEW_CLAIM`: Triggered in `createClaim` to all active officers/admins excluding the creator.
+    - `ASSIGNMENT_DECLINED`: Triggered in `declineAssignment` to all active officers/admins.
+    - `INSPECTION_COMPLETED`: Triggered in `submitInspection` to all active officers/admins.
+  - Zero-failure isolation guarantee: all notification dispatches are independently try/catch-isolated and never fail the parent claim transaction.
+  - Dedicated unit and integration test suites (`tests/notification.api.test.js`, `tests/claim.notificationTriggers.test.js`), bringing system test coverage to **28 Suites / 414 Tests (100% Pass Rate)**.
 - [x] **Claim Detail Refactoring (Single Source of Truth):**
   - Refactored `GET /api/v1/claims/:claimId` to return comprehensive 12-section response covering all claim data in a single request.
   - Deep population of Policy (policyNumber, status, startDate, expiryDate), Vehicle (make, model, year, color), and Customer data via Mongoose populate chain.
   - All user references (`assignedTo`, `assignedBy`, `createdBy`, `timeline[].performedBy`, `evidence[].uploadedBy`) resolved to `{ id, name, employeeCode }` objects — no secondary lookups required by frontend.
   - Null-safe response: all optional sections return explicit `null` (assignment, accident, location, signature, decision/closure) or `[]` (evidence) when data not yet populated.
-  - Hardened `createClaim` with mandatory `policyId` validation, policy status/expiry gates, vehicle cross-matching, and auto-fill of customer/vehicle data from verified policy.
-  - Updated `claim.read.test.js` with Policy/Vehicle/Customer fixtures (17 tests passing).
+  - Hardened `createClaim` with mandatory `policyId` validation, policy status/expiry gates, vehicle cross-matching, ambiguous vehicle selection protection (422 `AMBIGUOUS_VEHICLE_SELECTION` when policy has multiple vehicles and no plate provided), and auto-fill of customer/vehicle data from verified policy. Stores `vehicle.vehicleId` and `vehicle.customerId` at creation time.
+  - Updated `claim.read.test.js` with Policy/Vehicle/Customer fixtures and verified populated vehicle details on API-created claims (18 tests passing).
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
   - **100% Complete & Synchronized Postman Collections:** All 31 Express 5 application routes are fully mapped and covered across 66 distinct requests, covering all positive flows, role authorizations, pagination, and negative test branches.
     - **Comprehensive Mobile Suite & Dual-State Postman Alignment:** The `Mobile (Field Adjuster)` folder has been fully consolidated and organized into a comprehensive 22-request end-to-end suite covering the entire Flutter mobile app lifecycle (Auth, Password Change, FCM Push Token, Assigned KPI Stats, Real-Time Passive GPS Location, Assigned Claims Queue & Tab Filtering, Claim Details, Two-Step Accept/Decline Assignment, On-Site Inspection Start, Vehicle/Policy Lookup, Draft PUTs for Vehicle/Accident/Location, Evidence & Digital Signature Uploads, Final 5-Pillar Submission, and 4 dedicated Negative Validation Tests). The `Claims` folder was simultaneously cleaned of mobile duplicates, dedicating it strictly to Back-Office Web Dashboard operations.
-    - **Postman Collection Pruning & Sequential Intake Flow:** The `Claims` folder begins with the new `1. Verify Policy Eligibility / Intake Gate (Officer/Admin)` step followed by sequentially indexed requests (1 to 14, including negative vehicle mismatch and expired policy tests). Both local repository collection (`InsurFlow.postman_collection.json`) and automated validation scripts are 100% synchronized with unique UUIDs.
+    - **Postman Collection Pruning & Sequential Intake Flow:** Standardized and organized all 66 requests into 5 clearly numbered folders: `1. Authentication & Security`, `2. User Management`, `3. Claims Lifecycle & Operations`, `4. Field Adjuster (Mobile Workflow)`, and `5. Adjuster Dispatch & Location Tracking`. Embedded collection-level variables (`URL: http://localhost:5000/`, auto-injected auth tokens and dynamic IDs) allowing zero-config manual and automated test execution. Both local repository collection (`InsurFlow.postman_collection.json`) and Postman Cloud workspace are 100% synchronized with unique UUIDs.
   - **Full Request Body Audit & Schema Validation:** Systematically audited all 66 requests across the collection against backend Joi schemas (`auth.validation.js`, `user.validation.js`, `claim.validation.js`, `vehicle.validation.js`, `policy.validation.js`). 100% of request bodies now pass validation without schema errors (`scripts/validate_all_postman_bodies.js`).
   - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`) confirming 100% coverage across all 31 routes.
-  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** 36 end-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **27 Suites / 383 Tests (100% Pass Rate)**.
+  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** End-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **28 Suites / 414 Tests (100% Pass Rate)**.
   - Team collaboration protocol (`docs/project/COLLABORATION_PROTOCOL.md`).
 
 ---

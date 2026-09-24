@@ -10,11 +10,14 @@ const config = require('../src/config/env');
 
 jest.mock('../src/modules/notifications/notification.service', () => ({
   createAndSendNotification: jest.fn().mockResolvedValue({}),
+  sendToOrganization: jest.fn().mockResolvedValue([]),
 }));
 
-const { createAndSendNotification } = require('../src/modules/notifications/notification.service');
+const { createAndSendNotification, sendToOrganization } = require('../src/modules/notifications/notification.service');
 
 const Policy = require('../src/modules/policies/policy.model');
+const Customer = require('../src/modules/customers/customer.model');
+const Vehicle = require('../src/modules/vehicles/vehicle.model');
 let mongoServer;
 
 beforeAll(async () => {
@@ -45,7 +48,7 @@ const generateToken = (user) => {
 };
 
 describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
-  let org, officer, adjuster, officerToken;
+  let org, officer, adjuster, officerToken, adjusterToken, customer, vehicle;
 
   beforeEach(async () => {
     org = await Organization.create({ name: 'Test Org', code: 'ORG-TRIGGERS' });
@@ -70,6 +73,23 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
     });
 
     officerToken = generateToken(officer);
+    adjusterToken = generateToken(adjuster);
+
+    customer = await Customer.create({
+      fullName: 'Test Customer',
+      phone: '0501112233',
+      organizationId: org._id,
+    });
+
+    vehicle = await Vehicle.create({
+      plateNumber: 'ABC-123',
+      make: 'Toyota',
+      model: 'Camry',
+      year: 2022,
+      customerId: customer._id,
+      policyId: global.__testPol._id,
+      organizationId: org._id,
+    });
   });
 
   describe('Trigger 1: NEW -> ASSIGNED (assignClaim)', () => {
@@ -299,6 +319,174 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('REJECTED');
+    });
+  });
+
+  describe('Trigger 5: Claim Creation -> NEW_CLAIM (createClaim)', () => {
+    it('should call sendToOrganization with NEW_CLAIM excluding creator', async () => {
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: global.__testPol._id.toString(),
+          plateNumber: vehicle.plateNumber,
+          incidentType: 'COLLISION',
+          incidentLocation: 'King Abdullah Street',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+
+      expect(sendToOrganization).toHaveBeenCalledTimes(1);
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: org._id.toString(),
+          type: 'NEW_CLAIM',
+          title: 'New Claim Created',
+          excludeUserId: officer._id.toString(),
+        })
+      );
+    });
+
+    it('should succeed with 201 when sendToOrganization throws or rejects', async () => {
+      sendToOrganization.mockRejectedValueOnce(new Error('Notification service failed'));
+
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: global.__testPol._id.toString(),
+          plateNumber: vehicle.plateNumber,
+          incidentType: 'COLLISION',
+          incidentLocation: 'King Abdullah Street',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('Trigger 6: PENDING_ACCEPTANCE -> NEW (declineAssignment)', () => {
+    it('should call sendToOrganization with ASSIGNMENT_DECLINED on assignment decline', async () => {
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        assignedBy: officer._id,
+        assignedAt: new Date(),
+        status: 'PENDING_ACCEPTANCE',
+        customer: { name: 'Customer 1', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjusterToken}`)
+        .send({ reason: 'Distance is too far' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('NEW');
+
+      expect(sendToOrganization).toHaveBeenCalledTimes(1);
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: org._id.toString(),
+          type: 'ASSIGNMENT_DECLINED',
+          title: 'Assignment Declined',
+        })
+      );
+    });
+
+    it('should succeed with 200 when sendToOrganization fails or rejects', async () => {
+      sendToOrganization.mockRejectedValueOnce(new Error('Notification DB failure'));
+
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        assignedBy: officer._id,
+        assignedAt: new Date(),
+        status: 'PENDING_ACCEPTANCE',
+        customer: { name: 'Customer 1', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjusterToken}`)
+        .send({ reason: 'Vehicle issue' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('Trigger 7: IN_PROGRESS -> SUBMITTED (submitInspection)', () => {
+    it('should call sendToOrganization with INSPECTION_COMPLETED on inspection submit', async () => {
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        status: 'IN_PROGRESS',
+        customer: { name: 'Customer 1', phone: '0501112233' },
+        vehicle: { vehicleId: vehicle._id, plateNumber: vehicle.plateNumber },
+        accident: { accidentType: 'COLLISION' },
+        location: { latitude: 31.95, longitude: 35.91 },
+        evidence: [{ url: 'https://cloudinary.com/test.jpg', publicId: 'ev1', imageType: 'VEHICLE_FRONT', uploadedBy: adjuster._id }],
+        signature: { url: 'https://cloudinary.com/sig.png', publicId: 'sig1' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/inspection/submit`)
+        .set('Authorization', `Bearer ${adjusterToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('SUBMITTED');
+
+      expect(sendToOrganization).toHaveBeenCalledTimes(1);
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: org._id.toString(),
+          type: 'INSPECTION_COMPLETED',
+          title: 'Inspection Completed',
+        })
+      );
+    });
+
+    it('should succeed with 200 when sendToOrganization fails or rejects', async () => {
+      sendToOrganization.mockRejectedValueOnce(new Error('Notification DB failure'));
+
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        status: 'IN_PROGRESS',
+        customer: { name: 'Customer 1', phone: '0501112233' },
+        vehicle: { vehicleId: vehicle._id, plateNumber: vehicle.plateNumber },
+        accident: { accidentType: 'COLLISION' },
+        location: { latitude: 31.95, longitude: 35.91 },
+        evidence: [{ url: 'https://cloudinary.com/test.jpg', publicId: 'ev1', imageType: 'VEHICLE_FRONT', uploadedBy: adjuster._id }],
+        signature: { url: 'https://cloudinary.com/sig.png', publicId: 'sig1' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/inspection/submit`)
+        .set('Authorization', `Bearer ${adjusterToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
     });
   });
 });

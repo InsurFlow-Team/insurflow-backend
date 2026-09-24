@@ -61,7 +61,14 @@ const verifyPolicy = async (body, authUser) => {
         );
       }
     } else {
-      // No plate provided — use first vehicle if any exist
+      if (vehicles && vehicles.length > 1) {
+        throw new AppError(
+          'Policy has multiple vehicles. Please specify plateNumber.',
+          422,
+          'AMBIGUOUS_VEHICLE_SELECTION'
+        );
+      }
+      // No plate provided — use single vehicle if exists
       vehicle = vehicles.length > 0 ? vehicles[0] : null;
     }
   } else if (plateNumber) {

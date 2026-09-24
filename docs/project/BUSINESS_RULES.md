@@ -128,6 +128,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
     - Must not be in the future (`400 INVALID_INCIDENT_DATE`).
     - Must fall within `[startDate, expiryDate]` (`422 POLICY_NOT_ACTIVE_ON_DATE`).
   - If `plateNumber` is provided alongside `policyNumber`, the plate is case-insensitively verified against the policy's registered vehicle; mismatch or lack of linked vehicle record returns `422 VEHICLE_MISMATCH`.
+  - If `plateNumber` is omitted and the policy has more than one registered vehicle, verification is rejected with `422 AMBIGUOUS_VEHICLE_SELECTION` requiring the caller to specify `plateNumber`.
 
 ---
 
@@ -136,6 +137,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-CLAIM-2 (Initial Status):** Every newly created claim is unconditionally assigned status **`NEW`**.
 - **Rule BR-CLAIM-3 (Audit Log Initiation):** Every new claim initializes an immutable timeline array with an initial event: `action: 'Claim Created'`, recording the creator's user ID, role, and current timestamp.
 - **Rule BR-CLAIM-4 (Tenant-Scoped Claim Number):** Every claim receives a unique, sequential human-readable identifier formatted as `CLM-<ORG_CODE>-NNNN` via an atomic tenant-scoped Counter model.
+- **Rule BR-CLAIM-5 (Ambiguous Vehicle Selection Protection):** When creating a claim (`POST /api/v1/claims`), if the resolved policy has more than one registered vehicle and the request does not provide `plateNumber`, claim creation is rejected with `HTTP 422 Unprocessable Entity` (`AMBIGUOUS_VEHICLE_SELECTION`). The caller must explicitly supply `plateNumber` to prevent silent attachment of an arbitrary vehicle.
 
 ---
 
@@ -271,5 +273,13 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-NOTIF-2 (Persistence Precedence):** The `Notification` record is always created and saved in MongoDB first, before any push delivery attempt is made.
 - **Rule BR-NOTIF-3 (Silent Skip on Missing Token):** If the recipient user has no registered `fcmToken` (or is not found in the database), push delivery is skipped silently without throwing an error.
 - **Rule BR-NOTIF-4 (Device Token Ownership & Multi-Tenancy):** An authenticated user of any role (`FIELD_ADJUSTER`, `CLAIMS_OFFICER`, `ADMIN`) may register or update their own FCM device token via `PATCH /api/v1/users/me/fcm-token`. The operation strictly updates the caller's own User document (`req.user.userId`) within their authenticated tenant (`req.user.organizationId`). Users cannot view or overwrite device tokens belonging to other users.
+
+### 2.11 Dashboard Notification Center & Fan-Out Rules (Feature 21)
+- **Rule BR-NOTIF-5 (Read-State Timestamp & Idempotency):** The notification read state is represented by `readAt` (type `Date`, default `null`). An unread notification has `readAt === null`. Marking a notification as read sets `readAt` to current timestamp. Marking an already-read notification as read is strictly idempotent: the existing document is returned and `readAt` is preserved unmodified.
+- **Rule BR-NOTIF-6 (Stealth Tenancy on Notification Access):** All notification queries and mutations are strictly filtered by `{ recipientId: req.user.userId, organizationId: req.user.organizationId }`. Attempting to mark or view a notification that belongs to another user or another tenant returns HTTP 404 `NOTIFICATION_NOT_FOUND` to protect privacy and tenant isolation.
+- **Rule BR-NOTIF-7 (Loop-Per-Recipient Fan-Out):** Organization-wide notifications (`NEW_CLAIM`, `INSPECTION_COMPLETED`, `ASSIGNMENT_DECLINED`) generate one separate `Notification` document per active recipient (`CLAIMS_OFFICER` and `ADMIN` with `status: 'ACTIVE'`). Organizations with zero active officers/admins produce zero notification documents without throwing or interrupting caller operations.
+- **Rule BR-NOTIF-8 (Intake Creator Exclusion):** When a claim is created (`NEW_CLAIM`), all active officers and admins receive a notification, strictly excluding the creator (`authUser.userId`).
+- **Rule BR-NOTIF-9 (Read-Time Claim Number Resolution):** `claimNumber` is never statically duplicated or stored in `Notification` documents; it is populated from `relatedClaimId` dynamically at read time.
+- **Rule BR-NOTIF-10 (Zero Lifecycle-Failure Propagation):** Any failure during notification creation or push dispatch is caught and logged to `console.error`; it must never fail or roll back the primary claim lifecycle action (`createClaim`, `declineAssignment`, `submitInspection`).
 
 

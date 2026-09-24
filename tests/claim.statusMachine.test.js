@@ -726,6 +726,34 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
 
       expect(res.status).toBe(403);
     });
+
+    it('should return 422 AMBIGUOUS_VEHICLE_SELECTION when policy has multiple vehicles and no plateNumber is provided', async () => {
+      // Create a second vehicle on the same policy
+      const secondVehicle = await Vehicle.create({
+        organizationId: org1._id,
+        plateNumber: 'DEF-456',
+        make: 'Honda',
+        model: 'Accord',
+        customerId: customer._id,
+        policyId: policy._id,
+      });
+
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: policy._id.toString(),
+          incidentType: 'COLLISION',
+          incidentLocation: 'King Fahd Road',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('AMBIGUOUS_VEHICLE_SELECTION');
+
+      // Cleanup second vehicle so subsequent tests aren't affected
+      await Vehicle.findByIdAndDelete(secondVehicle._id);
+    });
   });
 });
 

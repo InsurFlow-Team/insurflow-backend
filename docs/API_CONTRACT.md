@@ -107,6 +107,63 @@ Valid status transitions (enforced by the Backend):
   - `401 Unauthorized`: Invalid credentials, Invalid organization, Inactive user.
   - `429 Too Many Requests`: Too many failed login attempts (exceeded rate limit). Returns `TOO_MANY_REQUESTS`.
 
+## 7.5 Policy Verification API (Feature 20)
+
+### `POST /policies/verify`
+- **Purpose:** Claims Officer or Admin verifies policy validity, active status, calendar date coverage, and vehicle linkage prior to claim creation.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (Adjuster receives 403 Forbidden).
+- **Authentication:** Required (JWT).
+- **Request Body:**
+  ```json
+  {
+    "policyNumber": "POL-1000",
+    "plateNumber": "ABC-1234",
+    "incidentDate": "2026-06-15"
+  }
+  ```
+  *(At least one of `policyNumber` or `plateNumber` is required. `incidentDate` is optional).*
+- **Error Codes:**
+  - `400 VALIDATION_ERROR`: Missing both `policyNumber` and `plateNumber`, or invalid `incidentDate` format (`YYYY-MM-DD`).
+  - `400 INVALID_INCIDENT_DATE`: `incidentDate` is in the future.
+  - `403 FORBIDDEN`: Called by `FIELD_ADJUSTER`.
+  - `404 POLICY_NOT_FOUND`: Policy not found within tenant.
+  - `404 VEHICLE_NOT_FOUND`: Vehicle not found by plate within tenant.
+  - `422 POLICY_CANCELLED`: Policy is cancelled.
+  - `422 POLICY_EXPIRED`: Policy is expired or calendar expiry has elapsed.
+  - `422 POLICY_NOT_ACTIVE_ON_DATE`: `incidentDate` outside policy period.
+  - `422 VEHICLE_MISMATCH`: Specified plate number does not match policy vehicle.
+  - `422 AMBIGUOUS_VEHICLE_SELECTION`: Policy has multiple vehicles registered and caller omitted `plateNumber`.
+- **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Policy verified successfully",
+    "data": {
+      "isEligible": true,
+      "policy": {
+        "id": "60d0fe4f5311236168a109ca",
+        "policyNumber": "POL-1000",
+        "status": "ACTIVE",
+        "startDate": "2025-01-01",
+        "expiryDate": "2026-12-31"
+      },
+      "vehicle": {
+        "id": "60d0fe4f5311236168a109cb",
+        "plateNumber": "ABC-1234",
+        "make": "Toyota",
+        "model": "Camry",
+        "year": 2022,
+        "color": "White"
+      },
+      "customer": {
+        "id": "60d0fe4f5311236168a109cc",
+        "fullName": "Ahmad Ali",
+        "phone": "+962791234567"
+      }
+    }
+  }
+  ```
+
 ## 8. Claims APIs
 
 ### `POST /claims`
@@ -116,17 +173,34 @@ Valid status transitions (enforced by the Backend):
 - **Request Body:**
   ```json
   {
-    "customerName": "John Doe",
-    "customerPhone": "0591234567",
-    "initialPlateNumber": "ABC-1234",
+    "policyId": "651a2b3c4d5e6f7a8b9c0d1e",
+    "plateNumber": "ABC-1234",
+    "incidentDate": "2026-06-15",
     "incidentType": "COLLISION",
     "incidentLocation": "Main St, Riyadh",
     "latitude": 31.9050,
     "longitude": 35.2040
   }
   ```
+- **Fields:**
+  - `policyId` (String, required): Valid MongoDB ObjectId of an active policy verified via `POST /policies/verify`.
+  - `plateNumber` (String, optional): License plate number. If the policy has more than one registered vehicle, this field is mandatory; otherwise, intake is rejected with 422 `AMBIGUOUS_VEHICLE_SELECTION`. If provided, must match a vehicle registered on the policy.
+  - `incidentDate` (String, optional): `YYYY-MM-DD`. Cannot be in the future and must fall within policy `[startDate, expiryDate]`.
+  - `incidentType` (String, required): One of `COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`.
+  - `incidentLocation` (String, required): Incident location address/description.
+  - `latitude` (Number, optional): GPS coordinate (-90 to 90).
+  - `longitude` (Number, optional): GPS coordinate (-180 to 180).
 - **Incident Coordinates (Feature 18):** `latitude` and `longitude` are optional numeric coordinates. When provided, they are stored in a dedicated `claim.incidentCoordinates: { latitude, longitude, capturedAt }` subdocument (separate from incident address string `claim.incidentLocation` and inspection GPS `claim.location`). If omitted, `incidentCoordinates` is stored as `null` and `incidentLocation` text is preserved as given.
-- **Business Rules:** The Backend automatically determines `organizationId`, `createdBy`, `createdAt`, and `status`. The client must not attempt to control these values.
+- **Business Rules:** The Backend automatically determines `organizationId`, `createdBy`, `createdAt`, `status` (`NEW`), and resolves `customer` (`name`, `phone`) and `vehicle` (`plateNumber`) from the policy vehicle record. The client must not attempt to control these values.
+- **Error Codes:**
+  - `400 VALIDATION_ERROR`: Missing `policyId`, missing `incidentType`, missing `incidentLocation`, or invalid format.
+  - `404 POLICY_NOT_FOUND`: Policy not found in the authenticated user's organization.
+  - `422 POLICY_CANCELLED`: Policy is cancelled.
+  - `422 POLICY_EXPIRED`: Policy has expired.
+  - `422 POLICY_NOT_ACTIVE_ON_DATE`: Policy was not active on `incidentDate`.
+  - `422 NO_VEHICLE_ON_POLICY`: No vehicle registered under the policy.
+  - `422 VEHICLE_MISMATCH`: Specified plate number does not match any vehicle registered under the policy.
+  - `422 AMBIGUOUS_VEHICLE_SELECTION`: Policy has multiple vehicles registered and caller omitted `plateNumber`.
 - **Success Response (201):**
   ```json
   {
@@ -1248,10 +1322,88 @@ Valid status transitions (enforced by the Backend):
   - `400 Bad Request`: Missing or empty `fcmToken`.
   - `401 Unauthorized`: Missing, invalid, or expired JWT.
 
+### `GET /notifications`
+- **Purpose:** Paginated list of notifications for the authenticated user, ordered newest first (`createdAt: -1`).
+- **Authorized Roles:** All authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`).
+- **Authentication:** Required (JWT).
+- **Query Parameters:**
+  - `page` (integer, optional, default: 1, min: 1)
+  - `limit` (integer, optional, default: 50, min: 1, max: 100)
+  - `unreadOnly` (boolean, optional, default: false). When `true`, returns only records where `readAt == null`.
+- **Response Headers:** `X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`.
+- **Populated Fields:** `relatedClaimId` is populated with `claimNumber` at read time (`claimNumber` is never stored on the notification document).
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Notifications retrieved successfully",
+    "data": [
+      {
+        "_id": "673f8a45b12c3d0012ef3456",
+        "recipientId": "673f8a45b12c3d0012ef3401",
+        "organizationId": "673f8a45b12c3d0012ef3400",
+        "type": "NEW_CLAIM",
+        "relatedClaimId": {
+          "_id": "673f8a45b12c3d0012ef3410",
+          "claimNumber": "CLM-ALPHA-0042"
+        },
+        "title": "New Claim Created",
+        "body": "New claim CLM-ALPHA-0042 has been created.",
+        "readAt": null,
+        "createdAt": "2026-09-23T19:00:00.000Z"
+      }
+    ]
+  }
+  ```
+
+### `GET /notifications/unread-count`
+- **Purpose:** Fast unread notification badge counter for the authenticated user.
+- **Authorized Roles:** All authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`).
+- **Authentication:** Required (JWT).
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Unread count retrieved successfully",
+    "data": {
+      "count": 4
+    }
+  }
+  ```
+
+### `PATCH /notifications/:id/read`
+- **Purpose:** Mark a notification as read (sets `readAt` to current timestamp).
+- **Authorized Roles:** All authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`).
+- **Authentication:** Required (JWT).
+- **Parameters:** `:id` — 24-character hexadecimal MongoDB ObjectId.
+- **Idempotency:** If already read, returns the existing document unmodified without altering `readAt`.
+- **Stealth Tenancy:** Returns 404 `NOTIFICATION_NOT_FOUND` if the notification does not exist or belongs to another user/tenant.
+- **Success Response (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Notification marked as read",
+    "data": {
+      "_id": "673f8a45b12c3d0012ef3456",
+      "recipientId": "673f8a45b12c3d0012ef3401",
+      "organizationId": "673f8a45b12c3d0012ef3400",
+      "type": "NEW_CLAIM",
+      "relatedClaimId": {
+        "_id": "673f8a45b12c3d0012ef3410",
+        "claimNumber": "CLM-ALPHA-0042"
+      },
+      "title": "New Claim Created",
+      "body": "New claim CLM-ALPHA-0042 has been created.",
+      "readAt": "2026-09-23T19:15:30.123Z",
+      "createdAt": "2026-09-23T19:00:00.000Z"
+    }
+  }
+  ```
+
 ## 16. Request/Response Models
 *Conceptual entities represented in the APIs. Not meant to map exactly 1:1 to database schema.*
 - **User:** `id`, `name`, `employeeCode`, `role`, `organizationId`, `status`, `fcmToken`.
-- **Notification:** `id`, `recipientId`, `organizationId`, `type`, `relatedClaimId`, `title`, `body`, `read`, `createdAt`.
+- **Notification:** `id`, `recipientId`, `organizationId`, `type`, `relatedClaimId`, `title`, `body`, `readAt`, `createdAt`.
 - **Organization:** `id`, `name`, `code`.
 - **Claim:** `id`, `claimNumber`, `status`, `organizationId`, `createdBy`, `assignedTo`, `assignedBy`, `assignedAt`, `closedBy`, `closedAt`, `customer`, `vehicle`, `policy`, `accident`, `location`, `evidence`, `signature`.
 - **TimelineEvent:** `action`, `performedBy`, `role`, `timestamp`.

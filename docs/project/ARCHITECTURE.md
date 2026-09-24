@@ -251,8 +251,8 @@ Every endpoint in the system complies with the unified structure provided by `sr
   - Normalizes FCM data payloads to ensure all values are strings (required by FCM protocol).
   - No retries or unprompted resilience layers; errors bubble up to caller or service-level handlers.
 - **Notification Persistence Model (`src/modules/notifications/notification.model.js`):**
-  - Mongoose schema tracking `recipientId`, `organizationId`, `type` (`PENDING_ACCEPTANCE`, `ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`), `relatedClaimId`, `title`, `body`, `read`, and `createdAt`.
-  - Compound index `{ organizationId: 1, recipientId: 1, createdAt: -1 }` for efficient tenant-scoped user notification listing.
+  - Mongoose schema tracking `recipientId`, `organizationId`, `type` (`PENDING_ACCEPTANCE`, `ASSIGNED`, `CORRECTION_REQUIRED`, `APPROVED`, `REJECTED`, `ASSIGNMENT_DECLINED`, `INSPECTION_COMPLETED`, `NEW_CLAIM`), `relatedClaimId`, `title`, `body`, `readAt` (Date, default `null`), and `createdAt`.
+  - Compound indexes: `{ organizationId: 1, recipientId: 1, createdAt: -1 }` (reverse-chronological user listing) and `{ organizationId: 1, recipientId: 1, readAt: 1 }` (unread badge counter and unreadOnly queries).
 - **Push & Business Logic Decoupling (`src/modules/notifications/notification.service.js`):**
   - `createAndSendNotification` always creates the `Notification` database document first.
   - Queries recipient `User` for `fcmToken` using `.select('fcmToken').lean()`.
@@ -275,5 +275,19 @@ Every endpoint in the system complies with the unified structure provided by `sr
   - Optimized database query performance by adding compound index `{ organizationId: 1, policyId: 1 }` on `Vehicle`.
 - **Stealth Multi-Tenancy:**
   - Queries filtered by `organizationId` from authenticated user token; cross-tenant inquiries produce `404 Not Found` (`POLICY_NOT_FOUND` / `VEHICLE_NOT_FOUND`) without information disclosure.
+
+### 5.11 Dashboard Notification Center Architecture (Feature 21)
+- **Modular Components in `src/modules/notifications/`:**
+  - `notification.validation.js`: `listNotificationsQuerySchema` enforcing `page` (min 1, default 1), `limit` (min 1, max 100, default 50), and `unreadOnly` (boolean).
+  - `notification.routes.js`: Mounted under `/api/v1/notifications` in `app.js`. Protected by `authenticate`. Defines `GET /` (listing), `GET /unread-count` (badge counter), and `PATCH /:id/read` (mark-as-read).
+  - `notification.controller.js`: Handlers wrapped with `asyncWrapper`. Exposes standard pagination headers (`X-Total-Count`, `X-Page`, `X-Limit`, `X-Total-Pages`) on `listNotifications`.
+  - `notification.service.js`:
+    - `listNotifications`: Tenant- and recipient-scoped query with reverse-chronological sort, populate `relatedClaimId` selecting `claimNumber` at read time, and conditional `readAt: null` filtering.
+    - `getUnreadCount`: Fast `countDocuments` on `{ recipientId, organizationId, readAt: null }`.
+    - `markAsRead`: Atomic idempotent update setting `readAt = new Date()` only where `readAt: null`. Returns existing doc if already read. Stealth-tenancy: throws 404 `NOTIFICATION_NOT_FOUND` if not found under `recipientId` + `organizationId`.
+    - `sendToOrganization`: Queries active `CLAIMS_OFFICER` and `ADMIN` users in tenant org, and loops through them with `createAndSendNotification`. Safely returns `[]` without throwing if zero active officers/admins exist.
+- **Domain Lifecycle Triggers in `src/modules/claims/claim.service.js`:**
+  - Fired after atomic transitions: `NEW_CLAIM` (in `createClaim`), `ASSIGNMENT_DECLINED` (in `declineAssignment`), and `INSPECTION_COMPLETED` (in `submitInspection`).
+  - Zero-failure isolation: each trigger call-site is wrapped in an independent `try/catch` block. Failures are logged to `console.error` and never propagate or fail caller operations.
 
 

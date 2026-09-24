@@ -74,6 +74,7 @@ When a policyholder calls to report a motor accident or damage:
 * **Intake Business Gates:**
   * Validates policy existence and status (`ACTIVE`).
   * Cross-verifies vehicle/plate against policy vehicle.
+  * If policy has multiple vehicles registered and `plateNumber` is omitted, request is rejected with 422 `AMBIGUOUS_VEHICLE_SELECTION`.
   * Auto-populates customer name, customer phone, vehicle plate number, and `policyId` reference onto the new Claim record.
 * **Success Response (201 Created):**
   ```json

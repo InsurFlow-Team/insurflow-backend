@@ -938,3 +938,94 @@ async function downloadClaimReport(claimId, claimNumber, token) {
   }
   ```
   *(إذا لم تُسجل إحداثيات عند إنشاء المطالبة، يرجع الحقل بقيمة `null`)*.
+
+---
+
+## 6. مركز الإشعارات (Dashboard Notification Center)
+
+يوفر مركز الإشعارات للمستخدمين (`ADMIN` و `CLAIMS_OFFICER` و `FIELD_ADJUSTER`) إمكانية استعراض الإشعارات الخاصة بهم، متابعة العداد غير المقروء كبادج (Badge) في شريط التنقل العلوي، وتحديث حالة قراءة الإشعار (`readAt`) بشكل متزامن.
+
+### 6.1 قائمة الإشعارات (List Notifications)
+* **المسار (Endpoint):** `GET /api/v1/notifications`
+* **المستخدمون المصرح لهم:** كافة المستخدمين المسجلين (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`).
+* **Headers:** `Authorization: Bearer <TOKEN>`
+* **Query Parameters (اختيارية):**
+  * `page`: رقم الصفحة (افتراضي `1`).
+  * `limit`: عدد العناصر في الصفحة (افتراضي `50`، الحد الأقصى `100`).
+  * `unreadOnly`: قيمة منطقية (`true` أو `false`، افتراضي `false`). عند إرسال `true` يتم تصفية وعرض الإشعارات غير المقروءة فقط (`readAt == null`).
+* **Response Headers (Pagination Headers):**
+  * `X-Total-Count`: إجمالي عدد الإشعارات المطابقة للفلتر.
+  * `X-Page`: رقم الصفحة الحالي.
+  * `X-Limit`: حجم الصفحة الحالي.
+  * `X-Total-Pages`: إجمالي عدد الصفحات المتاحة.
+* **شكل الاستجابة الناجحة (HTTP 200):**
+  ```json
+  {
+    "success": true,
+    "message": "Notifications retrieved successfully",
+    "data": [
+      {
+        "_id": "673f8a45b12c3d0012ef3456",
+        "recipientId": "673f8a45b12c3d0012ef3401",
+        "organizationId": "673f8a45b12c3d0012ef3400",
+        "type": "NEW_CLAIM",
+        "relatedClaimId": {
+          "_id": "673f8a45b12c3d0012ef3410",
+          "claimNumber": "CLM-ALPHA-0042"
+        },
+        "title": "New Claim Created",
+        "body": "New claim CLM-ALPHA-0042 has been created.",
+        "readAt": null,
+        "createdAt": "2026-09-23T19:00:00.000Z"
+      }
+    ]
+  }
+  ```
+* **ملاحظة معمارية هامة:** يتم حل `relatedClaimId` تلقائياً ليحتوي على `claimNumber` عند جلب البيانات دون تخزينه مكرراً في جدول الإشعارات.
+
+### 6.2 عداد الإشعارات غير المقروءة (Unread Count Badge)
+* **المسار (Endpoint):** `GET /api/v1/notifications/unread-count`
+* **المستخدمون المصرح لهم:** كافة المستخدمين المسجلين (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`).
+* **Headers:** `Authorization: Bearer <TOKEN>`
+* **الاستخدام في الواجهة الأمامية:** استدعاء خفيف وسريع عند تحميل الصفحة أو عبر Polling دوري لتحديث رقم البادج الأحمر فوق أيقونة الجرس في شريط الهيدر.
+* **شكل الاستجابة الناجحة (HTTP 200):**
+  ```json
+  {
+    "success": true,
+    "message": "Unread count retrieved successfully",
+    "data": {
+      "count": 4
+    }
+  }
+  ```
+
+### 6.3 تحديد الإشعار كمقروء (Mark Notification as Read)
+* **المسار (Endpoint):** `PATCH /api/v1/notifications/:id/read`
+* **المستخدمون المصرح لهم:** مستلم الإشعار حصرياً (`req.user.userId`).
+* **Headers:** `Authorization: Bearer <TOKEN>`
+* **Parameters:** `:id` — معرّف الإشعار (MongoDB ObjectId).
+* **سلوك النظام والواجهة:**
+  1. يسجل تاريخ ووقت القراءة في حقل `readAt`.
+  2. العملية محايدة التكرار (Idempotent): تكرار النقر على الإشعار لا يغير تاريخ القراءة المسجل أول مرة.
+  3. يطبق مبدأ عزل المستأجر الصارم (Stealth Tenancy): إذا كان الإشعار يخص مستخدماً آخر أو شركة أخرى يرجع فوراً `404 Not Found` برمز `NOTIFICATION_NOT_FOUND`.
+* **شكل الاستجابة الناجحة (HTTP 200):**
+  ```json
+  {
+    "success": true,
+    "message": "Notification marked as read",
+    "data": {
+      "_id": "673f8a45b12c3d0012ef3456",
+      "recipientId": "673f8a45b12c3d0012ef3401",
+      "organizationId": "673f8a45b12c3d0012ef3400",
+      "type": "NEW_CLAIM",
+      "relatedClaimId": {
+        "_id": "673f8a45b12c3d0012ef3410",
+        "claimNumber": "CLM-ALPHA-0042"
+      },
+      "title": "New Claim Created",
+      "body": "New claim CLM-ALPHA-0042 has been created.",
+      "readAt": "2026-09-23T19:15:30.123Z",
+      "createdAt": "2026-09-23T19:00:00.000Z"
+    }
+  }
+  ```

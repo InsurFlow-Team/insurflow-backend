@@ -114,9 +114,12 @@ INSURFLOW/
 │       │   ├── user.model.js
 │       │   └── user.validation.js
 │       │
-│       ├── notifications/        ← وحدة الإشعارات
+│       ├── notifications/        ← وحدة الإشعارات (مركز إشعارات لوحة التحكم و FCM)
 │       │   ├── notification.model.js
-│       │   └── notification.service.js
+│       │   ├── notification.service.js
+│       │   ├── notification.controller.js
+│       │   ├── notification.routes.js
+│       │   └── notification.validation.js
 │       │
 │       ├── vehicles/             ← وحدة المركبات
 │       │   ├── vehicle.routes.js
@@ -141,7 +144,7 @@ INSURFLOW/
 │           ├── policy.model.js
 │           └── policy.validation.js
 │
-├── tests/                        ← الاختبارات التلقائية (27 Suites / 383 Tests - 100% Pass)
+├── tests/                        ← الاختبارات التلقائية (28 Suites / 414 Tests - 100% Pass)
 ├── docs/                         ← التوثيق والـ API Contracts ومواصفات الميزات
 ├── .env.example                  ← نموذج متغيرات البيئة المطلوبة
 ├── package.json
@@ -399,6 +402,16 @@ NEW → ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED / R
 
 ---
 
+### 🔔 مركز الإشعارات (Dashboard Notification Center)
+
+| Method | Endpoint | من يستخدمه | الوصف |
+|--------|----------|-----------|-------|
+| `GET` | `/notifications` | الكل (مسجل الدخول) | استعراض إشعارات المستخدم بترتيب زمني عكسي مع الترقيم والفلترة بـ `?unreadOnly=true` |
+| `GET` | `/notifications/unread-count` | الكل (مسجل الدخول) | جلب إجمالي الإشعارات غير المقروءة لشارة التنبيهات (Badge Count) |
+| `PATCH` | `/notifications/:id/read` | الكل (مسجل الدخول) | تحديد إشعار كمقروء وتحديث `readAt` بشكل آمن ومتكرر (Idempotent) |
+
+---
+
 ### 🏥 Health Check
 
 | Method | Endpoint | من يستخدمه | الوصف |
@@ -565,6 +578,22 @@ Policy {
 }
 ```
 
+### Notification (الإشعار)
+
+```
+Notification {
+  recipientId: ObjectId → User
+  organizationId: ObjectId → Organization
+  type: Enum            ← PENDING_ACCEPTANCE | ASSIGNED | CORRECTION_REQUIRED | APPROVED | REJECTED | ASSIGNMENT_DECLINED | INSPECTION_COMPLETED | NEW_CLAIM
+  relatedClaimId: ObjectId → Claim (مع populate لـ claimNumber)
+  title: String
+  body: String
+  readAt: Date          ← null إذا كان غير مقروء، أو توقيت القراءة بدقة UTC
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
 ---
 
 ## 🔒 قواعد الأمان والتشغيل المُطبَّقة
@@ -699,13 +728,14 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] التوزيع الجغرافي وتتبع مواقع المعاينين عبر الهيدرز والمسافات الجيوديسية وخيار تجاوز السعة (Feature 18)
 - [x] إمكانية اعتذار المعاين الميداني المكلّف عن المهمة مع إعادة المطالبة ذرياً لحالة NEW لتوزيعها مجدداً (Feature 18 Addendum)
 - [x] سجل تدقيق تاريخي ذري وشامل (Timeline) يوثق كل حالة وملاحظة ومستخدم
+- [x] مركز الإشعارات للوحة التحكم وإشعارات الدفع FCM مع عزل المستأجرين والتحديث المتكرر الآمن (Feature 21)
 
 ### ✅ الاختبارات والتوثيق المعتمد
-- [x] اجتياز 100% من الاختبارات التلقائية (25 Test Suites / 321 Tests Passed)
+- [x] اجتياز 100% من الاختبارات التلقائية (28 Test Suites / 414 Tests Passed)
 - [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
 - [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
 - [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)
-- [x] وثائق تفصيلية لجميع الميزات الـ 18 في مجلد `docs/features/`
+- [x] وثائق تفصيلية لجميع الميزات في مجلد `docs/features/` (حتى Feature 21)
 
 ---
 
@@ -713,7 +743,7 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 
 - [x] رفع وتخزين الصور والأدلة عالية الدقة على السحابة (تم تنفيذه عبر Cloudinary مع عزل مسارات المستأجرين)
 - [x] جمع التوقيع الرقمي للمفتش والعميل وتخزينه سحابيًا (Digital Signatures)
-- [ ] نظام الإشعارات اللحظية (Push Notifications / WebSockets)
+- [x] نظام مركز الإشعارات وإشعارات الدفع (FCM Push Notifications & Dashboard Notification Center - Feature 21)
 - [ ] التكامل مع ورش الصيانة وتقديرات التكاليف وبوابات الصرف البنكية
 
 ---

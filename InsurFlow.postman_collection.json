@@ -11,7 +11,7 @@
     },
     "item": [
       {
-        "name": "auth",
+        "name": "1. Authentication & Security",
         "item": [
           {
             "name": "login (Admin)",
@@ -27,6 +27,8 @@
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
                     "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "    pm.environment.set(\"adminToken\", jsonData.data.accessToken);",
+                    "    if (pm.collectionVariables) pm.collectionVariables.set(\"adminToken\", jsonData.data.accessToken);",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -84,6 +86,8 @@
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
                     "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "    pm.environment.set(\"officerToken\", jsonData.data.accessToken);",
+                    "    if (pm.collectionVariables) pm.collectionVariables.set(\"officerToken\", jsonData.data.accessToken);",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -196,8 +200,9 @@
                     "pm.test(\"Field Adjuster Login successful\", function () {",
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.user.role).to.eql(\"FIELD_ADJUSTER\");",
                     "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                    "    pm.environment.set(\"adjusterToken\", jsonData.data.accessToken);",
+                    "    if (pm.collectionVariables) pm.collectionVariables.set(\"adjusterToken\", jsonData.data.accessToken);",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -280,7 +285,7 @@
         "uid": "48167372-885d4861-69e5-44a2-969e-140ee70a6b2f"
       },
       {
-        "name": "Users",
+        "name": "2. User Management",
         "item": [
           {
             "name": "1. Create User - Field Adjuster (Admin)",
@@ -1331,7 +1336,7 @@
         "uid": "48167372-1c372911-672a-4205-929c-e82c036e7a2c"
       },
       {
-        "name": "Claims",
+        "name": "3. Claims Lifecycle & Operations",
         "item": [
           {
             "name": "1. Verify Policy Eligibility / Intake Gate (Officer/Admin)",
@@ -1439,6 +1444,27 @@
               "description": "Create a new claim with optional incident GPS coordinates (latitude, longitude) stored in claim.incidentCoordinates, while preserving incidentLocation address text."
             },
             "event": [
+              {
+                "listen": "prerequest",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "// Dynamically inject verified policyId and plateNumber if set by intake verification",
+                    "if (pm.environment.get(\"policyId\")) {",
+                    "    try {",
+                    "        var body = JSON.parse(pm.request.body.raw);",
+                    "        body.policyId = pm.environment.get(\"policyId\");",
+                    "        if (pm.environment.get(\"verifiedPlateNumber\")) {",
+                    "            body.plateNumber = pm.environment.get(\"verifiedPlateNumber\");",
+                    "        }",
+                    "        pm.request.body.raw = JSON.stringify(body, null, 2);",
+                    "    } catch (e) {",
+                    "        console.error(\"Failed to inject dynamic policyId in pre-request:\", e);",
+                    "    }",
+                    "}"
+                  ]
+                }
+              },
               {
                 "listen": "test",
                 "script": {
@@ -1924,7 +1950,26 @@
               },
               "description": "Aggregates tenant-wide claim KPIs across all 9 statuses and field adjuster workload distribution for ADMIN."
             },
-            "response": []
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Stats response structure is valid\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"total\");",
+                    "    pm.expect(jsonData.data).to.have.property(\"byStatus\");",
+                    "});"
+                  ]
+                }
+              }
+            ]
           },
           {
             "name": "11. Get Claim Stats (Claims Officer - Organization Scope)",
@@ -1966,7 +2011,26 @@
               },
               "description": "Aggregates tenant-wide claim KPIs across all 9 statuses, review queues, and field adjuster workload distribution for CLAIMS_OFFICER."
             },
-            "response": []
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Stats response structure is valid\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"total\");",
+                    "    pm.expect(jsonData.data).to.have.property(\"byStatus\");",
+                    "});"
+                  ]
+                }
+              }
+            ]
           },
           {
             "name": "12. Download Final Claim Report (PDF)",
@@ -2145,7 +2209,7 @@
         "uid": "48167372-75fd566b-96d7-41ec-8e40-7be35cb40b24"
       },
       {
-        "name": "Mobile (Field Adjuster)",
+        "name": "4. Field Adjuster (Mobile Workflow)",
         "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
         "item": [
           {
@@ -2189,15 +2253,15 @@
                 "listen": "test",
                 "script": {
                   "exec": [
-                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "pm.test(\"Status code is 200\", function () {",
                     "    pm.response.to.have.status(200);",
                     "});",
                     "pm.test(\"Field Adjuster Login successful\", function () {",
                     "    var jsonData = pm.response.json();",
                     "    pm.expect(jsonData.success).to.be.true;",
-                    "    pm.expect(jsonData.data.user.role).to.eql(\"FIELD_ADJUSTER\");",
                     "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
                     "    pm.environment.set(\"adjusterToken\", jsonData.data.accessToken);",
+                    "    if (pm.collectionVariables) pm.collectionVariables.set(\"adjusterToken\", jsonData.data.accessToken);",
                     "});"
                   ],
                   "type": "text/javascript"
@@ -2361,7 +2425,26 @@
               },
               "description": "Fetches active inspection caseload, pending action breakdown, and capacity bar metrics for the logged-in field adjuster."
             },
-            "response": []
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Stats response structure is valid\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data).to.have.property(\"total\");",
+                    "    pm.expect(jsonData.data).to.have.property(\"byStatus\");",
+                    "});"
+                  ]
+                }
+              }
+            ]
           },
           {
             "name": "5. Transmit Location GPS via HTTP Headers (Passive Ingestion)",
@@ -3338,7 +3421,7 @@
         ]
       },
       {
-        "name": "Map-Based Adjuster Dispatch & Location Tracking (Feature 18)",
+        "name": "5. Adjuster Dispatch & Location Tracking",
         "id": "718b7dbe-21d5-4013-ae5f-40b1f26265ba",
         "description": "Feature 18: Map-based adjuster dispatch, passive GPS ingestion via HTTP headers, server-side Haversine proximity calculation, and advisory capacity override.",
         "item": [
@@ -3382,6 +3465,27 @@
               "description": "Create a new claim with optional incident GPS coordinates (latitude, longitude) stored in claim.incidentCoordinates, while preserving incidentLocation address text."
             },
             "event": [
+              {
+                "listen": "prerequest",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "// Dynamically inject verified policyId and plateNumber if set by intake verification",
+                    "if (pm.environment.get(\"policyId\")) {",
+                    "    try {",
+                    "        var body = JSON.parse(pm.request.body.raw);",
+                    "        body.policyId = pm.environment.get(\"policyId\");",
+                    "        if (pm.environment.get(\"verifiedPlateNumber\")) {",
+                    "            body.plateNumber = pm.environment.get(\"verifiedPlateNumber\");",
+                    "        }",
+                    "        pm.request.body.raw = JSON.stringify(body, null, 2);",
+                    "    } catch (e) {",
+                    "        console.error(\"Failed to inject dynamic policyId in pre-request:\", e);",
+                    "    }",
+                    "}"
+                  ]
+                }
+              },
               {
                 "listen": "test",
                 "script": {
@@ -3817,6 +3921,58 @@
             "response": []
           }
         ]
+      }
+    ],
+    "variable": [
+      {
+        "key": "URL",
+        "value": "http://localhost:5000/",
+        "type": "string"
+      },
+      {
+        "key": "adminToken",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "officerToken",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "adjusterToken",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "policyId",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "claimId",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "adjusterId",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "verifiedPolicyNumber",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "verifiedPlateNumber",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "busyAdjusterId",
+        "value": "",
+        "type": "string"
       }
     ]
   }

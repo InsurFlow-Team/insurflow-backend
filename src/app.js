@@ -51,6 +51,7 @@ const claimRoutes = require('./modules/claims/claim.routes');
 const userRoutes = require('./modules/users/user.routes');
 const vehicleRoutes = require('./modules/vehicles/vehicle.routes');
 const policyRoutes = require('./modules/policies/policy.routes');
+const notificationRoutes = require('./modules/notifications/notification.routes');
 
 // API Rate Limiter & Module Routes
 app.use('/api/v1', apiLimiter);
@@ -59,6 +60,7 @@ app.use('/api/v1/claims', claimRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/vehicles', vehicleRoutes);
 app.use('/api/v1/policies', policyRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // 404 Handler for undefined routes
 app.use(notFoundHandler);

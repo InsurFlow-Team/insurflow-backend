@@ -222,7 +222,7 @@ describe('Notification Model Schema Validation', () => {
     expect(doc.relatedClaimId).toEqual(validData.relatedClaimId);
     expect(doc.title).toBe('Claim Assigned');
     expect(doc.body).toBe('You have been assigned claim CLM-ORG1-0001');
-    expect(doc.read).toBe(false);
+    expect(doc.readAt).toBeNull();
     expect(doc.createdAt).toBeInstanceOf(Date);
   });
 

@@ -13,7 +13,16 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['ASSIGNED', 'PENDING_ACCEPTANCE', 'CORRECTION_REQUIRED', 'APPROVED', 'REJECTED'],
+    enum: [
+      'ASSIGNED',
+      'PENDING_ACCEPTANCE',
+      'CORRECTION_REQUIRED',
+      'APPROVED',
+      'REJECTED',
+      'ASSIGNMENT_DECLINED',
+      'INSPECTION_COMPLETED',
+      'NEW_CLAIM',
+    ],
     required: true,
   },
   relatedClaimId: {
@@ -31,9 +40,9 @@ const notificationSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
-  read: {
-    type: Boolean,
-    default: false,
+  readAt: {
+    type: Date,
+    default: null,
   },
   createdAt: {
     type: Date,
@@ -42,5 +51,6 @@ const notificationSchema = new mongoose.Schema({
 });
 
 notificationSchema.index({ organizationId: 1, recipientId: 1, createdAt: -1 });
+notificationSchema.index({ organizationId: 1, recipientId: 1, readAt: 1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

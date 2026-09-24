@@ -1,6 +1,7 @@
 const Notification = require('./notification.model');
 const User = require('../users/user.model');
 const { sendPush } = require('../../services/push.service');
+const AppError = require('../../utils/appError');
 
 /**
  * Creates a notification record and sends a push notification if recipient has an FCM token.
@@ -9,7 +10,7 @@ const { sendPush } = require('../../services/push.service');
  * @param {Object} params
  * @param {import('mongoose').Types.ObjectId|string} params.recipientId
  * @param {import('mongoose').Types.ObjectId|string} params.organizationId
- * @param {'ASSIGNED'|'CORRECTION_REQUIRED'|'APPROVED'|'REJECTED'} params.type
+ * @param {'ASSIGNED'|'PENDING_ACCEPTANCE'|'CORRECTION_REQUIRED'|'APPROVED'|'REJECTED'|'ASSIGNMENT_DECLINED'|'INSPECTION_COMPLETED'|'NEW_CLAIM'} params.type
  * @param {import('mongoose').Types.ObjectId|string} params.relatedClaimId
  * @param {string} params.title
  * @param {string} params.body
@@ -53,6 +54,182 @@ const createAndSendNotification = async ({
   return notification;
 };
 
+/**
+ * Retrieves paginated notifications for the authenticated user (newest first).
+ *
+ * @param {Object} authUser
+ * @param {import('mongoose').Types.ObjectId|string} authUser.userId
+ * @param {import('mongoose').Types.ObjectId|string} authUser.organizationId
+ * @param {Object} [queryOptions]
+ * @param {number} [queryOptions.page=1]
+ * @param {number} [queryOptions.limit=50]
+ * @param {boolean} [queryOptions.unreadOnly=false]
+ * @returns {Promise<{ notifications: Array, pagination: Object }>}
+ */
+const listNotifications = async (authUser, queryOptions = {}) => {
+  const { userId, organizationId } = authUser;
+  const { page = 1, limit = 50, unreadOnly = false } = queryOptions;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    recipientId: userId,
+    organizationId,
+  };
+
+  if (unreadOnly) {
+    query.readAt = null;
+  }
+
+  const [totalCount, notifications] = await Promise.all([
+    Notification.countDocuments(query),
+    Notification.find(query)
+      .populate('relatedClaimId', 'claimNumber')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return {
+    notifications,
+    pagination: {
+      totalCount,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+    },
+  };
+};
+
+/**
+ * Retrieves the count of unread notifications for the authenticated user.
+ *
+ * @param {Object} authUser
+ * @param {import('mongoose').Types.ObjectId|string} authUser.userId
+ * @param {import('mongoose').Types.ObjectId|string} authUser.organizationId
+ * @returns {Promise<{ count: number }>}
+ */
+const getUnreadCount = async (authUser) => {
+  const { userId, organizationId } = authUser;
+  const count = await Notification.countDocuments({
+    recipientId: userId,
+    organizationId,
+    readAt: null,
+  });
+
+  return { count };
+};
+
+/**
+ * Marks a single notification as read (sets readAt to current timestamp if null).
+ * Idempotent: if already read, returns the existing document without modifying readAt.
+ * Stealth tenancy: throws 404 if notification not found or not owned by authUser.
+ *
+ * @param {string} notificationId
+ * @param {Object} authUser
+ * @returns {Promise<Object>}
+ */
+const markAsRead = async (notificationId, authUser) => {
+  const { userId, organizationId } = authUser;
+
+  // 1. Try atomic update where readAt is null
+  const updatedNotification = await Notification.findOneAndUpdate(
+    {
+      _id: notificationId,
+      recipientId: userId,
+      organizationId,
+      readAt: null,
+    },
+    {
+      $set: { readAt: new Date() },
+    },
+    {
+      returnDocument: 'after',
+    }
+  ).populate('relatedClaimId', 'claimNumber');
+
+  if (updatedNotification) {
+    return updatedNotification;
+  }
+
+  // 2. If not updated, check if it already exists and is owned by the user (already read)
+  const existingNotification = await Notification.findOne({
+    _id: notificationId,
+    recipientId: userId,
+    organizationId,
+  }).populate('relatedClaimId', 'claimNumber');
+
+  if (!existingNotification) {
+    throw new AppError('Notification not found', 404, 'NOTIFICATION_NOT_FOUND');
+  }
+
+  return existingNotification;
+};
+
+/**
+ * Sends notifications to all active CLAIMS_OFFICER and ADMIN users in an organization
+ * using loop-per-recipient (one separate Notification document per recipient).
+ * Zero active recipients produces zero documents and cleanly returns without throwing.
+ *
+ * @param {Object} params
+ * @param {import('mongoose').Types.ObjectId|string} params.organizationId
+ * @param {string} params.type
+ * @param {import('mongoose').Types.ObjectId|string} params.relatedClaimId
+ * @param {string} params.title
+ * @param {string} params.body
+ * @param {import('mongoose').Types.ObjectId|string} [params.excludeUserId]
+ * @returns {Promise<Array>} Array of created Notification documents
+ */
+const sendToOrganization = async ({
+  organizationId,
+  type,
+  relatedClaimId,
+  title,
+  body,
+  excludeUserId,
+}) => {
+  const userQuery = {
+    organizationId,
+    role: { $in: ['CLAIMS_OFFICER', 'ADMIN'] },
+    status: 'ACTIVE',
+  };
+
+  if (excludeUserId) {
+    userQuery._id = { $ne: excludeUserId };
+  }
+
+  const recipients = await User.find(userQuery).select('_id fcmToken').lean();
+
+  if (!recipients || recipients.length === 0) {
+    return [];
+  }
+
+  const createdNotifications = [];
+  for (const recipient of recipients) {
+    try {
+      const notification = await createAndSendNotification({
+        recipientId: recipient._id,
+        organizationId,
+        type,
+        relatedClaimId,
+        title,
+        body,
+      });
+      createdNotifications.push(notification);
+    } catch (err) {
+      console.error(`Failed to send notification to recipient ${recipient._id}:`, err);
+    }
+  }
+
+  return createdNotifications;
+};
+
 module.exports = {
   createAndSendNotification,
+  listNotifications,
+  getUnreadCount,
+  markAsRead,
+  sendToOrganization,
 };
