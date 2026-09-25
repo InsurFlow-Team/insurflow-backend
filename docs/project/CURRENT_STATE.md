@@ -1,6 +1,6 @@
 # InsurFlow — Current Project State & Progress Tracking
 
-> **Last Updated:** 2026-09-22  
+> **Last Updated:** 2026-09-25  
 > **Document Purpose:** Single source of truth for current project status, completed work, active blockers, and immediate next steps. Consult this document at the start of any new session or task.
 
 ---
@@ -9,8 +9,8 @@
 
 | Metric | Status |
 |---|---|
-| **Current Project Phase** | Active Development / Frontend Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20, 21 (Dashboard Notification Center) Completed & Verified** |
+| **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
+| **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20, 21 (Dashboard Notification Center) Completed & Mobile Integration Ready** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
 | **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 414 Tests - 100% Pass)** |
 
@@ -128,10 +128,11 @@
   - Updated `claim.read.test.js` with Policy/Vehicle/Customer fixtures and verified populated vehicle details on API-created claims (18 tests passing).
 - [x] **Integration Artifacts & Frontend Guides:**
   - Comprehensive Admin API guide for frontend developers (`docs/ADMIN_API_FOR_FRONTEND.md`).
-  - **100% Complete & Synchronized Postman Collections:** All 31 Express 5 application routes are fully mapped and covered across 66 distinct requests, covering all positive flows, role authorizations, pagination, and negative test branches.
-    - **Comprehensive Mobile Suite & Dual-State Postman Alignment:** The `Mobile (Field Adjuster)` folder has been fully consolidated and organized into a comprehensive 22-request end-to-end suite covering the entire Flutter mobile app lifecycle (Auth, Password Change, FCM Push Token, Assigned KPI Stats, Real-Time Passive GPS Location, Assigned Claims Queue & Tab Filtering, Claim Details, Two-Step Accept/Decline Assignment, On-Site Inspection Start, Vehicle/Policy Lookup, Draft PUTs for Vehicle/Accident/Location, Evidence & Digital Signature Uploads, Final 5-Pillar Submission, and 4 dedicated Negative Validation Tests). The `Claims` folder was simultaneously cleaned of mobile duplicates, dedicating it strictly to Back-Office Web Dashboard operations.
-    - **Postman Collection Pruning & Sequential Intake Flow:** Standardized and organized all 66 requests into 5 clearly numbered folders: `1. Authentication & Security`, `2. User Management`, `3. Claims Lifecycle & Operations`, `4. Field Adjuster (Mobile Workflow)`, and `5. Adjuster Dispatch & Location Tracking`. Embedded collection-level variables (`URL: http://localhost:5000/`, auto-injected auth tokens and dynamic IDs) allowing zero-config manual and automated test execution. Both local repository collection (`InsurFlow.postman_collection.json`) and Postman Cloud workspace are 100% synchronized with unique UUIDs.
-  - **Full Request Body Audit & Schema Validation:** Systematically audited all 66 requests across the collection against backend Joi schemas (`auth.validation.js`, `user.validation.js`, `claim.validation.js`, `vehicle.validation.js`, `policy.validation.js`). 100% of request bodies now pass validation without schema errors (`scripts/validate_all_postman_bodies.js`).
+  - Comprehensive Mobile API guide for Flutter / Mobile developers (`docs/MOBILE_API_FOR_FRONTEND.md`) detailing the field adjuster inspection workflow, in-app notification center integration (`GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/:id/read`), 5-pillar completeness rules, and exact `multipart/form-data` request bodies with Flutter (Dio) code snippets for evidence photo uploads and digital signature capture.
+  - **100% Complete & Synchronized Postman Collections:** All 34 Express 5 application routes are fully mapped and covered across 69 distinct requests, covering all positive flows, role authorizations, pagination, and negative test branches.
+    - **Comprehensive Mobile Suite & Dual-State Postman Alignment:** The `Mobile (Field Adjuster)` folder has been fully consolidated and organized into a comprehensive 25-request end-to-end suite covering the entire Flutter mobile app lifecycle (Auth, Password Change, FCM Push Token, In-App Notifications List, Unread Notifications Count Badge, Mark Notification as Read, Assigned KPI Stats, Real-Time Passive GPS Location, Assigned Claims Queue & Tab Filtering, Claim Details, Two-Step Accept/Decline Assignment, On-Site Inspection Start, Vehicle/Policy Lookup, Draft PUTs for Vehicle/Accident/Location, Evidence & Digital Signature Uploads, Final 5-Pillar Submission, and 4 dedicated Negative Validation Tests). Request bodies for `Upload Evidence Photo` and `Upload Digital Signature` have been enriched with field descriptions, validation enums, Postman test assertions (`capturedAt`, `capturedBy`), and example response mock definitions synchronized across both local repository JSON and Postman Cloud.
+    - **Postman Collection Pruning & Sequential Intake Flow:** Standardized and organized all 69 requests into 5 clearly numbered folders: `1. Authentication & Security`, `2. User Management`, `3. Claims Lifecycle & Operations`, `4. Field Adjuster (Mobile Workflow)`, and `5. Adjuster Dispatch & Location Tracking`. Embedded collection-level variables (`URL: http://localhost:5000/`, auto-injected auth tokens, `notificationId`, and dynamic claim IDs) allowing zero-config manual and automated test execution. Both local repository collection (`InsurFlow.postman_collection.json`) and Postman Cloud workspace are 100% synchronized with unique UUIDs.
+  - **Full Request Body Audit & Schema Validation:** Systematically audited all 69 requests across the collection against backend Joi schemas (`auth.validation.js`, `user.validation.js`, `claim.validation.js`, `vehicle.validation.js`, `policy.validation.js`, `notification.validation.js`). 100% of request bodies now pass validation without schema errors (`scripts/validate_all_postman_bodies.js`).
   - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`) confirming 100% coverage across all 31 routes.
   - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** End-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **28 Suites / 414 Tests (100% Pass Rate)**.
   - Team collaboration protocol (`docs/project/COLLABORATION_PROTOCOL.md`).

@@ -8,8 +8,8 @@ const User = require('../modules/users/user.model');
 const adjusterLocationMiddleware = async (req, res, next) => {
   try {
     if (req.user && req.user.role === 'FIELD_ADJUSTER') {
-      const latHeader = req.headers['x-latitude'];
-      const lonHeader = req.headers['x-longitude'];
+      const latHeader = req.headers['x-latitude'] || req.headers['x-adjuster-latitude'];
+      const lonHeader = req.headers['x-longitude'] || req.headers['x-adjuster-longitude'];
 
       if (latHeader !== undefined && lonHeader !== undefined) {
         const lat = parseFloat(latHeader);

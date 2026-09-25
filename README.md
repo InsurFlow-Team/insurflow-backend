@@ -734,6 +734,7 @@ CLM-DEMO-0001, CLM-DEMO-0002...
 - [x] اجتياز 100% من الاختبارات التلقائية (28 Test Suites / 414 Tests Passed)
 - [x] عقد واجهات الـ API الكامل (`docs/API_CONTRACT.md`)
 - [x] دليل ربط واجهات المدير للفرونت إند (`docs/ADMIN_API_FOR_FRONTEND.md`)
+- [x] دليل ربط واجهات وبرمجة تطبيق الموبايل لمطور فلاتر (`docs/MOBILE_API_FOR_FRONTEND.md`)
 - [x] مجموعة Postman الشاملة لجميع العمليات (`InsurFlow.postman_collection.json`)
 - [x] وثائق تفصيلية لجميع الميزات في مجلد `docs/features/` (حتى Feature 21)
 

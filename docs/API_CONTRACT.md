@@ -32,8 +32,8 @@ This document defines the API contract between the InsurFlow Backend, Web Dashbo
 
 ### 2.1 Request Headers for Location Tracking (Feature 18)
 Mobile client requests performed by `FIELD_ADJUSTER` users passively transmit the adjuster's current GPS position via standard HTTP request headers:
-- `X-Latitude`: Current latitude as decimal number (`-90.0` to `90.0`).
-- `X-Longitude`: Current longitude as decimal number (`-180.0` to `180.0`).
+- `X-Latitude` (or alias `X-Adjuster-Latitude`): Current latitude as decimal number (`-90.0` to `90.0`).
+- `X-Longitude` (or alias `X-Adjuster-Longitude`): Current longitude as decimal number (`-180.0` to `180.0`).
 These headers are processed asynchronously by a lightweight middleware mounted after authentication. They update the adjuster's stored location without interrupting, delaying, or rejecting the primary request.
 
 ## 3. Authentication
