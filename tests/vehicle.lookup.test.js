@@ -5,6 +5,7 @@ const Organization = require('../src/modules/organizations/organization.model');
 const User = require('../src/modules/users/user.model');
 const Customer = require('../src/modules/customers/customer.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
@@ -73,7 +74,7 @@ describe('Vehicle Lookup API', () => {
       organizationId: org1._id,
     });
 
-    policy1 = await Policy.create({
+    policy1 = await buildPolicy({
       policyNumber: 'POL-TEST-1',
       status: 'ACTIVE',
       startDate: new Date('2026-01-01T00:00:00Z'),
@@ -92,7 +93,7 @@ describe('Vehicle Lookup API', () => {
       organizationId: org1._id,
     });
 
-    expiredPolicy = await Policy.create({
+    expiredPolicy = await buildPolicy({
       policyNumber: 'POL-EXPIRED-1',
       status: 'EXPIRED',
       startDate: new Date('2025-01-01T00:00:00Z'),

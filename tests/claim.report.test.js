@@ -7,6 +7,7 @@ const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
@@ -63,7 +64,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     }));
 
     org1 = await Organization.create({ name: 'Apex Insurance', code: 'APX' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Beacon Mutual', code: 'BCN' });
 
     admin1 = await User.create({
@@ -108,7 +109,7 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
       organizationId: org1._id,
     });
 
-    policy1 = await Policy.create({
+    policy1 = await buildPolicy({
       policyNumber: 'POL-APX-9988',
       status: 'ACTIVE',
       startDate: new Date('2026-01-01T00:00:00Z'),

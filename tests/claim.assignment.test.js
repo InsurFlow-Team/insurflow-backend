@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 jest.mock('../src/modules/notifications/notification.service', () => ({
   createAndSendNotification: jest.fn().mockResolvedValue({}),
 }));
@@ -49,7 +50,7 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     officer1 = await User.create({ name: 'O1', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });

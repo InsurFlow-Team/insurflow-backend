@@ -329,24 +329,35 @@
 
 ## 3. إدارة ومراقبة المطالبات (Claims Operations)
 
-### 3.0 بوابة التحقق المسبق من وثيقة التأمين (Policy Verification / Intake Gate — Feature 20)
+### 3.0 بوابة التحقق المسبق من وثيقة التأمين ولقطة التغطية (Policy Verification & Coverage Snapshot — Feature 20)
 * **المسار (Endpoint):** `POST /api/v1/policies/verify`
 * **Headers:** `Authorization: Bearer <ADMIN_TOKEN or CLAIMS_OFFICER_TOKEN>`
 * **الأدوار المصرح لها:** `ADMIN`, `CLAIMS_OFFICER`.
 * **المكان وتجربة المستخدم في الواجهة الأمامية (UI Placement & Business Flow):**
   - **الخطوة الإلزامية الأولى قبل إنشاء المطالبة (Pre-Claim Intake Gate):**
-    عندما يتصل العميل للإبلاغ عن حادث أو فتح مطالبة، يدخل الموظف في شاشة الـ Intake **رقم وثيقة التأمين (`policyNumber`) أو رقم لوحة السيارة (`plateNumber`) أو كلاهما معاً**، ويمكنه اختيارياً إدخال تاريخ وقوع الحادث (`incidentDate`).
+    عندما يتصل العميل للإبلاغ عن حادث أو فتح مطالبة، يدخل الموظف في شاشة الـ Intake **رقم وثيقة التأمين (`policyNumber`) أو رقم لوحة السيارة (`plateNumber`) أو كلاهما معاً**، ويمكنه اختيارياً إدخال تاريخ وقوع الحادث (`incidentDate`) ونوع الحادث (`incidentType`).
+  - **لقطة التغطية وتلميح الأهلية (Coverage Snapshot & Eligibility Hint):**
+    ترجع الواجهة لقطة التغطية التأمينية للمركبة المؤمن عليها (`policyType`, `coveredPerils`, `deductibleAmount`) بالإضافة إلى مؤشر مبكر لأهلية التغطية (`eligibilityHint`):
+    * **`ELIGIBLE_FOR_REVIEW` (شارة خضراء):** نوع الحادث مشمول ضمن أخطار الضرر الذاتي للمركبة.
+    * **`NOT_COVERED_BY_POLICY_TYPE` (شارة تحذيرية صفراء):** نص الشارة: **"الضرر الذاتي غير مشمول"** (على سبيل المثال: وثيقة ضد الغير `THIRD_PARTY` عند تسجيل حادث اصطدام كضرر ذاتي للمركبة المؤمنة).
+    * **`COVERAGE_UNKNOWN` (شارة رمادية استشارية):** وثيقة قديمة غير مرحّلة تفتقر لبيانات التغطية.
+    * **`null`:** لم يتم إرسال `incidentType` في الطلب.
+  - **مفهوم التغطية التأمينية:**
+    * `coveredPerils` تعني حصراً **أخطار الضرر الذاتي للمركبة المؤمنة** (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
+    * وثيقة `THIRD_PARTY` تغطي المسؤولية المدنية تجاه الغير وتستثني الضرر الذاتي لمركبة المؤمن له (تكون `coveredPerils` فارغة `[]` ومبلغ التحمل `deductibleAmount` يساوي `0`).
+    * ملاحظة: التأمين ضد الغير منفصل تماماً عن التأمين الإلزامي؛ الإلزامي منتج منفصل غير مموّل في النظام حالياً.
   - **إذا كانت الوثيقة غير مؤهلة أو غير صالحة:** يرجع الباك إند رسالة خطأ صريحة ويتم منع الانتقال لإنشاء المطالبة (`POST /api/v1/claims`).
-  - **إذا كانت الوثيقة صالحة وفعالة:** يرجع الباك إند كائن التأكيد وفيه بيانات الوثيقة والسيارة والعميل، ويقوم الفرونت إند بملء حقول العميل والسيارة تلقائياً في شاشة إنشاء المطالبة وتفعيل زر المتابعة.
+  - **إذا كانت الوثيقة صالحة وفعالة:** يرجع الباك إند كائن التأكيد وفيه بيانات الوثيقة والتغطية والسيارة والعميل، ويقوم الفرونت إند بملء حقول العميل والسيارة تلقائياً وتفعيل زر المتابعة لإنشاء المطالبة.
 * **Request Body:**
   ```json
   {
     "policyNumber": "POL-1000",
     "plateNumber": "ABC-1234",
-    "incidentDate": "2026-09-21"
+    "incidentDate": "2026-09-21",
+    "incidentType": "COLLISION"
   }
   ```
-  *(ملاحظة: يدعم النظام البحث والتحقق برقم الوثيقة أو برقم اللوحة مباشرة `policyNumber` OR `plateNumber`، ويجب إرسال أحدهما على الأقل. بينما `incidentDate` اختياري ويُشترط ألا يكون تاريخاً في المستقبل).*
+  *(ملاحظة: يدعم النظام البحث والتحقق برقم الوثيقة أو برقم اللوحة مباشرة `policyNumber` OR `plateNumber`، ويجب إرسال أحدهما على الأقل. بينما `incidentDate` اختياري ويُشترط ألا يكون تاريخاً في المستقبل. و`incidentType` اختياري من القيم: `COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).*
 * **Success Response (200 OK):**
   ```json
   {
@@ -354,12 +365,16 @@
     "message": "Policy verified successfully",
     "data": {
       "isEligible": true,
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "policy": {
         "id": "60d0fe4f5311236168a109d1",
         "policyNumber": "POL-1000",
         "status": "ACTIVE",
-        "startDate": "2025-01-01T00:00:00.000Z",
-        "expiryDate": "2026-12-31T23:59:59.999Z"
+        "startDate": "2025-01-01",
+        "expiryDate": "2026-12-31",
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
+        "deductibleAmount": 500
       },
       "vehicle": {
         "id": "60d0fe4f5311236168a109d0",
@@ -379,7 +394,7 @@
   ```
 * **الأخطاء المحتملة (Validation & Rejection Rules):**
   * `400 Bad Request`:
-    * `VALIDATION_ERROR`: عدم إرسال كل من `policyNumber` و `plateNumber`، أو صيغة تاريخ غير صالحة.
+    * `VALIDATION_ERROR`: عدم إرسال كل من `policyNumber` و `plateNumber`، أو صيغة تاريخ غير صالحة، أو قيمة `incidentType` غير مطابقة للأنواع المسموحة.
     * `INVALID_INCIDENT_DATE`: تاريخ وقوع الحادث في المستقبل (يمنع النظام فتح مطالبة لحادث لم يقع بعد).
   * `404 Not Found`:
     * `POLICY_NOT_FOUND`: الوثيقة غير مسجلة في الشركة (أو تتبع شركة أخرى - Stealth Tenancy)، أو المركبة لا تملك وثيقة مرتبطة.
@@ -389,6 +404,7 @@
     * `POLICY_CANCELLED`: الوثيقة ملغاة.
     * `POLICY_NOT_ACTIVE_ON_DATE`: تاريخ وقوع الحادث خارج فترة سريان الوثيقة `[startDate, expiryDate]`.
     * `VEHICLE_MISMATCH`: رقم اللوحة المدخل لا يطابق المركبة المؤمن عليها، أو لا توجد مركبة مسجلة تحت الوثيقة لمطابقتها.
+    * `AMBIGUOUS_VEHICLE_SELECTION`: الوثيقة تضم أكثر من مركبة مسجلة ولم يتم تحديد رقم اللوحة.
 
 ---
 

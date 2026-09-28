@@ -6,6 +6,7 @@ const Claim = require('../src/modules/claims/claim.model');
 const Counter = require('../src/utils/counter.model');
 
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 let mongoServer;
 
 beforeAll(async () => {
@@ -38,7 +39,7 @@ describe('Tenant-Scoped Claim Numbering (CLM-<ORG_CODE>-NNNN)', () => {
 
   beforeEach(async () => {
     orgA = await Organization.create({ name: 'Alpha Insurance', code: 'ALPHA' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: orgA._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: orgA._id });
     orgB = await Organization.create({ name: 'Beta Corp', code: 'BETA' });
 
     officerA = await User.create({

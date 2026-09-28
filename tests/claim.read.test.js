@@ -5,6 +5,7 @@ const User = require('../src/modules/users/user.model');
 const Organization = require('../src/modules/organizations/organization.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Customer = require('../src/modules/customers/customer.model');
 const jwt = require('jsonwebtoken');
@@ -80,7 +81,7 @@ describe('Claim Read Endpoints', () => {
     tokenAdjuster = generateToken(adjuster1);
 
     // ── Policy, Customer, Vehicle fixtures ──────────────────────────
-    policy1 = await Policy.create({
+    policy1 = await buildPolicy({
       policyNumber: 'POL-TEST-001',
       status: 'ACTIVE',
       startDate: new Date('2026-01-01'),

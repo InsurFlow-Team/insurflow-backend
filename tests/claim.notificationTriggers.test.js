@@ -16,6 +16,7 @@ jest.mock('../src/modules/notifications/notification.service', () => ({
 const { createAndSendNotification, sendToOrganization } = require('../src/modules/notifications/notification.service');
 
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Customer = require('../src/modules/customers/customer.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 let mongoServer;
@@ -52,7 +53,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
   beforeEach(async () => {
     org = await Organization.create({ name: 'Test Org', code: 'ORG-TRIGGERS' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org._id });
 
     officer = await User.create({
       name: 'Claims Officer',

@@ -7,6 +7,7 @@ const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Customer = require('../src/modules/customers/customer.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
@@ -48,7 +49,7 @@ describe('Inspection Endpoints', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
 
     officer = await User.create({ name: 'O', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
@@ -56,7 +57,7 @@ describe('Inspection Endpoints', () => {
     adjuster2 = await User.create({ name: 'A2', employeeCode: 'A-2', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
 
     customer = await Customer.create({ organizationId: org1._id, fullName: 'C', phone: '123' });
-    policy = await Policy.create({ organizationId: org1._id, policyNumber: 'P-123', status: 'ACTIVE', customerId: customer._id, startDate: new Date(), expiryDate: new Date(Date.now() + 31536000000) });
+    policy = await buildPolicy({ organizationId: org1._id, policyNumber: 'P-123', status: 'ACTIVE', customerId: customer._id, startDate: new Date(), expiryDate: new Date(Date.now() + 31536000000) });
     vehicle = await Vehicle.create({ organizationId: org1._id, plateNumber: 'REAL-PLATE', make: 'Toyota', model: 'Camry', customerId: customer._id, policyId: policy._id });
 
     claimAssigned = await Claim.create({

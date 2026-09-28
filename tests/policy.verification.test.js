@@ -8,6 +8,8 @@ const Policy = require('../src/modules/policies/policy.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
+const { buildPolicy, buildPolicyPayload } = require('./helpers/policyFactory');
+const migrateLegacyPolicies = require('../src/scripts/migrateLegacyPolicies');
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
@@ -24,8 +26,8 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
   let org1, org2;
   let claimsOfficer, adminUser, fieldAdjuster;
   let officerToken, adminToken, adjusterToken;
-  let activePolicy, expiredPolicy, cancelledPolicy, org2Policy;
-  let vehicle1, vehicle2, vehicleOrg2;
+  let activePolicy, thirdPartyPolicy, expiredPolicy, cancelledPolicy, org2Policy;
+  let vehicle1, vehicle2, vehicleThirdParty, vehicleOrg2;
   let customer1, customer2;
 
   beforeAll(async () => {
@@ -61,42 +63,83 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     customer2 = await Customer.create({ fullName: 'Lina Hasan', phone: '+962799876543', organizationId: org1._id });
 
     // ── Policies (Org 1) ──
-    activePolicy = await Policy.create({
-      policyNumber: 'POL-V-1000', status: 'ACTIVE',
-      startDate: new Date('2025-01-01T00:00:00Z'), expiryDate: new Date('2026-12-31T00:00:00Z'),
+    activePolicy = await buildPolicy({
+      policyNumber: 'POL-V-1000',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
+      deductibleAmount: 500,
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
     });
 
-    expiredPolicy = await Policy.create({
-      policyNumber: 'POL-V-2000', status: 'EXPIRED',
-      startDate: new Date('2022-01-01T00:00:00Z'), expiryDate: new Date('2023-12-31T00:00:00Z'),
+    thirdPartyPolicy = await buildPolicy({
+      policyNumber: 'POL-V-4000',
+      status: 'ACTIVE',
+      policyType: 'THIRD_PARTY',
+      coveredPerils: [],
+      deductibleAmount: 0,
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
     });
 
-    cancelledPolicy = await Policy.create({
-      policyNumber: 'POL-V-3000', status: 'CANCELLED',
-      startDate: new Date('2025-06-01T00:00:00Z'), expiryDate: new Date('2026-06-01T00:00:00Z'),
+    expiredPolicy = await buildPolicy({
+      policyNumber: 'POL-V-2000',
+      status: 'EXPIRED',
+      policyType: 'THIRD_PARTY',
+      coveredPerils: [],
+      deductibleAmount: 0,
+      startDate: new Date('2022-01-01T00:00:00Z'),
+      expiryDate: new Date('2023-12-31T00:00:00Z'),
+      organizationId: org1._id,
+    });
+
+    cancelledPolicy = await buildPolicy({
+      policyNumber: 'POL-V-3000',
+      status: 'CANCELLED',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      deductibleAmount: 250,
+      startDate: new Date('2025-06-01T00:00:00Z'),
+      expiryDate: new Date('2026-06-01T00:00:00Z'),
       organizationId: org1._id,
     });
 
     // ── Policy in Org 2 (cross-tenant test) ──
-    org2Policy = await Policy.create({
-      policyNumber: 'POL-V-ORG2', status: 'ACTIVE',
-      startDate: new Date('2025-01-01T00:00:00Z'), expiryDate: new Date('2026-12-31T00:00:00Z'),
+    org2Policy = await buildPolicy({
+      policyNumber: 'POL-V-ORG2',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      deductibleAmount: 500,
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org2._id,
     });
 
     // ── Policy without vehicle ──
-    await Policy.create({
-      policyNumber: 'POL-V-NOVEH', status: 'ACTIVE',
-      startDate: new Date('2025-01-01T00:00:00Z'), expiryDate: new Date('2026-12-31T00:00:00Z'),
+    await buildPolicy({
+      policyNumber: 'POL-V-NOVEH',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      deductibleAmount: 500,
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
     });
 
     // ── Policy with elapsed expiryDate but ACTIVE status ──
-    await Policy.create({
-      policyNumber: 'POL-V-PASTEXP', status: 'ACTIVE',
-      startDate: new Date('2020-01-01T00:00:00Z'), expiryDate: new Date('2021-01-01T00:00:00Z'),
+    await buildPolicy({
+      policyNumber: 'POL-V-PASTEXP',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      deductibleAmount: 500,
+      startDate: new Date('2020-01-01T00:00:00Z'),
+      expiryDate: new Date('2021-01-01T00:00:00Z'),
       organizationId: org1._id,
     });
 
@@ -104,6 +147,11 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     vehicle1 = await Vehicle.create({
       plateNumber: 'ABC-1234', make: 'Toyota', model: 'Camry', year: 2022, color: 'White',
       customerId: customer1._id, policyId: activePolicy._id, organizationId: org1._id,
+    });
+
+    vehicleThirdParty = await Vehicle.create({
+      plateNumber: 'TPL-4000', make: 'Hyundai', model: 'Elantra', year: 2023, color: 'Silver',
+      customerId: customer1._id, policyId: thirdPartyPolicy._id, organizationId: org1._id,
     });
 
     vehicle2 = await Vehicle.create({
@@ -123,9 +171,14 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     });
 
     // ── Policy with multiple vehicles ──
-    const multiVehPolicy = await Policy.create({
-      policyNumber: 'POL-V-MULTI', status: 'ACTIVE',
-      startDate: new Date('2025-01-01T00:00:00Z'), expiryDate: new Date('2026-12-31T00:00:00Z'),
+    const multiVehPolicy = await buildPolicy({
+      policyNumber: 'POL-V-MULTI',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      deductibleAmount: 500,
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
     });
     await Vehicle.create({
@@ -162,6 +215,15 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.data.policy.status).toBe('ACTIVE');
     expect(res.body.data.policy.startDate).toBe('2025-01-01');
     expect(res.body.data.policy.expiryDate).toBe('2026-12-31');
+    expect(res.body.data.policy.policyType).toBe('COMPREHENSIVE');
+    expect(res.body.data.policy.coveredPerils).toEqual([
+      'COLLISION',
+      'THEFT',
+      'FIRE',
+      'NATURAL_DISASTER',
+    ]);
+    expect(res.body.data.policy.deductibleAmount).toBe(500);
+    expect(res.body.data.eligibilityHint).toBeNull();
 
     // Vehicle data
     expect(res.body.data.vehicle.plateNumber).toBe('ABC-1234');
@@ -419,5 +481,186 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.isEligible).toBe(true);
     expect(res.body.data.vehicle.plateNumber).toBe('MULTI-1');
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 🛡️ COVERAGE SNAPSHOT & ELIGIBILITY HINT TESTS
+  // ─────────────────────────────────────────────────────
+
+  it('should return ELIGIBLE_FOR_REVIEW when COMPREHENSIVE policy covers incidentType', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-1000', incidentType: 'COLLISION' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+    expect(res.body.data.policy.policyType).toBe('COMPREHENSIVE');
+    expect(res.body.data.policy.coveredPerils).toContain('COLLISION');
+  });
+
+  it('should return NOT_COVERED_BY_POLICY_TYPE when THIRD_PARTY policy receives own-damage incidentType', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-4000', incidentType: 'COLLISION' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+    expect(res.body.data.policy.policyType).toBe('THIRD_PARTY');
+    expect(res.body.data.policy.coveredPerils).toEqual([]);
+    expect(res.body.data.policy.deductibleAmount).toBe(0);
+  });
+
+  it('should return null eligibilityHint when incidentType is not provided', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-4000' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBeNull();
+  });
+
+  it('should correctly evaluate eligibilityHint when incidentDate is provided within validity period', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({
+        policyNumber: 'POL-V-1000',
+        incidentDate: '2026-06-15',
+        incidentType: 'COLLISION',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 🔬 SCHEMA & API VALIDATION TESTS
+  // ─────────────────────────────────────────────────────
+
+  it('should reject COMPREHENSIVE policy with empty coveredPerils array in schema validation', async () => {
+    await expect(
+      Policy.create(
+        buildPolicyPayload({
+          policyNumber: 'POL-INV-COMP',
+          organizationId: org1._id,
+          policyType: 'COMPREHENSIVE',
+          coveredPerils: [],
+          deductibleAmount: 500,
+        })
+      )
+    ).rejects.toThrow();
+  });
+
+  it('should reject THIRD_PARTY policy with non-empty coveredPerils in schema validation', async () => {
+    await expect(
+      Policy.create(
+        buildPolicyPayload({
+          policyNumber: 'POL-INV-TP',
+          organizationId: org1._id,
+          policyType: 'THIRD_PARTY',
+          coveredPerils: ['COLLISION'],
+          deductibleAmount: 0,
+        })
+      )
+    ).rejects.toThrow();
+  });
+
+  it('should reject invalid peril FLOOD in coveredPerils schema validation', async () => {
+    await expect(
+      Policy.create(
+        buildPolicyPayload({
+          policyNumber: 'POL-INV-PERIL',
+          organizationId: org1._id,
+          policyType: 'COMPREHENSIVE',
+          coveredPerils: ['FLOOD'],
+          deductibleAmount: 500,
+        })
+      )
+    ).rejects.toThrow();
+  });
+
+  it('should reject invalid incidentType with 400 VALIDATION_ERROR in API request', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-1000', incidentType: 'FLOOD' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 📦 LEGACY POLICY & MIGRATION SCRIPT TESTS
+  // ─────────────────────────────────────────────────────
+
+  let legacyPolicyId;
+
+  it('should return COVERAGE_UNKNOWN for legacy policy missing policyType and deductibleAmount inserted directly', async () => {
+    legacyPolicyId = new mongoose.Types.ObjectId();
+    await Policy.collection.insertOne({
+      _id: legacyPolicyId,
+      policyNumber: 'POL-V-LEGACY-001',
+      status: 'ACTIVE',
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
+      organizationId: org1._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-LEGACY-001', incidentType: 'COLLISION' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+    expect(res.body.data.policy.policyType).toBeNull();
+    expect(res.body.data.policy.coveredPerils).toEqual([]);
+    expect(res.body.data.policy.deductibleAmount).toBeNull();
+  });
+
+  it('should execute migration script in dry-run mode without modifying legacy document', async () => {
+    const dryRunResult = await migrateLegacyPolicies({ apply: false });
+
+    expect(dryRunResult.isDryRun).toBe(true);
+    expect(dryRunResult.found).toBeGreaterThanOrEqual(1);
+    expect(dryRunResult.updated).toBe(0);
+
+    const docAfterDryRun = await Policy.collection.findOne({ _id: legacyPolicyId });
+    expect(docAfterDryRun.policyType).toBeUndefined();
+    expect(docAfterDryRun.deductibleAmount).toBeUndefined();
+  });
+
+  it('should execute migration script with apply=true and be idempotent on second run', async () => {
+    const applyResult = await migrateLegacyPolicies({ apply: true });
+
+    expect(applyResult.isDryRun).toBe(false);
+    expect(applyResult.found).toBeGreaterThanOrEqual(1);
+    expect(applyResult.updated).toBeGreaterThanOrEqual(1);
+
+    const docAfterApply = await Policy.collection.findOne({ _id: legacyPolicyId });
+    expect(docAfterApply.policyType).toBe('THIRD_PARTY');
+    expect(docAfterApply.coveredPerils).toEqual([]);
+    expect(docAfterApply.deductibleAmount).toBe(0);
+
+    // Second run: must find 0 legacy documents and update 0
+    const secondRunResult = await migrateLegacyPolicies({ apply: true });
+    expect(secondRunResult.isDryRun).toBe(false);
+    expect(secondRunResult.found).toBe(0);
+    expect(secondRunResult.updated).toBe(0);
   });
 });

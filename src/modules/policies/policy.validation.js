@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const Policy = require('./policy.model');
 
 /**
  * Validation schema for POST /api/v1/policies/verify
@@ -19,6 +20,13 @@ const verifyPolicySchema = Joi.object({
     .optional()
     .messages({
       'string.pattern.base': 'incidentDate must be in YYYY-MM-DD format',
+    }),
+  incidentType: Joi.string()
+    .valid(...Policy.COVERED_PERILS)
+    .optional()
+    .messages({
+      'any.only': `incidentType must be one of: ${Policy.COVERED_PERILS.join(', ')}`,
+      'string.base': 'incidentType must be a string',
     }),
 })
   .or('policyNumber', 'plateNumber')

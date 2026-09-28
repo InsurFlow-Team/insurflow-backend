@@ -6,6 +6,7 @@ const Organization = require('../src/modules/organizations/organization.model');
 const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Customer = require('../src/modules/customers/customer.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Notification = require('../src/modules/notifications/notification.model');
@@ -94,7 +95,7 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
       fullName: 'Customer One', phone: '+962791112233', organizationId: org1._id,
     });
 
-    policy1 = await Policy.create({
+    policy1 = await buildPolicy({
       policyNumber: 'POL-ALPHA-01', status: 'ACTIVE',
       startDate: new Date('2025-01-01'), expiryDate: new Date('2027-12-31'),
       organizationId: org1._id,

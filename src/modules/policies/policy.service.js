@@ -1,3 +1,4 @@
+const Policy = require('./policy.model');
 const policyRepository = require('./policy.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
 const AppError = require('../../utils/appError');
@@ -16,13 +17,20 @@ const AppError = require('../../utils/appError');
  *  6. If plateNumber is provided:
  *     - When verified alongside policyNumber, a vehicle must exist and plate must match.
  *     - When verified by plateNumber alone, vehicle must have an active policy.
+ *  7. Coverage Snapshot & Eligibility Hint:
+ *     - policyType, coveredPerils, and deductibleAmount returned in policy snapshot.
+ *     - If incidentType is supplied on an ACTIVE, unexpired policy:
+ *         * ELIGIBLE_FOR_REVIEW if incidentType in coveredPerils.
+ *         * NOT_COVERED_BY_POLICY_TYPE if incidentType not in coveredPerils.
+ *         * COVERAGE_UNKNOWN if policyType is undefined/null (legacy document).
+ *     - If incidentType is not supplied: eligibilityHint is null.
  *
- * @param {object} body - { policyNumber?, plateNumber?, incidentDate? }
+ * @param {object} body - { policyNumber?, plateNumber?, incidentDate?, incidentType? }
  * @param {object} authUser - Authenticated user context from JWT
  * @returns {Promise<object>} Verified policy, vehicle, and customer data
  */
 const verifyPolicy = async (body, authUser) => {
-  const { policyNumber, plateNumber, incidentDate } = body;
+  const { policyNumber, plateNumber, incidentDate, incidentType } = body;
   const { organizationId } = authUser;
 
   let policy = null;
@@ -128,15 +136,44 @@ const verifyPolicy = async (body, authUser) => {
     }
   }
 
-  // 4. Build standardized response
+  // 4. Compute eligibility hint (only evaluated on ACTIVE, unexpired policy as of reference date)
+  let eligibilityHint = null;
+  const referenceDate = incidentDate ? new Date(incidentDate + 'T00:00:00.000Z') : now;
+
+  const isPolicyActive =
+    policy.status === 'ACTIVE' &&
+    (!policy.expiryDate || new Date(policy.expiryDate) >= referenceDate) &&
+    (!policy.startDate || new Date(policy.startDate) <= referenceDate);
+
+  if (incidentType && isPolicyActive) {
+    if (!policy.policyType) {
+      // Legacy document missing policyType — coverage is unknown
+      eligibilityHint = Policy.ELIGIBILITY_HINTS.COVERAGE_UNKNOWN;
+    } else if (Array.isArray(policy.coveredPerils) && policy.coveredPerils.includes(incidentType)) {
+      // Peril is covered under own-damage coverage
+      eligibilityHint = Policy.ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW;
+    } else {
+      // Policy type does not cover this peril for own-damage (e.g. THIRD_PARTY vehicle)
+      eligibilityHint = Policy.ELIGIBILITY_HINTS.NOT_COVERED_BY_POLICY_TYPE;
+    }
+  }
+
+  // 5. Build standardized response
   const result = {
     isEligible: true,
+    eligibilityHint,
     policy: {
       id: policy._id,
       policyNumber: policy.policyNumber,
       status: policy.status,
       startDate: policy.startDate ? new Date(policy.startDate).toISOString().split('T')[0] : null,
       expiryDate: policy.expiryDate ? new Date(policy.expiryDate).toISOString().split('T')[0] : null,
+      policyType: policy.policyType ?? null,
+      coveredPerils: policy.coveredPerils ?? [],
+      deductibleAmount:
+        policy.deductibleAmount !== undefined && policy.deductibleAmount !== null
+          ? policy.deductibleAmount
+          : null,
     },
     vehicle: vehicle
       ? {

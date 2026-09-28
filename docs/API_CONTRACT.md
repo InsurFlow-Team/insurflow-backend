@@ -110,7 +110,7 @@ Valid status transitions (enforced by the Backend):
 ## 7.5 Policy Verification API (Feature 20)
 
 ### `POST /policies/verify`
-- **Purpose:** Claims Officer or Admin verifies policy validity, active status, calendar date coverage, and vehicle linkage prior to claim creation.
+- **Purpose:** Claims Officer or Admin verifies policy validity, active status, calendar date coverage, vehicle linkage, and retrieves a coverage snapshot prior to claim creation.
 - **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (Adjuster receives 403 Forbidden).
 - **Authentication:** Required (JWT).
 - **Request Body:**
@@ -118,12 +118,18 @@ Valid status transitions (enforced by the Backend):
   {
     "policyNumber": "POL-1000",
     "plateNumber": "ABC-1234",
-    "incidentDate": "2026-06-15"
+    "incidentDate": "2026-06-15",
+    "incidentType": "COLLISION"
   }
   ```
-  *(At least one of `policyNumber` or `plateNumber` is required. `incidentDate` is optional).*
+  *(At least one of `policyNumber` or `plateNumber` is required. `incidentDate` and `incidentType` are optional).*
+- **Perils & Policy Scope:**
+  - `coveredPerils`: Represents physical own-damage perils to the insured vehicle only (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
+  - `policyType`: `COMPREHENSIVE` (covers own-damage for listed perils) or `THIRD_PARTY` (covers third-party liability only; own-damage is excluded with empty perils and zero deductible).
+  - Third-party liability is separate from compulsory insurance (compulsory is not modeled).
+  - Hint text for third-party own damage: **"الضرر الذاتي غير مشمول"** (*Own-damage not covered*).
 - **Error Codes:**
-  - `400 VALIDATION_ERROR`: Missing both `policyNumber` and `plateNumber`, or invalid `incidentDate` format (`YYYY-MM-DD`).
+  - `400 VALIDATION_ERROR`: Missing both `policyNumber` and `plateNumber`, invalid `incidentDate` format (`YYYY-MM-DD`), or invalid `incidentType`.
   - `400 INVALID_INCIDENT_DATE`: `incidentDate` is in the future.
   - `403 FORBIDDEN`: Called by `FIELD_ADJUSTER`.
   - `404 POLICY_NOT_FOUND`: Policy not found within tenant.
@@ -140,12 +146,16 @@ Valid status transitions (enforced by the Backend):
     "message": "Policy verified successfully",
     "data": {
       "isEligible": true,
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "policy": {
         "id": "60d0fe4f5311236168a109ca",
         "policyNumber": "POL-1000",
         "status": "ACTIVE",
         "startDate": "2025-01-01",
-        "expiryDate": "2026-12-31"
+        "expiryDate": "2026-12-31",
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
+        "deductibleAmount": 500
       },
       "vehicle": {
         "id": "60d0fe4f5311236168a109cb",
@@ -163,6 +173,11 @@ Valid status transitions (enforced by the Backend):
     }
   }
   ```
+- **Eligibility Hint Values:**
+  - `ELIGIBLE_FOR_REVIEW`: When `incidentType` is in `coveredPerils`.
+  - `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (badge: "الضرر الذاتي غير مشمول").
+  - `COVERAGE_UNKNOWN`: For legacy policies missing `policyType`.
+  - `null`: When `incidentType` is not provided.
 
 ## 8. Claims APIs
 

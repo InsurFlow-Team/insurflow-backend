@@ -14,6 +14,7 @@ const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Customer = require('../src/modules/customers/customer.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
@@ -57,7 +58,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG1' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG2' });
 
     officer = await User.create({
@@ -107,7 +108,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
       phone: '0501234567',
     });
 
-    policy = await Policy.create({
+    policy = await buildPolicy({
       organizationId: org1._id,
       policyNumber: 'POL-123456',
       status: 'ACTIVE',

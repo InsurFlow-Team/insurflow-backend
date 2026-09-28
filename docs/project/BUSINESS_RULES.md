@@ -115,7 +115,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 
 ### 2.2 Policy Verification & Pre-Intake Gate (Feature 20)
 - **Rule BR-POL-VERIFY-1 (Intake Gate Invariant):** Before creating a new claim, the Claims Officer or Admin must verify that the policyholder and vehicle belong to the organization and that the policy was valid and active at the time of the incident (`POST /api/v1/policies/verify`).
-- **Rule BR-POL-VERIFY-2 (Eligibility vs. Coverage Boundary):** Policy verification certifies policyholder and vehicle eligibility (contract validity). It does **not** adjudicate coverage type or damage liability; coverage determination occurs during post-inspection adjudication (`POST /decision`).
+- **Rule BR-POL-VERIFY-2 (Eligibility vs. Coverage Boundary & Advisory Hint):** Policy verification certifies policyholder and vehicle eligibility (contract validity, `isEligible: true`). When an optional `incidentType` is supplied, the intake gate provides an immediate advisory coverage hint (`eligibilityHint`) to prevent futile intake while leaving formal post-inspection adjudication to `POST /decision`.
 - **Rule BR-POL-VERIFY-3 (Authorized Roles):** Policy verification is restricted strictly to users with role **`CLAIMS_OFFICER`** or **`ADMIN`** (same roles authorized to create claims). Field Adjusters receive `403 Forbidden`.
 - **Rule BR-POL-VERIFY-4 (Strict Multi-Tenancy & Stealth 404):** Policies are queried strictly by `{ policyNumber, organizationId }` where `organizationId` is derived exclusively from JWT. Inquiries into policies belonging to another organization return `404 Not Found` (`POLICY_NOT_FOUND`) per BR-TENANT-3.
 - **Rule BR-POL-VERIFY-5 (Cross-Validation Rules & Dual Input):**
@@ -129,6 +129,19 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
     - Must fall within `[startDate, expiryDate]` (`422 POLICY_NOT_ACTIVE_ON_DATE`).
   - If `plateNumber` is provided alongside `policyNumber`, the plate is case-insensitively verified against the policy's registered vehicle; mismatch or lack of linked vehicle record returns `422 VEHICLE_MISMATCH`.
   - If `plateNumber` is omitted and the policy has more than one registered vehicle, verification is rejected with `422 AMBIGUOUS_VEHICLE_SELECTION` requiring the caller to specify `plateNumber`.
+- **Rule BR-POL-VERIFY-6 (Coverage Snapshot & Own-Damage Scope):**
+  - The verification response returns a comprehensive coverage snapshot: `policyType` (`COMPREHENSIVE` | `THIRD_PARTY`), `coveredPerils`, and `deductibleAmount`.
+  - **Own-Damage Scope:** `coveredPerils` strictly represents **own-damage perils to the insured vehicle** (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
+  - **Comprehensive vs. Third-Party:**
+    * `COMPREHENSIVE`: Covers own-damage for specified perils (non-empty array) subject to deductible.
+    * `THIRD_PARTY`: Covers third-party liability only; physical own-damage to the insured vehicle is excluded (`coveredPerils` is empty `[]`, deductible is `0`). Badge text: **"الضرر الذاتي غير مشمول"** (*Own-damage not covered*).
+    * Third-party liability is distinct from compulsory insurance, which is a separate unmodeled product.
+- **Rule BR-POL-VERIFY-7 (Eligibility Hint Evaluation):**
+  - Evaluated on active, valid policies against reference date (`incidentDate ? new Date(incidentDate) : now`):
+    * `ELIGIBLE_FOR_REVIEW`: When `incidentType` is included in `coveredPerils`.
+    * `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (e.g. own-damage claim for a third-party policy).
+    * `COVERAGE_UNKNOWN`: When `policyType` is missing (legacy unmigrated policy).
+    * `null`: When `incidentType` is not provided in the request or policy is not active.
 
 ---
 

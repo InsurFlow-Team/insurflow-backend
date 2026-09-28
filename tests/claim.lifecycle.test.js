@@ -7,6 +7,7 @@ const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Customer = require('../src/modules/customers/customer.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
@@ -46,7 +47,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
 
   beforeEach(async () => {
     org1 = await Organization.create({ name: 'Org 1', code: 'ORG-1' });
-    testPolicy = await Policy.create({
+    testPolicy = await buildPolicy({
       policyNumber: 'POL-LIFE-001',
       status: 'ACTIVE',
       startDate: new Date('2025-01-01'),
@@ -54,7 +55,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
       organizationId: org1._id,
     });
     org2 = await Organization.create({ name: 'Org 2', code: 'ORG-2' });
-    testPolicyOrg2 = await Policy.create({
+    testPolicyOrg2 = await buildPolicy({
       policyNumber: 'POL-LIFE-ORG2',
       status: 'ACTIVE',
       startDate: new Date('2025-01-01'),
@@ -320,7 +321,7 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
       const adjusterToken = generateToken(adjuster1);
 
       // Create mock vehicle, policy, customer for the adjuster to submit
-      const policy = await Policy.create({ policyNumber: 'P1', status: 'ACTIVE', startDate: new Date('2025-01-01'), expiryDate: new Date('2027-01-01'), organizationId: org1._id });
+      const policy = await buildPolicy({ policyNumber: 'P1', status: 'ACTIVE', startDate: new Date('2025-01-01'), expiryDate: new Date('2027-01-01'), organizationId: org1._id });
       const vehicle = await Vehicle.create({ plateNumber: 'XYZ-123', make: 'M', model: 'M', year: 2022, color: 'W', organizationId: org1._id, policyId: policy._id });
       const customer = await Customer.create({ fullName: 'C', phone: '1', organizationId: org1._id });
 

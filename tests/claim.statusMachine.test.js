@@ -7,6 +7,7 @@ const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Customer = require('../src/modules/customers/customer.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
@@ -129,7 +130,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       phone: '1234567890',
     });
 
-    policy = await Policy.create({
+    policy = await buildPolicy({
       organizationId: org1._id,
       policyNumber: 'POL-100',
       status: 'ACTIVE',

@@ -13,6 +13,7 @@ const Organization = require('../src/modules/organizations/organization.model');
 const User = require('../src/modules/users/user.model');
 const Customer = require('../src/modules/customers/customer.model');
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 
 let mongoServer;
@@ -56,7 +57,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
 
   it('Setup: Seeds Organizations, Customer, Policy, Vehicle and Baseline Users', async () => {
     org1 = await Organization.create({ name: 'Demo Insurance Co', code: 'INS-A', status: 'ACTIVE' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Competitor Insurance Co', code: 'COMP-B', status: 'ACTIVE' });
 
     adminUser = await User.create({
@@ -104,7 +105,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
     const now = new Date();
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneYearLater = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-    testPolicy = await Policy.create({
+    testPolicy = await buildPolicy({
       organizationId: org1._id,
       policyNumber: 'POL-DEMO-2026',
       startDate: oneMonthAgo,

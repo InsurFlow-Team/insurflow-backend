@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
 const Policy = require('../src/modules/policies/policy.model');
+const { buildPolicy } = require('./helpers/policyFactory');
 let mongoServer;
 
 beforeAll(async () => {
@@ -48,7 +49,7 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
   beforeEach(async () => {
     // Organizations
     org1 = await Organization.create({ name: 'Tenant Alpha', code: 'TALP' });
-    global.__testPol = await Policy.create({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
+    global.__testPol = await buildPolicy({ policyNumber: 'POL-FIX-001', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org1._id });
     org2 = await Organization.create({ name: 'Tenant Beta', code: 'TBET' });
 
     // Org 1 Users
@@ -135,7 +136,7 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
   const createClaim = async (orgId, creatorId, status, assignedTo = null, createdAt = null) => {
     let pol = await Policy.findOne({ organizationId: orgId });
     if (!pol) {
-      pol = await Policy.create({
+      pol = await buildPolicy({
         policyNumber: `POL-${Date.now()}-${Math.random().toString(36).substring(7)}`,
         status: 'ACTIVE',
         startDate: new Date('2024-01-01'),
