@@ -1788,7 +1788,7 @@
             "response": []
           },
           {
-            "name": "8. Decide Claim - Approve / Reject (Admin/Officer)",
+            "name": "8. Decide Claim - Approve with Loss Assessment (Admin/Officer)",
             "event": [
               {
                 "script": {
@@ -1822,7 +1822,7 @@
               ],
               "body": {
                 "mode": "raw",
-                "raw": "{\n  \"decision\": \"APPROVED\",\n  \"notes\": \"Claim verified and approved.\"\n}",
+                "raw": "{\n  \"decision\": \"APPROVED\",\n  \"notes\": \"Damage estimate verified and approved after financial adjudication.\",\n  \"lossAssessment\": {\n    \"estimatedPartsCost\": 1200,\n    \"laborCost\": 400,\n    \"deductibleApplied\": 500\n  }\n}",
                 "options": {
                   "raw": {
                     "language": "json"
@@ -1841,7 +1841,129 @@
                   "decision"
                 ]
               },
-              "description": "Approve or reject a claim. Accessible by CLAIMS_OFFICER and ADMIN. Claim must be in UNDER_REVIEW status."
+              "description": "Approve a claim with financial loss assessment. Accessible by CLAIMS_OFFICER and ADMIN. Claim must be in UNDER_REVIEW status. Calculates totalDamage (1600) and netApprovedPayout (1100) using integer cents precision."
+            },
+            "response": [],
+            "createdAt": "2026-09-10T09:39:44.000Z",
+            "updatedAt": "2026-09-10T10:09:14.000Z",
+            "uid": "48167372-8e3afa98-2d01-1cf7-9d92-4bcf740d565c"
+          },
+          {
+            "name": "8b. Decide Claim - Approve with Deductible Override (Admin/Officer)",
+            "event": [
+              {
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim decision processed successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.be.oneOf([\"APPROVED\", \"REJECTED\"]);",
+                    "});"
+                  ]
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "8e3afa98-2d01-1cf7-9d92-4bcf740d565d",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "value": "application/json",
+                  "key": "Content-Type"
+                },
+                {
+                  "value": "Bearer <TOKEN>",
+                  "key": "Authorization"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"decision\": \"APPROVED\",\n  \"notes\": \"Claim approved with courtesy deductible discount.\",\n  \"lossAssessment\": {\n    \"estimatedPartsCost\": 1200,\n    \"laborCost\": 400,\n    \"deductibleApplied\": 300,\n    \"deductibleOverrideReason\": \"Loyalty customer courtesy discount\"\n  }\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decision",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decision"
+                ]
+              },
+              "description": "Approve a claim overriding the policy deductible. When deductibleApplied differs from policyDeductible, deductibleOverrideReason is mandatory (5-300 chars), else returns 422 OVERRIDE_REASON_REQUIRED."
+            },
+            "response": [],
+            "createdAt": "2026-09-10T09:39:44.000Z",
+            "updatedAt": "2026-09-10T10:09:14.000Z",
+            "uid": "48167372-8e3afa98-2d01-1cf7-9d92-4bcf740d565c"
+          },
+          {
+            "name": "8c. Decide Claim - Reject (Admin/Officer)",
+            "event": [
+              {
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Status code is 200 OK\", function () {",
+                    "    pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Claim decision processed successfully\", function () {",
+                    "    var jsonData = pm.response.json();",
+                    "    pm.expect(jsonData.success).to.be.true;",
+                    "    pm.expect(jsonData.data.status).to.be.oneOf([\"APPROVED\", \"REJECTED\"]);",
+                    "});"
+                  ]
+                },
+                "listen": "test"
+              }
+            ],
+            "id": "8e3afa98-2d01-1cf7-9d92-4bcf740d565e",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "value": "application/json",
+                  "key": "Content-Type"
+                },
+                {
+                  "value": "Bearer <TOKEN>",
+                  "key": "Authorization"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"decision\": \"REJECTED\",\n  \"notes\": \"Incident details do not match physical inspection evidence.\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{URL}}api/v1/claims/{{claimId}}/decision",
+                "host": [
+                  "{{URL}}api"
+                ],
+                "path": [
+                  "v1",
+                  "claims",
+                  "{{claimId}}",
+                  "decision"
+                ]
+              },
+              "description": "Reject a claim in UNDER_REVIEW status. lossAssessment is forbidden on REJECTED decisions (sending it returns 400 VALIDATION_ERROR)."
             },
             "response": [],
             "createdAt": "2026-09-10T09:39:44.000Z",

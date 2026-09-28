@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2, Features 18-21 & Financial Loss Assessment (Feature 22) Completed** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (30 Suites / 456 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (30 Suites / 461 Tests - 100% Pass)** |
 
 ---
 
@@ -119,8 +119,10 @@
   - Strict tenant-scoped pre-read helper `handleClaimNotFoundOrStateError` (404 `CLAIM_NOT_FOUND`, 409 `INVALID_STATUS_TRANSITION`) used exclusively in `APPROVED` branch; zero extra queries on `REJECTED`.
   - Deductible hierarchy: snapshot deductible -> fallback to live policy query only when snapshot is null -> 0.
   - Integer cents arithmetic (`Math.round(amount * 100)`), 422 `DAMAGE_BELOW_DEDUCTIBLE` validation when `totalDamage <= deductibleApplied` with zero database mutation.
+  - Deductible override validation: 422 `OVERRIDE_REASON_REQUIRED` when `deductibleApplied !== policyDeductible` and reason is missing/invalid. `deductibleOverrideReason` stored as `null` when no override (i.e., deductible matches policy).
+  - `twoDecimalValidator` uses `Math.round(v * 100) / 100 !== v` (handles IEEE 754 artifacts and exponential notation like `1e-7`).
   - Formatted Section 8 "Financial Loss Assessment" table in PDF report dossier (`claim.report.builder.js`) with configured currency (`ILS`).
-  - 20 comprehensive integration tests in `tests/claim.lossAssessment.test.js`, bringing total test count to **30 Suites / 456 Tests (100% Pass Rate)**.
+  - 25 comprehensive integration tests in `tests/claim.lossAssessment.test.js` (including exponential notation rejection, IEEE 754 artifact rejection, null-deductible policy snapshot, and DB-level override reason assertions), bringing total test count to **30 Suites / 461 Tests (100% Pass Rate)**.
 - [x] **Dashboard Notification Center (Feature 21 Completed & Verified):**
   - Notification persistence model updated with `readAt: Date` (default `null`) replacing boolean `read`, type enum extended to 8 types, and compound index `{ organizationId: 1, recipientId: 1, readAt: 1 }`.
   - In-app notification center endpoints for all authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`):

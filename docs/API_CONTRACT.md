@@ -1136,10 +1136,12 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 - **Error Responses:**
-  - `400 Bad Request`: `VALIDATION_ERROR` (invalid decision enum, string numbers, > 2 decimals, negative amounts, > 1,000,000, unknown keys in lossAssessment, missing override reason, or `lossAssessment` present on `REJECTED`).
+  - `400 Bad Request`: `VALIDATION_ERROR` (invalid decision enum, string numbers, > 2 decimals, negative amounts, > 1,000,000, unknown keys in lossAssessment, or `lossAssessment` present on `REJECTED`).
   - `404 Not Found`: `CLAIM_NOT_FOUND` (claim does not exist or belongs to another tenant organization).
   - `409 Conflict`: `INVALID_STATUS_TRANSITION` (claim is not in `UNDER_REVIEW` status, or concurrent decision race lost).
-  - `422 Unprocessable Entity`: `DAMAGE_BELOW_DEDUCTIBLE` (`totalDamage <= deductibleApplied`).
+  - `422 Unprocessable Entity`:
+    - `DAMAGE_BELOW_DEDUCTIBLE` (`totalDamage <= deductibleApplied`).
+    - `OVERRIDE_REASON_REQUIRED` (`deductibleApplied !== policyDeductible` without valid `deductibleOverrideReason` of 5–300 chars).
 - **Status Transition:** `UNDER_REVIEW` → `APPROVED` | `REJECTED`
 
 ## 13. Admin Closure API

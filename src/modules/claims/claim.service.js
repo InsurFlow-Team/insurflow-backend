@@ -1026,7 +1026,7 @@ const decideClaim = async (claimId, body, authUser) => {
       if (appliedCents !== policyDeductibleCents) {
         const reason = lossAssessment.deductibleOverrideReason ? lossAssessment.deductibleOverrideReason.trim() : '';
         if (!reason || reason.length < 5 || reason.length > 300) {
-          throw new AppError('deductibleOverrideReason is required (between 5 and 300 characters) when deductible is overridden', 400, 'VALIDATION_ERROR');
+          throw new AppError('deductibleOverrideReason is required (between 5 and 300 characters) when deductible is overridden', 422, 'OVERRIDE_REASON_REQUIRED');
         }
         deductibleOverrideReason = reason;
       }

@@ -382,8 +382,8 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
         },
       });
 
-    expect(response.status).toBe(400);
-    expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
+    expect(response.status).toBe(422);
+    expect(response.body.errors[0].code).toBe('OVERRIDE_REASON_REQUIRED');
   });
 
   it('should ignore deductibleOverrideReason and store null if deductibleApplied equals policyDeductible', async () => {
@@ -403,6 +403,145 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
 
     expect(response.status).toBe(200);
     expect(response.body.data.lossAssessment.deductibleOverrideReason).toBeNull();
+
+    // DB-level verification that deductibleOverrideReason is null even though it was sent
+    const dbClaim = await Claim.findById(claimUnderReview._id);
+    expect(dbClaim.lossAssessment.deductibleOverrideReason).toBeNull();
+  });
+
+  it('should store deductibleOverrideReason ONLY when deductibleApplied differs from policyDeductible', async () => {
+    const token = generateToken(officer1);
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 1000,
+          laborCost: 500,
+          deductibleApplied: 300,
+          deductibleOverrideReason: 'Loyalty customer discount applied',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    const la = response.body.data.lossAssessment;
+    expect(la.deductibleApplied).toBe(300);
+    expect(la.deductibleOverrideReason).toBe('Loyalty customer discount applied');
+
+    const dbClaim = await Claim.findById(claimUnderReview._id);
+    expect(dbClaim.lossAssessment.deductibleOverrideReason).toBe('Loyalty customer discount applied');
+  });
+
+  // ─── 9d. Exponential Notation and Precision Edge Cases ─────────────────
+  it('should reject 1e-7 (exponential float that bypasses string-based checks)', async () => {
+    const token = generateToken(officer1);
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 1e-7,
+          laborCost: 600,
+        },
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+  });
+
+  it('should reject 0.30000000000000004 (IEEE 754 artifact)', async () => {
+    const token = generateToken(officer1);
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 0.30000000000000004,
+          laborCost: 600,
+        },
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+  });
+
+  it('should accept 12.5, 0.1, and 1000000 as valid financial values', async () => {
+    const token = generateToken(officer1);
+    const response = await request(app)
+      .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 12.5,
+          laborCost: 0.1,
+          deductibleApplied: 0,
+          deductibleOverrideReason: 'Full waiver for valid precision test',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    const la = response.body.data.lossAssessment;
+    expect(la.estimatedPartsCost).toBe(12.5);
+    expect(la.laborCost).toBe(0.1);
+    expect(la.totalDamage).toBe(12.6);
+  });
+
+  // ─── 9e. Snapshot null when policy has policyType but deductibleAmount is null ──
+  it('should set coverageSnapshot to null when policy policyType exists but deductibleAmount is null', async () => {
+    const halfLegacyPolicyId = new mongoose.Types.ObjectId();
+    await Policy.collection.insertOne({
+      _id: halfLegacyPolicyId,
+      policyNumber: 'POL-HALFLEG-01',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      deductibleAmount: null,
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2027-12-31T00:00:00Z'),
+      organizationId: org1._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const Customer = require('../src/modules/customers/customer.model');
+    const Vehicle = require('../src/modules/vehicles/vehicle.model');
+
+    const cust = await Customer.create({
+      fullName: 'Half Legacy Customer',
+      phone: '+962791118899',
+      organizationId: org1._id,
+    });
+
+    await Vehicle.create({
+      plateNumber: 'HALF-9999',
+      make: 'Kia',
+      model: 'Sportage',
+      year: 2022,
+      customerId: cust._id,
+      policyId: halfLegacyPolicyId,
+      organizationId: org1._id,
+    });
+
+    const token = generateToken(officer1);
+    const createRes = await request(app)
+      .post('/api/v1/claims')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        policyId: halfLegacyPolicyId.toString(),
+        plateNumber: 'HALF-9999',
+        incidentType: 'COLLISION',
+        incidentLocation: 'Irbid Center',
+        incidentDate: '2026-06-15',
+      });
+
+    expect(createRes.status).toBe(201);
+    const claimId = createRes.body.data.id;
+
+    const dbClaim = await Claim.findById(claimId).lean();
+    expect(dbClaim.coverageSnapshot).toBeNull();
   });
 
   // ─── 10. Fallback Deductible Hierarchy (Legacy claims without snapshot) ──

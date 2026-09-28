@@ -747,9 +747,12 @@
   }
   ```
 * **أكواد الأخطاء الخاصة بالواجهة:**
-  * `422 Unprocessable Entity`: كود الخطأ `DAMAGE_BELOW_DEDUCTIBLE` عندما يكون مجموع الأضرار (`totalDamage`) أقل من أو يساوي مبلغ التحمل المطبق (`deductibleApplied`). في هذه الحالة **لا يتم تعديل حالة المطالبة وتبقى `UNDER_REVIEW`**.
-  * `400 Bad Request`: كود `VALIDATION_ERROR` عند إرسال نصوص في الحقول المالية، أو منازل عشرية تزيد عن 2، أو حقول مجهولة (مثل `totalDamage` أو `netApprovedPayout`)، أو عند تعديل التحمل دون سبب مبرر (أقل من 5 أحرف)، أو إرسال تقييم مالي مع قرار الرفض.
-  * `409 Conflict`: كود `INVALID_STATUS_TRANSITION` إذا لم تكن المطالبة في حالة `UNDER_REVIEW` (أو عند حدوث تضارب تزامن).
+  * `422 Unprocessable Entity`:
+    - كود `DAMAGE_BELOW_DEDUCTIBLE`: عندما يكون مجموع الأضرار (`totalDamage`) أقل من أو يساوي مبلغ التحمل المطبق (`deductibleApplied`). في هذه الحالة **لا يتم تعديل حالة المطالبة وتبقى `UNDER_REVIEW`** ودون حفظ أي بيانات مالية.
+    - كود `OVERRIDE_REASON_REQUIRED`: عندما يختلف مبلغ التحمل المطبق (`deductibleApplied`) عن تحمل الوثيقة (`policyDeductible`) دون تقديم سبب تعديل مبرر (`deductibleOverrideReason` بين 5 و 300 حرف).
+  * `400 Bad Request`: كود `VALIDATION_ERROR` عند إرسال نصوص في الحقول المالية بدلاً من أرقام، أو منازل عشرية تزيد عن 2، أو حقول مجهولة (مثل `totalDamage` أو `netApprovedPayout`)، أو إرسال تقييم مالي مع قرار الرفض `REJECTED`، أو عند غياب `lossAssessment` في حال تفعيل المفتاح الإلزامي `REQUIRE_LOSS_ASSESSMENT=true`.
+  * `404 Not Found`: كود `CLAIM_NOT_FOUND` إذا كانت المطالبة غير موجودة أو تابعة لمنظمة أخرى (تأمين متعدد المستأجرين).
+  * `409 Conflict`: كود `INVALID_STATUS_TRANSITION` إذا لم تكن المطالبة في حالة `UNDER_REVIEW` (أو عند حدوث تضارب تزامن بالاعتماد المتزامن).
 
 ---
 

@@ -157,11 +157,7 @@ const requestCorrectionSchema = Joi.object({
 
 const twoDecimalValidator = (value, helpers) => {
   if (typeof value !== 'number') return value;
-  const str = value.toString();
-  if (str.includes('.') && str.split('.')[1].length > 2) {
-    return helpers.message('"{#label}" must have at most 2 decimal places');
-  }
-  if (Math.abs(value * 100 - Math.round(value * 100)) > 1e-6) {
+  if (Math.round(value * 100) / 100 !== value) {
     return helpers.message('"{#label}" must have at most 2 decimal places');
   }
   return value;
