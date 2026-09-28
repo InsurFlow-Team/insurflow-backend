@@ -105,10 +105,26 @@ const createClaim = async (body, authUser) => {
     };
   }
 
+  // ── 6. Capture coverage snapshot if policy has policyType & deductibleAmount ──
+  let coverageSnapshot = null;
+  if (
+    policy.policyType &&
+    policy.deductibleAmount !== undefined &&
+    policy.deductibleAmount !== null
+  ) {
+    coverageSnapshot = {
+      policyType: policy.policyType,
+      coveredPerils: Array.isArray(policy.coveredPerils) ? [...policy.coveredPerils] : [],
+      deductibleAmount: policy.deductibleAmount,
+      capturedAt: new Date(),
+    };
+  }
+
   const claimData = {
     organizationId: authUser.organizationId,
     createdBy: authUser.userId,
     policyId: policy._id,
+    coverageSnapshot,
     status: 'NEW',
 
     customer: {
@@ -334,6 +350,16 @@ const getClaimById = async (claimId, authUser) => {
 
     // ── 12. Created By ───────────────────────────────────────────
     createdBy: formatUser(claim.createdBy),
+
+    // ── 13. Coverage Snapshot (captured at intake) ───────────────
+    coverageSnapshot: claim.coverageSnapshot
+      ? {
+          policyType: claim.coverageSnapshot.policyType ?? null,
+          coveredPerils: claim.coverageSnapshot.coveredPerils ?? [],
+          deductibleAmount: claim.coverageSnapshot.deductibleAmount ?? null,
+          capturedAt: claim.coverageSnapshot.capturedAt ?? null,
+        }
+      : null,
   };
 };
 

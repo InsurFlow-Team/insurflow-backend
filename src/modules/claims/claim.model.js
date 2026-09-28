@@ -64,6 +64,39 @@ const claimSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ── Coverage Snapshot (captured at intake, immutable) ───────────
+    coverageSnapshot: {
+      type: new mongoose.Schema(
+        {
+          policyType: {
+            type: String,
+            enum: ['COMPREHENSIVE', 'THIRD_PARTY'],
+            default: null,
+          },
+          coveredPerils: {
+            type: [
+              {
+                type: String,
+                enum: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
+              },
+            ],
+            default: [],
+          },
+          deductibleAmount: {
+            type: Number,
+            min: 0,
+            default: null,
+          },
+          capturedAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+
     // ── Status & Lifecycle ──────────────────────────────────────────
     status: {
       type: String,

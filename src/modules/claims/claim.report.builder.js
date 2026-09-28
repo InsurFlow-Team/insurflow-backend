@@ -349,6 +349,16 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
             { text: 'Policy Coverage', bold: true, style: 'labelCell' },
             { text: policy?.startDate && policy?.expiryDate ? `${formatDate(policy.startDate)} to ${formatDate(policy.expiryDate)}` : 'N/A', style: 'valueCell' },
           ],
+          ...(claim.coverageSnapshot?.policyType
+            ? [
+                [
+                  { text: 'Coverage at Intake', bold: true, style: 'labelCell' },
+                  { text: claim.coverageSnapshot.policyType === 'COMPREHENSIVE' ? 'Comprehensive (شامل)' : 'Third-Party (ضد الغير)', style: 'valueCell' },
+                  { text: 'Intake Deductible', bold: true, style: 'labelCell' },
+                  { text: claim.coverageSnapshot.deductibleAmount !== null && claim.coverageSnapshot.deductibleAmount !== undefined ? `${claim.coverageSnapshot.deductibleAmount}` : 'N/A', style: 'valueCell' },
+                ],
+              ]
+            : []),
         ],
       },
       layout: 'lightHorizontalLines',
