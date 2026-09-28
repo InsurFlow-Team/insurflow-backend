@@ -410,6 +410,82 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.data.customer.fullName).toBe('Ahmad Ali');
   });
 
+  it('should verify policy by plateNumber only (TPL-4000) with incidentType returning NOT_COVERED_BY_POLICY_TYPE and policyType THIRD_PARTY', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ plateNumber: 'TPL-4000', incidentType: 'COLLISION' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+    expect(res.body.data.policy.policyType).toBe('THIRD_PARTY');
+    expect(res.body.data.policy.coveredPerils).toEqual([]);
+    expect(res.body.data.policy.deductibleAmount).toBe(0);
+    expect(res.body.data.vehicle.plateNumber).toBe('TPL-4000');
+  });
+
+  it('should verify policy by plateNumber only (ABC-1234) with incidentType returning ELIGIBLE_FOR_REVIEW and deductibleAmount 500', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ plateNumber: 'ABC-1234', incidentType: 'COLLISION' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+    expect(res.body.data.policy.policyType).toBe('COMPREHENSIVE');
+    expect(res.body.data.policy.deductibleAmount).toBe(500);
+    expect(res.body.data.policy.coveredPerils).toEqual([
+      'COLLISION',
+      'THEFT',
+      'FIRE',
+      'NATURAL_DISASTER',
+    ]);
+    expect(res.body.data.vehicle.plateNumber).toBe('ABC-1234');
+  });
+
+  it('should verify policy by plateNumber only with legacy policy returning COVERAGE_UNKNOWN', async () => {
+    const rawLegacyPolicyId = new mongoose.Types.ObjectId();
+    await Policy.collection.insertOne({
+      _id: rawLegacyPolicyId,
+      policyNumber: 'POL-V-LEG-PLATE',
+      status: 'ACTIVE',
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
+      organizationId: org1._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await Vehicle.create({
+      plateNumber: 'LEG-1234',
+      make: 'Nissan',
+      model: 'Sunny',
+      year: 2020,
+      color: 'Black',
+      customerId: customer1._id,
+      policyId: rawLegacyPolicyId,
+      organizationId: org1._id,
+    });
+
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ plateNumber: 'LEG-1234', incidentType: 'COLLISION' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+    expect(res.body.data.policy.policyType).toBeNull();
+    expect(res.body.data.policy.coveredPerils).toEqual([]);
+    expect(res.body.data.policy.deductibleAmount).toBeNull();
+    expect(res.body.data.vehicle.plateNumber).toBe('LEG-1234');
+  });
+
   it('should return 404 when verifying by non-existent plateNumber', async () => {
     const res = await request(app)
       .post('/api/v1/policies/verify')

@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20, 21 (Dashboard Notification Center) Completed & Mobile Integration Ready** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 428 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 431 Tests - 100% Pass)** |
 
 ---
 
@@ -106,7 +106,7 @@
   - **Coverage Snapshot & Eligibility Hint:** Returns `policyType` (`COMPREHENSIVE` | `THIRD_PARTY`), `coveredPerils`, and `deductibleAmount`. Accepts optional `incidentType` (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`) and returns `eligibilityHint` (`ELIGIBLE_FOR_REVIEW`, `NOT_COVERED_BY_POLICY_TYPE`, `COVERAGE_UNKNOWN`, or `null`).
   - **Own-Damage Domain Scope:** `coveredPerils` strictly models physical own-damage perils for the insured vehicle; `THIRD_PARTY` covers third-party liability only and excludes own damage with advisory hint: "الضرر الذاتي غير مشمول".
   - **Idempotent Migration Script (`src/scripts/migrateLegacyPolicies.js`):** Default dry-run mode, `--apply` requirement, masked host/db logging, safely backfills `THIRD_PARTY`, `coveredPerils: []`, `deductibleAmount: 0`.
-  - Dedicated 36 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **28 Suites / 428 Tests (100% Pass Rate)**.
+  - Dedicated 39 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **28 Suites / 431 Tests (100% Pass Rate)**.
 - [x] **Dashboard Notification Center (Feature 21 Completed & Verified):**
   - Notification persistence model updated with `readAt: Date` (default `null`) replacing boolean `read`, type enum extended to 8 types, and compound index `{ organizationId: 1, recipientId: 1, readAt: 1 }`.
   - In-app notification center endpoints for all authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`):
