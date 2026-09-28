@@ -1,6 +1,6 @@
 # InsurFlow — Current Project State & Progress Tracking
 
-> **Last Updated:** 2026-09-25  
+> **Last Updated:** 2026-09-28  
 > **Document Purpose:** Single source of truth for current project status, completed work, active blockers, and immediate next steps. Consult this document at the start of any new session or task.
 
 ---
@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20, 21 (Dashboard Notification Center) Completed & Mobile Integration Ready** |
+| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-21 & Financial Loss Assessment (Feature 22) Completed** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 431 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (30 Suites / 456 Tests - 100% Pass)** |
 
 ---
 
@@ -107,6 +107,20 @@
   - **Own-Damage Domain Scope:** `coveredPerils` strictly models physical own-damage perils for the insured vehicle; `THIRD_PARTY` covers third-party liability only and excludes own damage with advisory hint: "الضرر الذاتي غير مشمول".
   - **Idempotent Migration Script (`src/scripts/migrateLegacyPolicies.js`):** Default dry-run mode, `--apply` requirement, masked host/db logging, safely backfills `THIRD_PARTY`, `coveredPerils: []`, `deductibleAmount: 0`.
   - Dedicated 39 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **28 Suites / 431 Tests (100% Pass Rate)**.
+- [x] **Claim Intake Coverage Snapshot Subdocument (Feature 20 Extension / Commit 1 Completed):**
+  - Stored immutable `coverageSnapshot` (`policyType`, `coveredPerils`, `deductibleAmount`, `capturedAt`) inside `Claim` subdocument populated automatically during claim creation (`createClaim`).
+  - Added coverage snapshot header block to PDF claim report (`GET /claims/:claimId/report`).
+  - Fully verified across automated tests (`tests/claim.coverageSnapshot.test.js`).
+- [x] **Financial Loss Assessment Adjudication & Feature Flag Guard (Feature 22 / Commit 2 Completed):**
+  - Integrated `lossAssessment` subdocument schema (`estimatedPartsCost`, `laborCost`, `totalDamage`, `policyDeductible`, `deductibleApplied`, `deductibleOverrideReason`, `netApprovedPayout`, `assessedAt`, `assessedBy`) into `Claim`.
+  - Financial adjudication in `POST /claims/:claimId/decision` when `decision === 'APPROVED'`.
+  - Feature flag `REQUIRE_LOSS_ASSESSMENT` in `src/config/env.js`: when false, allows approval without `lossAssessment` and maintains backwards compatibility for all 4 legacy decision test suites; when true, mandates `lossAssessment` input.
+  - Strict validation: numbers must be JSON numeric primitives (`.strict()`), max 2 decimal places, bounds `[0, 1000000]`, and rejection of unrecognized/computed keys (e.g. `netApprovedPayout`, `totalDamage`).
+  - Strict tenant-scoped pre-read helper `handleClaimNotFoundOrStateError` (404 `CLAIM_NOT_FOUND`, 409 `INVALID_STATUS_TRANSITION`) used exclusively in `APPROVED` branch; zero extra queries on `REJECTED`.
+  - Deductible hierarchy: snapshot deductible -> fallback to live policy query only when snapshot is null -> 0.
+  - Integer cents arithmetic (`Math.round(amount * 100)`), 422 `DAMAGE_BELOW_DEDUCTIBLE` validation when `totalDamage <= deductibleApplied` with zero database mutation.
+  - Formatted Section 8 "Financial Loss Assessment" table in PDF report dossier (`claim.report.builder.js`) with configured currency (`ILS`).
+  - 20 comprehensive integration tests in `tests/claim.lossAssessment.test.js`, bringing total test count to **30 Suites / 456 Tests (100% Pass Rate)**.
 - [x] **Dashboard Notification Center (Feature 21 Completed & Verified):**
   - Notification persistence model updated with `readAt: Date` (default `null`) replacing boolean `read`, type enum extended to 8 types, and compound index `{ organizationId: 1, recipientId: 1, readAt: 1 }`.
   - In-app notification center endpoints for all authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`):

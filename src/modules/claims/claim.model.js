@@ -269,6 +269,59 @@ const claimSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ── Loss Assessment (populated upon approval) ────────────────────
+    lossAssessment: {
+      type: new mongoose.Schema(
+        {
+          estimatedPartsCost: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          laborCost: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          totalDamage: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          policyDeductible: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          deductibleApplied: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          deductibleOverrideReason: {
+            type: String,
+            default: null,
+          },
+          netApprovedPayout: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          assessedAt: {
+            type: Date,
+            default: Date.now,
+          },
+          assessedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+          },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+
     // ── Audit Timeline ───────────────────────────────────────────────
     timeline: {
       type: [timelineEventSchema],

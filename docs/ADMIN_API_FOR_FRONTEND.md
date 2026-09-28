@@ -566,6 +566,8 @@
   10. **القرار والإغلاق:** `decisionNotes`, `closedBy`, `closedAt`, `closingNotes`
   11. **سجل الأحداث:** `timeline[]` — كل حدث يحتوي `performedBy: { id, name, employeeCode, role }`
   12. **منشئ المطالبة:** `createdBy: { id, name, employeeCode }`
+  13. **لقطة التغطية التأمينية:** `coverageSnapshot: { policyType, coveredPerils[], deductibleAmount, capturedAt }` (أو `null`)
+  14. **التقييم المالي والتعويض:** `lossAssessment: { estimatedPartsCost, laborCost, totalDamage, policyDeductible, deductibleApplied, deductibleOverrideReason, netApprovedPayout, currency, assessedAt, assessedBy }` (أو `null`)
 * **Success Response (200 OK):**
   ```json
   {
@@ -671,38 +673,83 @@
         "id": "6a91ab09c9ff1dc54fabf15d",
         "name": "Sara Khan",
         "employeeCode": "CO-001"
-      }
+      },
+      "coverageSnapshot": {
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT"],
+        "deductibleAmount": 500,
+        "capturedAt": "2026-08-26T15:00:00.000Z"
+      },
+      "lossAssessment": null
     }
   }
   ```
 * **ملاحظة مهمة:** جميع مراجع المستخدمين (المعاين، الموظف، المنشئ) يتم إرجاعها ككائنات `{ id, name, employeeCode }` — لا حاجة لطلبات بحث إضافية.
 
 
-### 3.4 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision)
+### 3.4 اعتماد أو رفض المطالبة (Approve / Reject Claim Decision with Loss Assessment)
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decision`
-* **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
-* **الشرط البرمجي:** تظهر أزرار الاعتماد/الرفض في الواجهة **فقط عندما تكون حالة المطالبة `UNDER_REVIEW`**.
-* **Request Body:**
+* **Headers:** `Authorization: Bearer <ADMIN_TOKEN>` أو `<CLAIMS_OFFICER_TOKEN>`
+* **الشرط البرمجي:** تظهر واجهة القرار والتقييم المالي **فقط عندما تكون حالة المطالبة `UNDER_REVIEW`**.
+* **تعليمات صارمة للفرونت إند (Frontend Rules):**
+  1. **الأرقام المالية JSON Numbers فقط:** يجب إرسال القيم المالية (`estimatedPartsCost`, `laborCost`, `deductibleApplied`) كأرقام رقمية بحتة (مثل `12.5` أو `800`) وليس كنصوص أبداً مثل `"12.50"` أو `"800"`. الخادم يطبق فحصاً صارماً (`.strict()`) ويرفض النصوص بـ `400 Bad Request`. احرصوا على تحويل مخرجات عناصر الإدخال عبر `parseFloat` أو `Number` قبل إرسال كائن الـ JSON.
+  2. **الحد الأقصى للمنازل العشرية:** خانتان عشريتان كحد أقصى (مثلاً `12.50` مقبول كـ `12.5`، بينما `12.345` يُرفض بـ `400`).
+  3. **عدم إرسال الحقول المحسوبة:** لا ترسلوا أي حقل يتم حسابه تلقائياً في السيرفر مثل `totalDamage` أو `netApprovedPayout` أو `policyDeductible` أو `assessedBy`. الخادم يرفض أي مفتاح غير معروف داخل `lossAssessment` بـ `400 VALIDATION_ERROR`.
+  4. **المفاتيح الأربعة المسموحة فقط داخل `lossAssessment`:**
+     - `estimatedPartsCost` (إلزامي، رقم $\ge 0$)
+     - `laborCost` (إلزامي، رقم $\ge 0$)
+     - `deductibleApplied` (اختياري، رقم $\ge 0$ — إن لم يُرسل يُعتمد تحمل الوثيقة تلقائياً)
+     - `deductibleOverrideReason` (إلزامي إذا وفقط إذا اختلف `deductibleApplied` عن تحمل الوثيقة، نص بين 5 و 300 حرف)
+  5. **مسار الرفض (REJECTED):** في حال كان القرار `REJECTED` يُمنع منعاً باتاً إرسال كائن `lossAssessment` في الطلب (إرساله يسبب رفض الطلب بـ `400`).
+* **Request Body (حالة الاعتماد مع التقييم المالي):**
   ```json
   {
     "decision": "APPROVED",
-    "notes": "تمت مراجعة تقدير الأضرار والموافقة على التعويض."
+    "notes": "تمت مراجعة تقدير الأضرار والموافقة على التعويض.",
+    "lossAssessment": {
+      "estimatedPartsCost": 1200.0,
+      "laborCost": 800.0,
+      "deductibleApplied": 500.0,
+      "deductibleOverrideReason": null
+    }
   }
   ```
-  *(أو `"decision": "REJECTED"` في حال الرفض)*
+* **Request Body (حالة الرفض):**
+  ```json
+  {
+    "decision": "REJECTED",
+    "notes": "الأضرار لا تتطابق مع تفاصيل الحادث المصرح بها."
+  }
+  ```
 * **Success Response (200 OK):**
   ```json
   {
     "success": true,
-    "message": "Claim decision recorded successfully",
+    "message": "Decision recorded successfully",
     "data": {
       "id": "6a91ab09c9ff1dc54fabf15b",
       "claimNumber": "CLM-2026-0001",
       "status": "APPROVED",
-      "decisionNotes": "تمت مراجعة تقدير الأضرار والموافقة على التعويض."
+      "decisionNotes": "تمت مراجعة تقدير الأضرار والموافقة على التعويض.",
+      "lossAssessment": {
+        "estimatedPartsCost": 1200.0,
+        "laborCost": 800.0,
+        "totalDamage": 2000.0,
+        "policyDeductible": 500.0,
+        "deductibleApplied": 500.0,
+        "deductibleOverrideReason": null,
+        "netApprovedPayout": 1500.0,
+        "currency": "ILS",
+        "assessedAt": "2026-09-28T13:27:13.000Z",
+        "assessedBy": "6a91ab09c9ff1dc54fabf15d"
+      }
     }
   }
   ```
+* **أكواد الأخطاء الخاصة بالواجهة:**
+  * `422 Unprocessable Entity`: كود الخطأ `DAMAGE_BELOW_DEDUCTIBLE` عندما يكون مجموع الأضرار (`totalDamage`) أقل من أو يساوي مبلغ التحمل المطبق (`deductibleApplied`). في هذه الحالة **لا يتم تعديل حالة المطالبة وتبقى `UNDER_REVIEW`**.
+  * `400 Bad Request`: كود `VALIDATION_ERROR` عند إرسال نصوص في الحقول المالية، أو منازل عشرية تزيد عن 2، أو حقول مجهولة (مثل `totalDamage` أو `netApprovedPayout`)، أو عند تعديل التحمل دون سبب مبرر (أقل من 5 أحرف)، أو إرسال تقييم مالي مع قرار الرفض.
+  * `409 Conflict`: كود `INVALID_STATUS_TRANSITION` إذا لم تكن المطالبة في حالة `UNDER_REVIEW` (أو عند حدوث تضارب تزامن).
 
 ---
 

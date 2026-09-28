@@ -235,6 +235,18 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
   - Claim must be in status **`UNDER_REVIEW`**.
   - Accepts `decision` (`APPROVED` or `REJECTED`) and optional `notes`.
   - Transitions status to **`APPROVED`** or **`REJECTED`**.
+- **Rule BR-DECISION-ASSESS (Financial Loss Assessment & Deductible Calculation):**
+  - **Financial Adjudication:** Upon claim approval (`APPROVED`), claims officers specify repair estimates: `estimatedPartsCost` ($\ge 0$) and `laborCost` ($\ge 0$).
+  - **Deductible Resolution Hierarchy:**
+    1. Resolved primarily from immutable `claim.coverageSnapshot.deductibleAmount` (0 extra queries).
+    2. Fallback to live policy query (`policy.deductibleAmount`) occurs only if the snapshot is missing/null (legacy claims).
+    3. Safe default of `0` if policy or deductible cannot be resolved.
+  - **Deductible Override:** If `deductibleApplied` differs from policy deductible, a non-empty `deductibleOverrideReason` (5–300 chars) is mandatory. If equal, reason is stored as `null`.
+  - **Damage Below Deductible Invariant:** If `totalDamage <= deductibleApplied`, the server rejects with `HTTP 422 Unprocessable Entity` (`DAMAGE_BELOW_DEDUCTIBLE`). The claim remains `UNDER_REVIEW`, no financial record is created, and no audit event is added.
+  - **Integer Cents Precision:** All financial calculations (`totalDamage`, `deductibleApplied`, `netApprovedPayout`) are calculated using integer cents arithmetic (`Math.round(amount * 100)`), preventing floating-point imprecision.
+  - **Strict Field Validation:** Rejects string numbers (e.g. `"12.50"`), values with > 2 decimal places, amounts > 1,000,000, or unknown keys (`totalDamage`, `netApprovedPayout`, `policyDeductible`, `assessedBy`) with `400 VALIDATION_ERROR`.
+  - **Rejection Exclusivity:** When `decision === 'REJECTED'`, `lossAssessment` is forbidden. Rejection performs zero pre-read and directly updates state atomically.
+  - **Feature Flag Control:** Controlled by runtime feature flag `REQUIRE_LOSS_ASSESSMENT`. Defaults to `false` (allowing legacy approval payloads), and when `true`, mandates `lossAssessment` on all approvals.
 
 ---
 

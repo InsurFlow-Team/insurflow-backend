@@ -7,7 +7,8 @@ Key operational characteristics:
 1. **Source State:** Claims must currently be in status **`UNDER_REVIEW`**.
 2. **Terminal Decisions:** Claims can transition to **`APPROVED`** or **`REJECTED`**.
 3. **Authorized Roles (Ratified):** Both **`CLAIMS_OFFICER`** and **`ADMIN`** hold adjudication authority.
-4. **Concurrency Safety:** Simultaneous conflicting decisions (e.g. concurrent approval vs rejection) are resolved atomically: exactly one succeeds; competing requests fail with `409 Conflict`.
+4. **Financial Adjudication (`lossAssessment`):** When approving a claim (`APPROVED`), financial loss assessment parameters (`estimatedPartsCost`, `laborCost`, `deductibleApplied`, `deductibleOverrideReason`) are calculated and recorded. Controlled via feature flag `REQUIRE_LOSS_ASSESSMENT`.
+5. **Concurrency Safety:** Simultaneous conflicting decisions (e.g. concurrent approval vs rejection) are resolved atomically: exactly one succeeds; competing requests fail with `409 Conflict`.
 
 ---
 
@@ -25,31 +26,39 @@ router.post(
 );
 ```
 
-### Atomic Repository Query
-Implemented in [src/modules/claims/claim.repository.js:L118-L127](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.repository.js#L118-L127):
+### Pre-Read and Error Discrimination Helper
+In the `APPROVED` branch, a scoped pre-read queries the claim within the tenant organization before performing financial calculations (`coverageSnapshot`, `policyId`). Error handling is unified in `handleClaimNotFoundOrStateError`:
 ```javascript
-const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent) => {
-  return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'UNDER_REVIEW' },
-    {
-      $set: { status: decision, decisionNotes },
-      $push: { timeline: timelineEvent },
-    },
-    { new: true }
-  ).lean();
-};
-```
-
-### Fallback Error Discrimination
-If the atomic update matches zero documents, the service in [src/modules/claims/claim.service.js:L340-L347](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.service.js#L340-L347) discriminates between non-existence and state mismatch:
-```javascript
-if (!updatedClaim) {
+const handleClaimNotFoundOrStateError = async (claimId, organizationId) => {
   const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
   if (!existing) {
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
   }
   throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
-}
+};
+```
+- In the `REJECTED` branch: Zero pre-read is performed; the atomic update executes immediately.
+- In the `APPROVED` branch: The pre-read uses `handleClaimNotFoundOrStateError` if the claim does not exist or status is not `UNDER_REVIEW`. The atomic filter on `UNDER_REVIEW` remains the final concurrent defense.
+
+### Atomic Repository Query
+Implemented in [src/modules/claims/claim.repository.js:L118-L135](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.repository.js#L118-L135):
+```javascript
+const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent, lossAssessmentDoc = null) => {
+  const updateDoc = {
+    $set: { status: decision, decisionNotes },
+    $push: { timeline: timelineEvent },
+  };
+
+  if (lossAssessmentDoc) {
+    updateDoc.$set.lossAssessment = lossAssessmentDoc;
+  }
+
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'UNDER_REVIEW' },
+    updateDoc,
+    { new: true }
+  ).lean();
+};
 ```
 
 ---
@@ -60,16 +69,30 @@ if (!updatedClaim) {
 * **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`.
 * **Authentication:** Required (JWT).
 * **URL Parameters:** `claimId` (24-character hexadecimal ObjectId).
-* **Request Body:**
+* **Request Body (Approval with Loss Assessment):**
   ```json
   {
     "decision": "APPROVED",
-    "notes": "Police report and damage photographs match coverage requirements."
+    "notes": "Police report and damage photographs match coverage requirements.",
+    "lossAssessment": {
+      "estimatedPartsCost": 4500.50,
+      "laborCost": 1200.00,
+      "deductibleApplied": 500.00,
+      "deductibleOverrideReason": "Waived 50% per promotional campaign"
+    }
   }
   ```
 * **Validation Rules:**
   * `decision`: Required enum: `'APPROVED'` or `'REJECTED'`.
   * `notes`: Optional string, trimmed.
+  * `lossAssessment`:
+    * Prohibited when `decision === 'REJECTED'` (triggers 400).
+    * Optional when `REQUIRE_LOSS_ASSESSMENT=false`; mandatory when `REQUIRE_LOSS_ASSESSMENT=true`.
+    * Unknown keys strictly forbidden (`.unknown(false)` — triggers 400).
+    * `estimatedPartsCost`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, required.
+    * `laborCost`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, required.
+    * `deductibleApplied`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, optional.
+    * `deductibleOverrideReason`: String, trimmed, min 5, max 300 chars, required if `deductibleApplied !== policyDeductible`.
 * **Success Response (200 OK):**
   ```json
   {
@@ -79,16 +102,32 @@ if (!updatedClaim) {
       "id": "60d0fe4f5311236168a109cc",
       "claimNumber": "CLM-INS-0001",
       "status": "APPROVED",
-      "decisionNotes": "Police report and damage photographs match coverage requirements."
+      "decisionNotes": "Police report and damage photographs match coverage requirements.",
+      "lossAssessment": {
+        "estimatedPartsCost": 4500.50,
+        "laborCost": 1200.00,
+        "totalDamage": 5700.50,
+        "policyDeductible": 1000.00,
+        "deductibleApplied": 500.00,
+        "deductibleOverrideReason": "Waived 50% per promotional campaign",
+        "netApprovedPayout": 5200.50,
+        "assessedAt": "2026-09-28T14:30:00.000Z",
+        "assessedBy": {
+          "id": "60d0fe4f5311236168a109bb",
+          "name": "Sarah Officer",
+          "employeeCode": "EMP-002"
+        }
+      }
     }
   }
   ```
-* **Error Responses:**
-  * `400 Bad Request`: `VALIDATION_ERROR` (missing decision or invalid value).
+  * `400 Bad Request`: `VALIDATION_ERROR` (missing decision, invalid value, non-numeric strings, unknown keys, or invalid decimal places).
   * `401 Unauthorized`: Unauthenticated.
   * `403 Forbidden`: Authenticated user is a `FIELD_ADJUSTER`.
   * `404 Not Found`: `CLAIM_NOT_FOUND` (claim does not exist or belongs to another tenant).
   * `409 Conflict`: `INVALID_STATUS_TRANSITION` (claim is not in `UNDER_REVIEW`).
+  * `422 Unprocessable Entity`: `DAMAGE_BELOW_DEDUCTIBLE` (when `totalDamage <= deductibleApplied`).
+  * `422 Unprocessable Entity`: `OVERRIDE_REASON_REQUIRED` (when `deductibleApplied !== policyDeductible` without valid reason).
 
 ---
 

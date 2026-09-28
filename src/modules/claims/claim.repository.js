@@ -68,6 +68,7 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
     .populate('vehicle.customerId', 'fullName phone')
     .populate('evidence.uploadedBy', 'name employeeCode')
     .populate('timeline.performedBy', 'name employeeCode role')
+    .populate('lossAssessment.assessedBy', 'name employeeCode role')
     .lean();
 };
 
@@ -80,6 +81,7 @@ const findForReport = async (claimId, organizationId) => {
     .populate('signature.capturedBy', 'name employeeCode role')
     .populate('evidence.uploadedBy', 'name employeeCode role')
     .populate('timeline.performedBy', 'name employeeCode role')
+    .populate('lossAssessment.assessedBy', 'name employeeCode role')
     .lean();
 };
 
@@ -186,11 +188,18 @@ const requestCorrection = async (claimId, organizationId, timelineEvent) => {
   ).lean();
 };
 
-const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent) => {
+const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent, lossAssessmentDoc = null) => {
+  const updateFields = {
+    status: decision,
+    decisionNotes,
+  };
+  if (lossAssessmentDoc) {
+    updateFields.lossAssessment = lossAssessmentDoc;
+  }
   return await Claim.findOneAndUpdate(
     { _id: claimId, organizationId, status: 'UNDER_REVIEW' },
     {
-      $set: { status: decision, decisionNotes },
+      $set: updateFields,
       $push: { timeline: timelineEvent },
     },
     { returnDocument: 'after' }

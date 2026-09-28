@@ -402,11 +402,37 @@ Valid status transitions (enforced by the Backend):
         "id": "officer-uuid",
         "name": "Sara Khan",
         "employeeCode": "CO-001"
+      },
+
+      "coverageSnapshot": {
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT"],
+        "deductibleAmount": 500,
+        "capturedAt": "2026-08-26T15:00:00.000Z"
+      },
+
+      "lossAssessment": {
+        "estimatedPartsCost": 1200.0,
+        "laborCost": 800.0,
+        "totalDamage": 2000.0,
+        "policyDeductible": 500.0,
+        "deductibleApplied": 500.0,
+        "deductibleOverrideReason": null,
+        "netApprovedPayout": 1500.0,
+        "currency": "ILS",
+        "assessedAt": "2026-08-26T17:00:00.000Z",
+        "assessedBy": {
+          "id": "officer-uuid",
+          "name": "Sara Khan",
+          "employeeCode": "CO-001"
+        }
       }
     }
   }
   ```
 - **Response Field Notes:**
+  - `coverageSnapshot` is captured server-side at claim intake from verified policy (`null` for legacy claims).
+  - `lossAssessment` is populated when claim is adjudicated (`APPROVED`), containing financial damage figures and net approved payout (`null` if unapproved or legacy).
   - `vehicle.make`, `vehicle.model`, `vehicle.year`, `vehicle.color` are `null` until the Field Adjuster confirms a vehicle during inspection.
   - `policy` is populated from the top-level `policyId` reference set at claim creation.
   - `assignment.assignedTo`, `assignment.assignedBy` are `null` for unassigned (NEW) claims.
@@ -1042,33 +1068,78 @@ Valid status transitions (enforced by the Backend):
 - **Status Transition:** `UNDER_REVIEW` → `CORRECTION_REQUIRED`
 
 ### `POST /claims/:claimId/decision`
-- **Purpose:** Make an adjudication decision on an `UNDER_REVIEW` claim.
+- **Purpose:** Make an adjudication decision on an `UNDER_REVIEW` claim. For `APPROVED` claims, calculates financial loss assessment, deductibles, and net payout.
 - **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN`
 - **Authentication:** Required (JWT).
-- **Request Body:**
+- **Request Body (Approval with Loss Assessment):**
   ```json
   {
     "decision": "APPROVED",
-    "notes": "All documentation verified."
+    "notes": "Damage estimate confirmed by field inspection.",
+    "lossAssessment": {
+      "estimatedPartsCost": 1200.0,
+      "laborCost": 800.0,
+      "deductibleApplied": 500.0,
+      "deductibleOverrideReason": null
+    }
+  }
+  ```
+- **Request Body (Rejection):**
+  ```json
+  {
+    "decision": "REJECTED",
+    "notes": "Incident details do not match physical evidence."
   }
   ```
 - **Validation Rules:**
   - `decision`: Required, enum: `"APPROVED"`, `"REJECTED"`.
   - `notes`: Optional string.
-- **Business Rules:** Claim must belong to user's organization and currently be in `UNDER_REVIEW` status. Appends audit timeline event (`'Claim Approved'` or `'Claim Rejected'`).
-- **Success Response (200):**
+  - `lossAssessment`:
+    - **Forbidden** when `decision === "REJECTED"` (returns `400 VALIDATION_ERROR`).
+    - **Optional** when `decision === "APPROVED"` under feature flag default (`REQUIRE_LOSS_ASSESSMENT=false`).
+    - **Mandatory** when `decision === "APPROVED"` and `REQUIRE_LOSS_ASSESSMENT=true`.
+    - Strict Numeric Types: Numeric fields (`estimatedPartsCost`, `laborCost`, `deductibleApplied`) must be JSON numbers, strictly rejecting string numbers like `"12.50"` (`400 VALIDATION_ERROR`).
+    - Decimal Precision: Maximum 2 decimal places (e.g. `12.345` is rejected with `400 VALIDATION_ERROR`).
+    - Bounds: Minimum `0`, Maximum `1,000,000`.
+    - Disallowed Keys: Any unknown key (including `totalDamage`, `netApprovedPayout`, `policyDeductible`, `assessedBy`) is strictly rejected with `400 VALIDATION_ERROR`.
+    - `deductibleOverrideReason`: Required string (length 5–300 after trim) if and only if `deductibleApplied` differs from `policyDeductible`. If equal, stored as `null`.
+- **Financial Calculation & Business Rules:**
+  - **Deductible Resolution Hierarchy:**
+    1. Taken directly from `claim.coverageSnapshot.deductibleAmount` (0 extra database queries in standard flow).
+    2. If `coverageSnapshot` is null (legacy claim), falls back to live policy query (`policy.deductibleAmount`).
+    3. If live policy or deductible is missing/deleted, falls back safely to `0`.
+  - **Damage Below Deductible Invariant:** If `totalDamage <= deductibleApplied`, the request is rejected with `422 DAMAGE_BELOW_DEDUCTIBLE`. The claim state remains in `UNDER_REVIEW`, no financial record is saved, and no audit timeline event is appended.
+  - **Cents Arithmetic:** All computations are performed using integer cents (`Math.round(amount * 100)`) to eliminate binary floating point imprecision.
+- **Success Response (200 - Approval with Loss Assessment):**
   ```json
   {
     "success": true,
     "message": "Decision recorded successfully",
     "data": {
-      "id": "claim-uuid",
-      "claimNumber": "CLM-ORG-0001",
+      "id": "6aba6b317ba1dd7370dc525c",
+      "claimNumber": "CLM-ALP-0001",
       "status": "APPROVED",
-      "decisionNotes": "All documentation verified."
+      "decisionNotes": "Damage estimate confirmed by field inspection.",
+      "lossAssessment": {
+        "estimatedPartsCost": 1200.0,
+        "laborCost": 800.0,
+        "totalDamage": 2000.0,
+        "policyDeductible": 500.0,
+        "deductibleApplied": 500.0,
+        "deductibleOverrideReason": null,
+        "netApprovedPayout": 1500.0,
+        "currency": "ILS",
+        "assessedAt": "2026-09-28T13:27:13.000Z",
+        "assessedBy": "user-uuid"
+      }
     }
   }
   ```
+- **Error Responses:**
+  - `400 Bad Request`: `VALIDATION_ERROR` (invalid decision enum, string numbers, > 2 decimals, negative amounts, > 1,000,000, unknown keys in lossAssessment, missing override reason, or `lossAssessment` present on `REJECTED`).
+  - `404 Not Found`: `CLAIM_NOT_FOUND` (claim does not exist or belongs to another tenant organization).
+  - `409 Conflict`: `INVALID_STATUS_TRANSITION` (claim is not in `UNDER_REVIEW` status, or concurrent decision race lost).
+  - `422 Unprocessable Entity`: `DAMAGE_BELOW_DEDUCTIBLE` (`totalDamage <= deductibleApplied`).
 - **Status Transition:** `UNDER_REVIEW` → `APPROVED` | `REJECTED`
 
 ## 13. Admin Closure API

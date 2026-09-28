@@ -29,6 +29,11 @@ const config = {
     windowMs: parseInt(process.env.API_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes default
     max: parseInt(process.env.API_RATE_LIMIT_MAX, 10) || 300, // 300 requests default
   },
+  get requireLossAssessment() {
+    return process.env.REQUIRE_LOSS_ASSESSMENT === 'true';
+  },
+  currency: process.env.APP_CURRENCY || 'ILS',
+  maxFinancialAmount: parseInt(process.env.MAX_FINANCIAL_AMOUNT, 10) || 1000000,
 };
 
 

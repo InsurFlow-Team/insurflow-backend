@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const config = require('../../config/env');
 const { objectIdPattern } = require('../../middlewares/validate.middleware');
 
 /**
@@ -154,6 +155,65 @@ const requestCorrectionSchema = Joi.object({
   }),
 });
 
+const twoDecimalValidator = (value, helpers) => {
+  if (typeof value !== 'number') return value;
+  const str = value.toString();
+  if (str.includes('.') && str.split('.')[1].length > 2) {
+    return helpers.message('"{#label}" must have at most 2 decimal places');
+  }
+  if (Math.abs(value * 100 - Math.round(value * 100)) > 1e-6) {
+    return helpers.message('"{#label}" must have at most 2 decimal places');
+  }
+  return value;
+};
+
+const lossAssessmentInputSchema = Joi.object({
+  estimatedPartsCost: Joi.number()
+    .strict()
+    .min(0)
+    .max(config.maxFinancialAmount)
+    .custom(twoDecimalValidator)
+    .required()
+    .messages({
+      'number.base': 'estimatedPartsCost must be a valid number',
+      'number.min': 'estimatedPartsCost cannot be negative',
+      'number.max': `estimatedPartsCost cannot exceed ${config.maxFinancialAmount}`,
+      'any.required': 'estimatedPartsCost is required',
+    }),
+  laborCost: Joi.number()
+    .strict()
+    .min(0)
+    .max(config.maxFinancialAmount)
+    .custom(twoDecimalValidator)
+    .required()
+    .messages({
+      'number.base': 'laborCost must be a valid number',
+      'number.min': 'laborCost cannot be negative',
+      'number.max': `laborCost cannot exceed ${config.maxFinancialAmount}`,
+      'any.required': 'laborCost is required',
+    }),
+  deductibleApplied: Joi.number()
+    .strict()
+    .min(0)
+    .max(config.maxFinancialAmount)
+    .custom(twoDecimalValidator)
+    .optional()
+    .messages({
+      'number.base': 'deductibleApplied must be a valid number',
+      'number.min': 'deductibleApplied cannot be negative',
+      'number.max': `deductibleApplied cannot exceed ${config.maxFinancialAmount}`,
+    }),
+  deductibleOverrideReason: Joi.string()
+    .trim()
+    .min(5)
+    .max(300)
+    .optional()
+    .messages({
+      'string.min': 'deductibleOverrideReason must be at least 5 characters',
+      'string.max': 'deductibleOverrideReason cannot exceed 300 characters',
+    }),
+}).unknown(false);
+
 /**
  * Validation schema for POST /claims/:claimId/decision
  * Transitions: UNDER_REVIEW → APPROVED | REJECTED
@@ -168,6 +228,13 @@ const decisionSchema = Joi.object({
       'any.required': 'Decision is required',
     }),
   notes: Joi.string().trim().optional().allow('', null),
+  lossAssessment: Joi.when('decision', {
+    is: 'REJECTED',
+    then: Joi.forbidden().messages({
+      'any.unknown': 'lossAssessment is not allowed when decision is REJECTED',
+    }),
+    otherwise: lossAssessmentInputSchema.optional(),
+  }),
 });
 
 /**

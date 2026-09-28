@@ -1,5 +1,6 @@
 const pdfMake = require('pdfmake');
 const robotoFonts = require('pdfmake/fonts/Roboto');
+const config = require('../../config/env');
 
 // Register fonts and security access policies once
 pdfMake.addFonts(robotoFonts);
@@ -432,10 +433,53 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
     },
   ];
 
+  // ── 8. Loss Assessment Financial Table (Only if present) ──
+  if (claim.lossAssessment) {
+    const la = claim.lossAssessment;
+    const currency = config.currency || 'ILS';
+    const assessorName = la.assessedBy?.name || deciderName || 'Claims Officer';
+    const assessorCode = la.assessedBy?.employeeCode ? ` (${la.assessedBy.employeeCode})` : '';
+
+    const financialBody = [
+      [{ text: 'Estimated Parts Cost', bold: true, style: 'labelCell' }, { text: `${la.estimatedPartsCost != null ? la.estimatedPartsCost.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Labor Cost', bold: true, style: 'labelCell' }, { text: `${la.laborCost != null ? la.laborCost.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Total Assessed Damage', bold: true, style: 'labelCell' }, { text: `${la.totalDamage != null ? la.totalDamage.toFixed(2) : '0.00'} ${currency}`, bold: true, style: 'valueCell' }],
+      [{ text: 'Policy Deductible', bold: true, style: 'labelCell' }, { text: `${la.policyDeductible != null ? la.policyDeductible.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Deductible Applied', bold: true, style: 'labelCell' }, { text: `${la.deductibleApplied != null ? la.deductibleApplied.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
+    ];
+
+    if (la.deductibleOverrideReason) {
+      financialBody.push([
+        { text: 'Deductible Override Reason', bold: true, style: 'labelCell' },
+        { text: la.deductibleOverrideReason, style: 'valueCell' },
+      ]);
+    }
+
+    financialBody.push(
+      [{ text: 'Net Approved Payout', bold: true, style: 'labelCell' }, { text: `${la.netApprovedPayout != null ? la.netApprovedPayout.toFixed(2) : '0.00'} ${currency}`, bold: true, color: '#16a34a', style: 'valueCell' }],
+      [{ text: 'Assessed By', bold: true, style: 'labelCell' }, { text: `${assessorName}${assessorCode}`, style: 'valueCell' }],
+      [{ text: 'Assessed At', bold: true, style: 'labelCell' }, { text: formatDate(la.assessedAt), style: 'valueCell' }]
+    );
+
+    content.push(
+      { text: '8. Financial Loss Assessment', style: 'sectionHeader' },
+      {
+        table: {
+          widths: ['35%', '65%'],
+          body: financialBody,
+        },
+        layout: 'lightHorizontalLines',
+        margin: [0, 4, 0, 12],
+      }
+    );
+  }
+
+  let nextSectionIndex = claim.lossAssessment ? 9 : 8;
+
   // ── 9. Closure Block (Only if CLOSED) ──
   if (claim.status === 'CLOSED') {
     content.push(
-      { text: '8. Claim Closure', style: 'sectionHeader' },
+      { text: `${nextSectionIndex}. Claim Closure`, style: 'sectionHeader' },
       {
         table: {
           widths: ['25%', '75%'],
@@ -452,12 +496,12 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
         margin: [0, 4, 0, 12],
       }
     );
+    nextSectionIndex++;
   }
 
   // ── 10. Full Timeline Audit Trail ──
-  const auditSectionNumber = claim.status === 'CLOSED' ? '9' : '8';
   content.push(
-    { text: `${auditSectionNumber}. Timeline Audit Trail`, style: 'sectionHeader' },
+    { text: `${nextSectionIndex}. Timeline Audit Trail`, style: 'sectionHeader' },
     {
       table: {
         headerRows: 1,

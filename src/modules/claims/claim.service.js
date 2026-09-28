@@ -9,6 +9,7 @@ const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
+const config = require('../../config/env');
 
 
 const createClaim = async (body, authUser) => {
@@ -358,6 +359,22 @@ const getClaimById = async (claimId, authUser) => {
           coveredPerils: claim.coverageSnapshot.coveredPerils ?? [],
           deductibleAmount: claim.coverageSnapshot.deductibleAmount ?? null,
           capturedAt: claim.coverageSnapshot.capturedAt ?? null,
+        }
+      : null,
+
+    // ── 14. Loss Assessment (financial adjudication) ─────────────
+    lossAssessment: claim.lossAssessment
+      ? {
+          estimatedPartsCost: claim.lossAssessment.estimatedPartsCost,
+          laborCost: claim.lossAssessment.laborCost,
+          totalDamage: claim.lossAssessment.totalDamage,
+          policyDeductible: claim.lossAssessment.policyDeductible,
+          deductibleApplied: claim.lossAssessment.deductibleApplied,
+          deductibleOverrideReason: claim.lossAssessment.deductibleOverrideReason ?? null,
+          netApprovedPayout: claim.lossAssessment.netApprovedPayout,
+          currency: config.currency,
+          assessedAt: claim.lossAssessment.assessedAt,
+          assessedBy: formatUser(claim.lossAssessment.assessedBy),
         }
       : null,
   };
@@ -874,6 +891,17 @@ const startReview = async (claimId, authUser) => {
   return { status: updatedClaim.status };
 };
 
+const handleClaimNotFoundOrStateError = async (claimId, organizationId) => {
+  const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!existing) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+  if (existing.status !== 'UNDER_REVIEW') {
+    throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+  return existing;
+};
+
 const requestCorrection = async (claimId, body, authUser) => {
   const { notes } = body;
   const { userId, role, organizationId } = authUser;
@@ -891,14 +919,8 @@ const requestCorrection = async (claimId, body, authUser) => {
   const updatedClaim = await claimRepository.requestCorrection(claimId, organizationId, timelineEvent);
 
   if (!updatedClaim) {
-    // Atomic query failed: check if claim exists to give specific error
-    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
-    if (!existing) {
-      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
-    }
-    throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
+    await handleClaimNotFoundOrStateError(claimId, organizationId);
   }
-
   try {
     await createAndSendNotification({
       recipientId: updatedClaim.assignedTo,
@@ -916,50 +938,33 @@ const requestCorrection = async (claimId, body, authUser) => {
 };
 
 const decideClaim = async (claimId, body, authUser) => {
-  const { decision, notes } = body;
+  const { decision, notes, lossAssessment } = body;
   const { userId, role, organizationId } = authUser;
 
-  const timelineEvent = {
-    action: decision === 'APPROVED' ? 'Claim Approved' : 'Claim Rejected',
-    previousStatus: 'UNDER_REVIEW',
-    newStatus: decision,
-    notes: notes || null,
-    performedBy: userId,
-    role,
-    timestamp: new Date(),
-  };
+  // ── REJECTED Branch: zero pre-read, atomic update directly ─────────
+  if (decision === 'REJECTED') {
+    const timelineEvent = {
+      action: 'Claim Rejected',
+      previousStatus: 'UNDER_REVIEW',
+      newStatus: 'REJECTED',
+      notes: notes || null,
+      performedBy: userId,
+      role,
+      timestamp: new Date(),
+    };
 
-  const updatedClaim = await claimRepository.makeDecision(
-    claimId,
-    organizationId,
-    decision,
-    notes || null,
-    timelineEvent
-  );
+    const updatedClaim = await claimRepository.makeDecision(
+      claimId,
+      organizationId,
+      decision,
+      notes || null,
+      timelineEvent
+    );
 
-  if (!updatedClaim) {
-    // Atomic query failed: check if claim exists to give specific error
-    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
-    if (!existing) {
-      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    if (!updatedClaim) {
+      await handleClaimNotFoundOrStateError(claimId, organizationId);
     }
-    throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
-  }
 
-  if (decision === 'APPROVED') {
-    try {
-      await createAndSendNotification({
-        recipientId: updatedClaim.assignedTo,
-        organizationId: updatedClaim.organizationId,
-        type: 'APPROVED',
-        relatedClaimId: updatedClaim._id,
-        title: 'Claim Approved',
-        body: `Claim ${updatedClaim.claimNumber} has been approved.`,
-      });
-    } catch (err) {
-      console.error('Failed to send notification for claim approval:', err);
-    }
-  } else if (decision === 'REJECTED') {
     try {
       await createAndSendNotification({
         recipientId: updatedClaim.assignedTo,
@@ -972,6 +977,120 @@ const decideClaim = async (claimId, body, authUser) => {
     } catch (err) {
       console.error('Failed to send notification for claim rejection:', err);
     }
+
+    return {
+      id: updatedClaim._id,
+      claimNumber: updatedClaim.claimNumber,
+      status: updatedClaim.status,
+      decisionNotes: updatedClaim.decisionNotes,
+    };
+  }
+
+  // ── APPROVED Branch: pre-read claim scoped to organization ─────────
+  const existingClaim = await handleClaimNotFoundOrStateError(claimId, organizationId);
+
+  // Feature flag enforcement: when REQUIRE_LOSS_ASSESSMENT=true, lossAssessment is mandatory
+  if (config.requireLossAssessment && !lossAssessment) {
+    throw new AppError('lossAssessment is required for claim approval', 400, 'VALIDATION_ERROR');
+  }
+
+  let lossAssessmentDoc = null;
+  if (lossAssessment) {
+    // Deductible resolution hierarchy:
+    // 1. Snapshot deductible if defined
+    // 2. Fallback to live policy query ONLY if snapshot is null / deductible missing
+    // 3. 0 if policy or deductible not found
+    let policyDeductible = 0;
+    if (existingClaim.coverageSnapshot && existingClaim.coverageSnapshot.deductibleAmount != null) {
+      policyDeductible = existingClaim.coverageSnapshot.deductibleAmount;
+    } else {
+      const livePolicy = await policyRepository.findByIdAndOrganization(existingClaim.policyId, organizationId);
+      policyDeductible = livePolicy?.deductibleAmount ?? 0;
+    }
+
+    // Financial calculation in integer cents to prevent floating point inaccuracies
+    const partsCents = Math.round(lossAssessment.estimatedPartsCost * 100);
+    const laborCents = Math.round(lossAssessment.laborCost * 100);
+    const totalDamageCents = partsCents + laborCents;
+    const totalDamage = totalDamageCents / 100;
+    const policyDeductibleCents = Math.round(policyDeductible * 100);
+
+    let appliedCents;
+    let deductibleApplied;
+    let deductibleOverrideReason = null;
+
+    if (lossAssessment.deductibleApplied !== undefined && lossAssessment.deductibleApplied !== null) {
+      appliedCents = Math.round(lossAssessment.deductibleApplied * 100);
+      deductibleApplied = appliedCents / 100;
+
+      if (appliedCents !== policyDeductibleCents) {
+        const reason = lossAssessment.deductibleOverrideReason ? lossAssessment.deductibleOverrideReason.trim() : '';
+        if (!reason || reason.length < 5 || reason.length > 300) {
+          throw new AppError('deductibleOverrideReason is required (between 5 and 300 characters) when deductible is overridden', 400, 'VALIDATION_ERROR');
+        }
+        deductibleOverrideReason = reason;
+      }
+    } else {
+      appliedCents = policyDeductibleCents;
+      deductibleApplied = policyDeductible;
+    }
+
+    // Pre-condition: total damage must exceed applied deductible
+    if (totalDamageCents <= appliedCents) {
+      throw new AppError('Total damage cannot be less than or equal to deductible', 422, 'DAMAGE_BELOW_DEDUCTIBLE');
+    }
+
+    const netPayoutCents = totalDamageCents - appliedCents;
+    const netApprovedPayout = netPayoutCents / 100;
+
+    lossAssessmentDoc = {
+      estimatedPartsCost: lossAssessment.estimatedPartsCost,
+      laborCost: lossAssessment.laborCost,
+      totalDamage,
+      policyDeductible,
+      deductibleApplied,
+      deductibleOverrideReason,
+      netApprovedPayout,
+      assessedAt: new Date(),
+      assessedBy: userId,
+    };
+  }
+
+  const timelineEvent = {
+    action: 'Claim Approved',
+    previousStatus: 'UNDER_REVIEW',
+    newStatus: 'APPROVED',
+    notes: notes || null,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.makeDecision(
+    claimId,
+    organizationId,
+    decision,
+    notes || null,
+    timelineEvent,
+    lossAssessmentDoc
+  );
+
+  if (!updatedClaim) {
+    // Atomic update failed (concurrency race lost)
+    await handleClaimNotFoundOrStateError(claimId, organizationId);
+  }
+
+  try {
+    await createAndSendNotification({
+      recipientId: updatedClaim.assignedTo,
+      organizationId: updatedClaim.organizationId,
+      type: 'APPROVED',
+      relatedClaimId: updatedClaim._id,
+      title: 'Claim Approved',
+      body: `Claim ${updatedClaim.claimNumber} has been approved.`,
+    });
+  } catch (err) {
+    console.error('Failed to send notification for claim approval:', err);
   }
 
   return {
@@ -979,6 +1098,20 @@ const decideClaim = async (claimId, body, authUser) => {
     claimNumber: updatedClaim.claimNumber,
     status: updatedClaim.status,
     decisionNotes: updatedClaim.decisionNotes,
+    lossAssessment: updatedClaim.lossAssessment
+      ? {
+          estimatedPartsCost: updatedClaim.lossAssessment.estimatedPartsCost,
+          laborCost: updatedClaim.lossAssessment.laborCost,
+          totalDamage: updatedClaim.lossAssessment.totalDamage,
+          policyDeductible: updatedClaim.lossAssessment.policyDeductible,
+          deductibleApplied: updatedClaim.lossAssessment.deductibleApplied,
+          deductibleOverrideReason: updatedClaim.lossAssessment.deductibleOverrideReason ?? null,
+          netApprovedPayout: updatedClaim.lossAssessment.netApprovedPayout,
+          currency: config.currency,
+          assessedAt: updatedClaim.lossAssessment.assessedAt,
+          assessedBy: updatedClaim.lossAssessment.assessedBy,
+        }
+      : null,
   };
 };
 
