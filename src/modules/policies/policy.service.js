@@ -136,16 +136,10 @@ const verifyPolicy = async (body, authUser) => {
     }
   }
 
-  // 4. Compute eligibility hint (only evaluated on ACTIVE, unexpired policy as of reference date)
+  // 4. Compute eligibility hint (only evaluated on verified, active policy when incidentType is supplied)
   let eligibilityHint = null;
-  const referenceDate = incidentDate ? new Date(incidentDate + 'T00:00:00.000Z') : now;
 
-  const isPolicyActive =
-    policy.status === 'ACTIVE' &&
-    (!policy.expiryDate || new Date(policy.expiryDate) >= referenceDate) &&
-    (!policy.startDate || new Date(policy.startDate) <= referenceDate);
-
-  if (incidentType && isPolicyActive) {
+  if (incidentType) {
     if (!policy.policyType) {
       // Legacy document missing policyType — coverage is unknown
       eligibilityHint = Policy.ELIGIBILITY_HINTS.COVERAGE_UNKNOWN;

@@ -22,9 +22,8 @@ const seedMockData = async () => {
       console.log('Created Demo Organization');
     }
 
-    // Create demo users
-    await User.deleteMany({ organizationId: organization._id });
-    await User.create([
+    // Create demo users only if they don't already exist (preserves passwords and accounts on live DB)
+    const demoUsers = [
       {
         name: 'Admin User',
         employeeCode: 'AD-001',
@@ -57,8 +56,20 @@ const seedMockData = async () => {
         organizationId: organization._id,
         status: 'ACTIVE',
       },
-    ]);
-    console.log('Created Demo Users');
+    ];
+
+    for (const u of demoUsers) {
+      const existingUser = await User.findOne({
+        organizationId: organization._id,
+        employeeCode: u.employeeCode,
+      });
+      if (!existingUser) {
+        await User.create(u);
+        console.log(`Created Demo User: ${u.employeeCode} (${u.role})`);
+      } else {
+        console.log(`Demo User ${u.employeeCode} already exists. Preserved without changes.`);
+      }
+    }
 
     // Create mock customers (idempotent upsert)
     const customersData = [
@@ -87,7 +98,7 @@ const seedMockData = async () => {
         coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
         deductibleAmount: 500,
         startDate: new Date('2025-01-01'),
-        expiryDate: new Date('2026-12-31'),
+        expiryDate: new Date('2027-12-31'),
         organizationId: organization._id,
       },
       {
@@ -97,7 +108,7 @@ const seedMockData = async () => {
         coveredPerils: [],
         deductibleAmount: 0,
         startDate: new Date('2025-01-01'),
-        expiryDate: new Date('2026-12-31'),
+        expiryDate: new Date('2027-12-31'),
         organizationId: organization._id,
       },
       {

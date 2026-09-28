@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2 & Features 18, 19, 20, 21 (Dashboard Notification Center) Completed & Mobile Integration Ready** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 425 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (28 Suites / 428 Tests - 100% Pass)** |
 
 ---
 
@@ -106,7 +106,7 @@
   - **Coverage Snapshot & Eligibility Hint:** Returns `policyType` (`COMPREHENSIVE` | `THIRD_PARTY`), `coveredPerils`, and `deductibleAmount`. Accepts optional `incidentType` (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`) and returns `eligibilityHint` (`ELIGIBLE_FOR_REVIEW`, `NOT_COVERED_BY_POLICY_TYPE`, `COVERAGE_UNKNOWN`, or `null`).
   - **Own-Damage Domain Scope:** `coveredPerils` strictly models physical own-damage perils for the insured vehicle; `THIRD_PARTY` covers third-party liability only and excludes own damage with advisory hint: "الضرر الذاتي غير مشمول".
   - **Idempotent Migration Script (`src/scripts/migrateLegacyPolicies.js`):** Default dry-run mode, `--apply` requirement, masked host/db logging, safely backfills `THIRD_PARTY`, `coveredPerils: []`, `deductibleAmount: 0`.
-  - Dedicated 33 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **28 Suites / 425 Tests (100% Pass Rate)**.
+  - Dedicated 36 integration tests (`tests/policy.verification.test.js`), bringing system test coverage to **28 Suites / 428 Tests (100% Pass Rate)**.
 - [x] **Dashboard Notification Center (Feature 21 Completed & Verified):**
   - Notification persistence model updated with `readAt: Date` (default `null`) replacing boolean `read`, type enum extended to 8 types, and compound index `{ organizationId: 1, recipientId: 1, readAt: 1 }`.
   - In-app notification center endpoints for all authenticated roles (`ADMIN`, `CLAIMS_OFFICER`, `FIELD_ADJUSTER`):
@@ -135,7 +135,7 @@
     - **Postman Collection Pruning & Sequential Intake Flow:** Standardized and organized all 69 requests into 5 clearly numbered folders: `1. Authentication & Security`, `2. User Management`, `3. Claims Lifecycle & Operations`, `4. Field Adjuster (Mobile Workflow)`, and `5. Adjuster Dispatch & Location Tracking`. Embedded collection-level variables (`URL: http://localhost:5000/`, auto-injected auth tokens, `notificationId`, and dynamic claim IDs) allowing zero-config manual and automated test execution. Both local repository collection (`InsurFlow.postman_collection.json`) and Postman Cloud workspace are 100% synchronized with unique UUIDs.
   - **Full Request Body Audit & Schema Validation:** Systematically audited all 69 requests across the collection against backend Joi schemas (`auth.validation.js`, `user.validation.js`, `claim.validation.js`, `vehicle.validation.js`, `policy.validation.js`, `notification.validation.js`). 100% of request bodies now pass validation without schema errors (`scripts/validate_all_postman_bodies.js`).
   - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`) confirming 100% coverage across all 31 routes.
-  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** End-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **28 Suites / 425 Tests (100% Pass Rate)**.
+  - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** End-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **28 Suites / 428 Tests (100% Pass Rate)**.
   - Team collaboration protocol (`docs/project/COLLABORATION_PROTOCOL.md`).
 
 ---
@@ -179,5 +179,11 @@
 | **Express 5 Query Validation Masking** | Architectural Defect (Sprint 1) | ✅ **RESOLVED:** Discovered and fixed prototype getter bug in `validate.middleware.js` using `Object.defineProperty` to ensure Joi type casting, trimming, and default values properly populate `req.query`. |
 | **Dashboard KPI Aggregation** | Functional Scope / Analytics | ✅ **RESOLVED:** Implemented `GET /claims/stats` with role-scoped envelopes (`ORGANIZATION` vs `ASSIGNED`), date filtering, and workload distribution metrics. |
 | **Final Claim Report (PDF)** | Functional Scope / Document Generation | ✅ **RESOLVED:** Implemented `GET /claims/:claimId/report` with `pdfmake`, Cloudinary image resizing, graceful degradation, and full domain hydration. |
+
+---
+
+## 5. Architectural & Testing Notes (Known Constraints)
+
+- **Test Fixture Expiry Date Notice:** All test fixtures across the automated test suites currently set policy expiration to `2026-12-31`. Because `verifyPolicy` evaluates expiration against current system time (`now > expiryDate` triggers 422 `POLICY_EXPIRED`), these automated test suites will begin failing if executed after `2026-12-31` unless test system clocks or fixture dates are updated. This is acknowledged technical debt to be addressed in future maintenance.
 
 

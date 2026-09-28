@@ -548,8 +548,8 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
   // ─────────────────────────────────────────────────────
 
   it('should reject COMPREHENSIVE policy with empty coveredPerils array in schema validation', async () => {
-    await expect(
-      Policy.create(
+    try {
+      await Policy.create(
         buildPolicyPayload({
           policyNumber: 'POL-INV-COMP',
           organizationId: org1._id,
@@ -557,13 +557,19 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
           coveredPerils: [],
           deductibleAmount: 500,
         })
-      )
-    ).rejects.toThrow();
+      );
+      throw new Error('Should have failed validation');
+    } catch (err) {
+      expect(err.name).toBe('ValidationError');
+      expect(err.errors).toBeDefined();
+      expect(err.errors.coveredPerils).toBeDefined();
+      expect(err.errors.coveredPerils.message).toContain('coveredPerils must be empty for THIRD_PARTY and non-empty for COMPREHENSIVE');
+    }
   });
 
   it('should reject THIRD_PARTY policy with non-empty coveredPerils in schema validation', async () => {
-    await expect(
-      Policy.create(
+    try {
+      await Policy.create(
         buildPolicyPayload({
           policyNumber: 'POL-INV-TP',
           organizationId: org1._id,
@@ -571,13 +577,19 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
           coveredPerils: ['COLLISION'],
           deductibleAmount: 0,
         })
-      )
-    ).rejects.toThrow();
+      );
+      throw new Error('Should have failed validation');
+    } catch (err) {
+      expect(err.name).toBe('ValidationError');
+      expect(err.errors).toBeDefined();
+      expect(err.errors.coveredPerils).toBeDefined();
+      expect(err.errors.coveredPerils.message).toContain('coveredPerils must be empty for THIRD_PARTY and non-empty for COMPREHENSIVE');
+    }
   });
 
   it('should reject invalid peril FLOOD in coveredPerils schema validation', async () => {
-    await expect(
-      Policy.create(
+    try {
+      await Policy.create(
         buildPolicyPayload({
           policyNumber: 'POL-INV-PERIL',
           organizationId: org1._id,
@@ -585,8 +597,15 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
           coveredPerils: ['FLOOD'],
           deductibleAmount: 500,
         })
-      )
-    ).rejects.toThrow();
+      );
+      throw new Error('Should have failed validation');
+    } catch (err) {
+      expect(err.name).toBe('ValidationError');
+      expect(err.errors).toBeDefined();
+      const coveredPerilsErr = err.errors.coveredPerils || err.errors['coveredPerils.0'];
+      expect(coveredPerilsErr).toBeDefined();
+      expect(coveredPerilsErr.name).toBe('ValidatorError');
+    }
   });
 
   it('should reject invalid incidentType with 400 VALIDATION_ERROR in API request', async () => {
@@ -598,6 +617,45 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('should return NOT_COVERED_BY_POLICY_TYPE for COMPREHENSIVE policy with COLLISION-only when incidentType is THEFT', async () => {
+    const collisionOnlyPolicy = await buildPolicy({
+      policyNumber: 'POL-V-COLL-ONLY',
+      status: 'ACTIVE',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      deductibleAmount: 500,
+      organizationId: org1._id,
+    });
+
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: collisionOnlyPolicy.policyNumber, incidentType: 'THEFT' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+    expect(res.body.data.policy.policyType).toBe('COMPREHENSIVE');
+    expect(res.body.data.policy.coveredPerils).toEqual(['COLLISION']);
+  });
+
+  it('should reject when incidentDate is outside policy period even if incidentType is provided', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({
+        policyNumber: 'POL-V-1000',
+        incidentDate: '2024-06-15',
+        incidentType: 'COLLISION',
+      });
+
+    // Existing behavior: rejected at date check gate before hint evaluation
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errors[0].code).toBe('POLICY_NOT_ACTIVE_ON_DATE');
   });
 
   // ─────────────────────────────────────────────────────
@@ -631,6 +689,18 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.data.policy.policyType).toBeNull();
     expect(res.body.data.policy.coveredPerils).toEqual([]);
     expect(res.body.data.policy.deductibleAmount).toBeNull();
+  });
+
+  it('should execute migrateLegacyPolicies() with no arguments as safe dry-run by default without writing anything', async () => {
+    const defaultDryRun = await migrateLegacyPolicies();
+
+    expect(defaultDryRun.isDryRun).toBe(true);
+    expect(defaultDryRun.found).toBeGreaterThanOrEqual(1);
+    expect(defaultDryRun.updated).toBe(0);
+
+    const docAfterDefaultDryRun = await Policy.collection.findOne({ _id: legacyPolicyId });
+    expect(docAfterDefaultDryRun.policyType).toBeUndefined();
+    expect(docAfterDefaultDryRun.deductibleAmount).toBeUndefined();
   });
 
   it('should execute migration script in dry-run mode without modifying legacy document', async () => {
