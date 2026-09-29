@@ -302,6 +302,16 @@ const declineAssignment = async (claimId, organizationId, assignedTo, timelineEv
   ).lean();
 };
 
+/**
+ * Finds a claim by its public tracking token.
+ * Returns only the fields safe for public (unauthenticated) exposure.
+ */
+const findByTrackingToken = async (trackingToken) => {
+  return await Claim.findOne({ trackingToken })
+    .select('claimNumber status customer.name incidentType timeline.action timeline.timestamp createdAt updatedAt')
+    .lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -324,4 +334,5 @@ module.exports = {
   closeClaim,
   getClaimStats,
   findForReport,
+  findByTrackingToken,
 };

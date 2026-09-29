@@ -290,4 +290,23 @@ Every endpoint in the system complies with the unified structure provided by `sr
   - Fired after atomic transitions: `NEW_CLAIM` (in `createClaim`), `ASSIGNMENT_DECLINED` (in `declineAssignment`), and `INSPECTION_COMPLETED` (in `submitInspection`).
   - Zero-failure isolation: each trigger call-site is wrapped in an independent `try/catch` block. Failures are logged to `console.error` and never propagate or fail caller operations.
 
-
+### 5.12 Public Claim Tracking Architecture (Feature 23)
+- **Public Routing Pipeline (`src/modules/claims/claim.public.routes.js`):**
+  - Mounted at `/api/v1/public` in `src/app.js`.
+  - Intentionally bypasses authentication and authorization middlewares (`authenticate`, `authorizeRole`).
+  - Covered by the global `apiLimiter` (300 requests / 15 minutes per IP) to prevent denial of service and enumeration attacks.
+- **Cryptographic Token Model (`src/modules/claims/claim.model.js`):**
+  - Claim document maintains an indexed field `trackingToken`.
+  - Backed by an explicit single-field unique sparse index: `claimSchema.index({ trackingToken: 1 }, { unique: true, sparse: true })`.
+  - Preserves full backward compatibility with legacy claims that do not possess a tracking token (sparse index skips null/undefined).
+  - Generation occurs automatically at claim creation in `claim.service.js` using `crypto.randomBytes(32).toString('hex')` (256 bits of cryptographic entropy).
+- **Public Sanitization & Dedicated DTO (`src/modules/claims/claim.service.js`):**
+  - Completely decoupled from internal claim query responses.
+  - Queries database via `claimRepository.findByTrackingToken(trackingToken)` with selective field projection (`.select('claimNumber status customer.name incidentType timeline.action timeline.timestamp createdAt updatedAt').lean()`).
+  - Customer status mapping (`PUBLIC_STATUS_MAP`) converts all 10 internal lifecycle statuses into 5 customer-friendly statuses (`RECEIVED`, `IN_PROGRESS`, `IN_REVIEW`, `APPROVED/REJECTED`, `CLOSED`) with user-friendly descriptions.
+  - Public timeline filtering (`PUBLIC_TIMELINE_MAP`) filters out internal actions (e.g. evidence uploads, location/vehicle edits, correction requests) and removes sensitive metadata (`performedBy`, `role`, `notes`).
+  - Response excludes `_id`, `organizationId`, user references, phone numbers, evidence images, signatures, financial loss assessment, coordinates, and the tracking token itself.
+- **Security Hardening (`src/modules/claims/claim.public.controller.js`):**
+  - Validates token format via strict regex `/^[0-9a-f]{64}$/` before querying database.
+  - Emits identical generic `404 Not Found` (`{"success": false, "message": "Claim not found"}`) for malformed, non-existent, or invalid tokens, mitigating response-shape and status-based claim enumeration.
+  - Emits `Cache-Control: no-store` and `Pragma: no-cache` response headers preventing intermediate CDN, proxy, or browser caching of sensitive claim tracking data.

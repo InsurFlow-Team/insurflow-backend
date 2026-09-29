@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-21 & Financial Loss Assessment (Feature 22) Completed** |
+| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-22 & Public Claim Tracking (Feature 23) Completed** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (30 Suites / 461 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (31 Suites / 492 Tests - 100% Pass)** |
 
 ---
 
@@ -153,6 +153,15 @@
   - Added dedicated route coverage validation utility (`scripts/verify_routes_coverage.js`) confirming 100% coverage across all 31 routes.
   - **Comprehensive Master Route Testing Suite (`tests/master.routes.test.js`):** End-to-end integration tests executing all 31 Express routes in continuous sequence, asserting role-based authorization (RBAC), multi-tenant data isolation, full claim lifecycle progression (intake verification, claim creation, dispatch, decline, accept, inspection, evidence upload, correction loop, decision, closure, and compiled PDF report generation), and passive GPS coordinate ingestion. Total system test suite: **28 Suites / 428 Tests (100% Pass Rate)**.
   - Team collaboration protocol (`docs/project/COLLABORATION_PROTOCOL.md`).
+- [x] **Public Claim Tracking (Feature 23):**
+  - Public, read-only claim status endpoint: `GET /api/v1/public/claims/track/:trackingToken` — no authentication required.
+  - Cryptographically random 256-bit tracking tokens (64-char hex) generated automatically at claim creation, returned in `POST /api/v1/claims` response.
+  - Customer-friendly status mapping: 10 internal statuses → 5 customer-facing statuses (`RECEIVED`, `IN_PROGRESS`, `IN_REVIEW`, `APPROVED/REJECTED`, `CLOSED`) with human-readable descriptions.
+  - Simplified public timeline: only customer-visible milestones (Claim Received, Inspector Assigned, Inspection Started/Submitted, Review Started, Approved/Declined, Closed).
+  - Dedicated public DTO with strict data exposure controls — no internal IDs, user references, evidence URLs, financials, notes, coordinates, phone numbers, or tracking tokens in response.
+  - Security: opaque unguessable tokens, identical 404 for all invalid/malformed/unknown tokens (no enumeration), `Cache-Control: no-store` headers, rate-limited via existing `apiLimiter`.
+  - Sparse unique index on `trackingToken` for O(1) lookups with backward compatibility for existing claims.
+  - Dedicated test suite (`tests/claim.publicTracking.test.js`) with 30 tests covering functional, security (7 data leakage tests), status mapping (all 10 statuses), timeline filtering, cross-org isolation, regression, and rate limiting, bringing total to **31 Suites / 491 Tests (100% Pass Rate)**.
 
 ---
 

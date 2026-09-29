@@ -1523,3 +1523,70 @@ The backend is the sole authority enforcing these transitions:
 - **Location Payload Definition (Resolved in Feature 18):** The system separates "Accident Location Address" (`claim.incidentLocation`), "Accident Incident Coordinates" (`claim.incidentCoordinates: { latitude, longitude, capturedAt }` captured at creation via optional `latitude`/`longitude` in `POST /claims`), and "Inspection Location" GPS captured by the field adjuster on-site during inspection via `PUT /claims/:claimId/location` into `claim.location`. They are strictly separate data structures with independent lifecycles.
 - **Digital Signature Flow (Resolved in Feature 15):** The signature is uploaded as an image file to Cloudinary and persisted in `claim.signature`.
 - **Evidence Formatting (Resolved in Feature 15):** Photo evidence is uploaded to Cloudinary, validated by `imageType` enum, and stored in `claim.evidence`.
+
+## 22. Public Claim Tracking (Feature 23)
+
+### `GET /api/v1/public/claims/track/:trackingToken`
+
+**Authentication:** None — this is a public, unauthenticated endpoint.
+
+**Purpose:** Allows insurance claimants to track the progress of their claim via a unique tracking URL without logging in.
+
+**Token Format:** 64-character lowercase hexadecimal string (256-bit cryptographic random).
+
+**Rate Limiting:** Subject to the global `apiLimiter` (300 req/15min per IP).
+
+**Response Headers:** `Cache-Control: no-store`, `Pragma: no-cache`.
+
+#### Success Response (200)
+
+```json
+{
+  "success": true,
+  "message": "Claim status retrieved successfully",
+  "data": {
+    "claimNumber": "CLM-ORG1-0001",
+    "status": "IN_PROGRESS",
+    "statusDescription": "Your claim is being inspected.",
+    "customerName": "Ahmad",
+    "incidentType": "COLLISION",
+    "createdAt": "2026-09-20T10:30:00.000Z",
+    "updatedAt": "2026-09-25T14:00:00.000Z",
+    "timeline": [
+      { "label": "Claim Received", "timestamp": "2026-09-20T10:30:00.000Z" },
+      { "label": "Inspector Assigned", "timestamp": "2026-09-21T09:00:00.000Z" }
+    ]
+  }
+}
+```
+
+#### Error Response (404 — any invalid/unknown/malformed token)
+
+```json
+{
+  "success": false,
+  "message": "Claim not found"
+}
+```
+
+#### Customer-Friendly Status Mapping
+
+| Internal | Public | Description |
+|---|---|---|
+| `NEW` | `RECEIVED` | Your claim has been received and is being processed. |
+| `PENDING_ACCEPTANCE` | `RECEIVED` | Your claim has been received and is being processed. |
+| `ASSIGNED` | `IN_PROGRESS` | An inspector has been assigned to your claim. |
+| `IN_PROGRESS` | `IN_PROGRESS` | Your claim is being inspected. |
+| `SUBMITTED` | `IN_REVIEW` | Your inspection is complete and under review. |
+| `UNDER_REVIEW` | `IN_REVIEW` | Your inspection is complete and under review. |
+| `CORRECTION_REQUIRED` | `IN_PROGRESS` | Additional information is being gathered. |
+| `APPROVED` | `APPROVED` | Your claim has been approved. |
+| `REJECTED` | `REJECTED` | Your claim has been declined. |
+| `CLOSED` | `CLOSED` | Your claim has been finalized and closed. |
+
+#### Tracking Token Lifecycle
+
+- Generated automatically at claim creation (`POST /api/v1/claims`)
+- Returned in the `createClaim` response as `trackingToken`
+- Staff shares the tracking URL with the customer
+- No expiration or revocation in current version

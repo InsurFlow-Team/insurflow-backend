@@ -1096,3 +1096,73 @@ async function downloadClaimReport(claimId, claimNumber, token) {
     }
   }
   ```
+
+---
+
+## 7. تتبع المطالبة للجمهور والعميل (Public Customer Claim Tracking — Feature 23)
+
+تتيح هذه الواجهة لعميل شركة التأمين (المستفيد / صاحب المركبة) متابعة حالة ومسار مطالبته بصورة عامة ومباشرة دون الحاجة لتسجيل الدخول أو امتلاك حساب على المنصة.
+
+### 7.1 الاستعلام عن حالة المطالبة عبر رمز التتبع (Get Public Claim Status)
+* **المسار (Endpoint):** `GET /api/v1/public/claims/track/:trackingToken`
+* **المصادقة (Auth):** عامة بالكامل (Public) — لا تتطلب أي Header للمصادقة أو تسجيل دخول.
+* **المعاملات (Path Parameters):**
+  * `trackingToken` (إجباري): رمز التتبع الفريد الخاص بالمطالبة (64 حرفاً Hexadecimal بدقة 256-bit). يُنشأ تلقائياً عند فتح المطالبة ويُعاد في استجابة `POST /api/v1/claims`.
+* **الحماية وسرية البيانات (Security & Privacy):**
+  * يمنع حفظ الرد في الكاش عبر ترويسات: `Cache-Control: no-store` و `Pragma: no-cache`.
+  * حماية ضد التخمين والتعداد (Anti-Enumeration): أي رمز غير صالح، بصيغة خاطئة، أو غير موجود يرجع دائماً رد الخطأ الموحد `404 Not Found` برسالة `"Claim not found"`.
+  * عزل تام للبيانات الحساسة: لا يُرجع النظام أي معرّفات داخلية (`_id`, `organizationId`)، ولا أرقام هواتف، ولا صور الأدلة، ولا التواقيع، ولا تقييمات الخسائر المالية، ولا الملاحظات الإدارية.
+* **شكل الاستجابة الناجحة (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Claim status retrieved successfully",
+    "data": {
+      "claimNumber": "CLM-DEMO-0001",
+      "status": "IN_PROGRESS",
+      "statusDescription": "Your claim is being inspected.",
+      "customerName": "Ahmad Khalid",
+      "incidentType": "COLLISION",
+      "createdAt": "2026-09-20T10:30:00.000Z",
+      "updatedAt": "2026-09-25T14:00:00.000Z",
+      "timeline": [
+        {
+          "label": "Claim Received",
+          "timestamp": "2026-09-20T10:30:00.000Z"
+        },
+        {
+          "label": "Inspector Assigned",
+          "timestamp": "2026-09-21T09:00:00.000Z"
+        },
+        {
+          "label": "Inspection Started",
+          "timestamp": "2026-09-21T11:00:00.000Z"
+        }
+      ]
+    }
+  }
+  ```
+
+### 7.2 جدول مطابقة الحالات الداخلية لحالات الجمهور (Status Mapping)
+
+| الحالة الداخلية في النظام | الحالة المعروضة للعميل (`status`) | الوصف التوضيحي للعميل (`statusDescription`) |
+|---|---|---|
+| `NEW` | `RECEIVED` | Your claim has been received and is being processed. |
+| `PENDING_ACCEPTANCE` | `RECEIVED` | Your claim has been received and is being processed. |
+| `ASSIGNED` | `IN_PROGRESS` | An inspector has been assigned to your claim. |
+| `IN_PROGRESS` | `IN_PROGRESS` | Your claim is being inspected. |
+| `SUBMITTED` | `IN_REVIEW` | Your inspection is complete and under review. |
+| `UNDER_REVIEW` | `IN_REVIEW` | Your inspection is complete and under review. |
+| `CORRECTION_REQUIRED` | `IN_PROGRESS` | Additional information is being gathered. |
+| `APPROVED` | `APPROVED` | Your claim has been approved. |
+| `REJECTED` | `REJECTED` | Your claim has been declined. |
+| `CLOSED` | `CLOSED` | Your claim has been finalized and closed. |
+
+### 7.3 إرشادات لمطور الواجهة الأمامية (Frontend Implementation Notes)
+1. **إنشاء رابط التتبع:** يمكن مشاركة رابط التتبع مع العميل عبر رسالة نصية أو بريد إلكتروني، على سبيل المثال:
+   `https://app.insurflow.com/track/:trackingToken`
+2. **صفحة التتبع للعميل:**
+   * عند فتح الرابط، تقوم الصفحة بطلب `GET /api/v1/public/claims/track/:trackingToken`.
+   * في حالة التحميل (Loading)، يُعرض مؤشر تحميل هادئ وبسيط.
+   * في حالة `404 Not Found`، يُعرض تنبيه ودود للعميل: "رابط التتبع غير صالح أو المطالبة غير موجودة، يُرجى التأكد من الرابط أو التواصل مع خدمة العملاء".
+   * في حالة النجاح، تُعرض بطاقة المطالبة مع شريط تقدم (Progress Bar) أو خط زمني (Timeline) يوضح المعالم المكتملة بناءً على قائمة `timeline` المرجعة.

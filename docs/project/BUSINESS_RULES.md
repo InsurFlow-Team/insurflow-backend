@@ -290,6 +290,9 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 | Can Field Adjusters download the claim report? | **No (`HTTP 403 Forbidden`)** |
 | Does a push notification failure fail the claim action? | **Never (`Notification` document is saved; push errors are caught and logged only)** |
 | Who can register a device FCM token? | **Any authenticated user for their own account (`PATCH /users/me/fcm-token`)** |
+| Who can access public claim tracking? | **Any claimant/customer with a valid tracking token (no login required)** |
+| What is the public tracking token format? | **64-character lowercase hex string (256-bit cryptographic entropy)** |
+| What happens on invalid or unknown tracking token? | **Returns generic HTTP 404 `Claim not found` (stealth anti-enumeration)** |
 
 ---
 
@@ -307,4 +310,19 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-NOTIF-9 (Read-Time Claim Number Resolution):** `claimNumber` is never statically duplicated or stored in `Notification` documents; it is populated from `relatedClaimId` dynamically at read time.
 - **Rule BR-NOTIF-10 (Zero Lifecycle-Failure Propagation):** Any failure during notification creation or push dispatch is caught and logged to `console.error`; it must never fail or roll back the primary claim lifecycle action (`createClaim`, `declineAssignment`, `submitInspection`).
 
+---
 
+### 2.12 Public Claim Tracking Domain Rules (Feature 23)
+- **Rule BR-TRACK-1 (Automatic Token Generation & Cryptographic Entropy):** Every claim automatically receives a 64-character lowercase hexadecimal tracking token at creation time via `crypto.randomBytes(32).toString('hex')`. This provides 256 bits of cryptographic entropy, rendering brute-force or enumeration attacks mathematically infeasible.
+- **Rule BR-TRACK-2 (Customer-Friendly Status Mapping):** The internal 10-status claim machine is deterministically mapped to 5 high-level customer-facing statuses:
+  - `NEW`, `PENDING_ACCEPTANCE` → `RECEIVED` ("Your claim has been received and is being processed.")
+  - `ASSIGNED`, `IN_PROGRESS`, `CORRECTION_REQUIRED` → `IN_PROGRESS` ("An inspector has been assigned" / "Your claim is being inspected" / "Additional information is being gathered.")
+  - `SUBMITTED`, `UNDER_REVIEW` → `IN_REVIEW` ("Your inspection is complete and under review.")
+  - `APPROVED` → `APPROVED` ("Your claim has been approved.")
+  - `REJECTED` → `REJECTED` ("Your claim has been declined.")
+  - `CLOSED` → `CLOSED` ("Your claim has been finalized and closed.")
+- **Rule BR-TRACK-3 (Public Timeline Milestone Filter):** The customer timeline strictly exposes customer-meaningful milestones: `Claim Received`, `Inspector Assigned`, `Inspection Started`, `Inspection Submitted`, `Review Started`, `Claim Approved`, `Claim Declined`, and `Claim Closed`. All internal operational actions (evidence uploads, vehicle/accident/location draft saves, correction request reasons, reassignments) and internal actor identities (`performedBy`, `role`) are strictly excluded.
+- **Rule BR-TRACK-4 (Strict Data Sanitization Invariant):** The public endpoint strictly returns a dedicated public DTO. It must **never** leak internal MongoDB `_id`, `organizationId`, internal user references (`assignedTo`, `createdBy`, `assignedBy`), customer phone number, vehicle plate or policy details, evidence image URLs, digital signatures, loss assessment calculations, or administrative notes.
+- **Rule BR-TRACK-5 (Anti-Enumeration Stealth 404):** To prevent attackers from determining whether a claim or token exists, all invalid tokens (malformed, non-hex, uppercase, short, or unknown) unconditionally return an identical generic HTTP 404 response: `{"success": false, "message": "Claim not found"}`.
+- **Rule BR-TRACK-6 (Anti-Caching Headers):** All public claim tracking responses must explicitly set `Cache-Control: no-store` and `Pragma: no-cache` to prevent intermediate proxies, CDNs, or shared browsers from caching customer claim updates.
+- **Rule BR-TRACK-7 (Rate-Limited Public Exposure):** Public tracking endpoints are protected by the application-level `apiLimiter` (300 requests / 15 minutes per IP) to prevent denial of service or abuse.
