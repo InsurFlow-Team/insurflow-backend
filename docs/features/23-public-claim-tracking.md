@@ -2,7 +2,7 @@
 
 > **Status:** Implemented & Verified  
 > **Sprint:** Post-Sprint 2  
-> **Test Suite:** `tests/claim.publicTracking.test.js` (31 tests)
+> **Test Suite:** `tests/claim.publicTracking.test.js` (33 tests)
 
 ---
 
@@ -180,11 +180,11 @@ All other timeline events (assignment, decline, correction requests, location up
 | `src/modules/claims/claim.public.controller.js` | **New** — Public controller with token format validation |
 | `src/modules/claims/claim.public.routes.js` | **New** — Public route (no auth middleware) |
 | `src/app.js` | Mounted public routes at `/api/v1/public` |
-| `tests/claim.publicTracking.test.js` | **New** — 31 integration tests |
+| `tests/claim.publicTracking.test.js` | **New** — 33 integration tests |
 
 ---
 
-## 10. Test Coverage (31 Tests)
+## 10. Test Coverage (33 Tests)
 
 - **Functional:** Valid token, unknown token, malformed tokens (3 variants), cache headers, createClaim integration
 - **Status Mapping:** All 10 internal statuses verified against expected public mapping
@@ -192,4 +192,5 @@ All other timeline events (assignment, decline, correction requests, location up
 - **Timeline:** Customer-visible filtering, empty timeline, no internal fields in events
 - **Cross-Organization:** Org1/Org2 isolation via separate tokens
 - **Regression:** Authenticated endpoints still require auth, still work with valid auth
+- **Tracking Token Retrieval:** Authenticated `GET /claims/:claimId` returns trackingToken, while list `GET /claims` strictly excludes it
 - **Rate Limiting:** Public endpoint respects existing rate limiter

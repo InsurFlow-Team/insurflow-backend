@@ -527,4 +527,39 @@ describe('Public Claim Tracking (Feature 23)', () => {
       expect(res3.status).toBe(429);
     });
   });
+
+  // ─── Authenticated Claim Retrieval: trackingToken visibility ─────────
+
+  describe('trackingToken visibility on authenticated endpoints', () => {
+    it('should include trackingToken in single claim retrieval GET /api/v1/claims/:claimId for authorized staff', async () => {
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
+      const token = generateToken(officer1);
+
+      const res = await request(app)
+        .get(`/api/v1/claims/${claim._id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.trackingToken).toBeDefined();
+      expect(res.body.data.trackingToken).toBe(claim.trackingToken);
+      expect(res.body.data.trackingToken).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should NOT include trackingToken in claim listing GET /api/v1/claims', async () => {
+      await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
+      const token = generateToken(officer1);
+
+      const res = await request(app)
+        .get('/api/v1/claims')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      const claims = res.body.data;
+      expect(Array.isArray(claims)).toBe(true);
+      expect(claims.length).toBeGreaterThan(0);
+      claims.forEach((c) => {
+        expect(c.trackingToken).toBeUndefined();
+      });
+    });
+  });
 });

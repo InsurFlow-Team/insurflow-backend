@@ -295,6 +295,7 @@ Valid status transitions (enforced by the Backend):
       "id": "claim-uuid",
       "claimNumber": "CLM-DEMO-0001",
       "status": "ASSIGNED",
+      "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "incidentType": "COLLISION",
       "incidentLocation": "Al-Irsal St, Ramallah",
       "incidentCoordinates": {

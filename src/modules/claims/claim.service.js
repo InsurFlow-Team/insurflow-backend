@@ -146,6 +146,7 @@ const createClaim = async (body, authUser) => {
 
     timeline: [
       {
+        // NOTE: 'Claim Created' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
         action: 'Claim Created',
         previousStatus: null,
         newStatus: null,
@@ -269,6 +270,7 @@ const getClaimById = async (claimId, authUser) => {
     id: claim._id,
     claimNumber: claim.claimNumber,
     status: claim.status,
+    trackingToken: claim.trackingToken ?? null,
     incidentType: claim.incidentType,
     incidentLocation: claim.incidentLocation,
     incidentCoordinates: claim.incidentCoordinates ?? null,
@@ -472,6 +474,7 @@ const acceptAssignment = async (claimId, authUser) => {
   const employeeCode = adjusterUser?.employeeCode || 'UNKNOWN';
 
   const timelineEvent = {
+    // NOTE: 'Assignment Accepted' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
     action: 'Assignment Accepted',
     previousStatus: 'PENDING_ACCEPTANCE',
     newStatus: 'ASSIGNED',
@@ -617,6 +620,7 @@ const startInspection = async (claimId, authUser) => {
   }
 
   const isCorrection = claim.status === 'CORRECTION_REQUIRED';
+  // NOTE: 'Inspection Started' and 'Inspection Resumed' are referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
   const action = isCorrection ? 'Inspection Resumed' : 'Inspection Started';
   const previousStatus = claim.status;
 
@@ -841,6 +845,7 @@ const submitInspection = async (claimId, authUser) => {
   }
 
   const updatedClaim = await claimRepository.submitInspection(claimId, authUser.organizationId, authUser.userId, {
+    // NOTE: 'Inspection Submitted' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
     action: 'Inspection Submitted',
     previousStatus: 'IN_PROGRESS',
     newStatus: 'SUBMITTED',
@@ -873,6 +878,7 @@ const submitInspection = async (claimId, authUser) => {
 
 const startReview = async (claimId, authUser) => {
   const updatedClaim = await claimRepository.startReview(claimId, authUser.organizationId, {
+    // NOTE: 'Review Started' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
     action: 'Review Started',
     previousStatus: 'SUBMITTED',
     newStatus: 'UNDER_REVIEW',
@@ -947,6 +953,7 @@ const decideClaim = async (claimId, body, authUser) => {
   // ── REJECTED Branch: zero pre-read, atomic update directly ─────────
   if (decision === 'REJECTED') {
     const timelineEvent = {
+      // NOTE: 'Claim Rejected' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
       action: 'Claim Rejected',
       previousStatus: 'UNDER_REVIEW',
       newStatus: 'REJECTED',
@@ -1060,6 +1067,7 @@ const decideClaim = async (claimId, body, authUser) => {
   }
 
   const timelineEvent = {
+    // NOTE: 'Claim Approved' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
     action: 'Claim Approved',
     previousStatus: 'UNDER_REVIEW',
     newStatus: 'APPROVED',
@@ -1123,6 +1131,7 @@ const closeClaim = async (claimId, body, authUser) => {
   const { userId, role, organizationId } = authUser;
 
   const timelineEvent = {
+    // NOTE: 'Claim Closed' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
     action: 'Claim Closed',
     previousStatus: 'APPROVED',
     newStatus: 'CLOSED',
