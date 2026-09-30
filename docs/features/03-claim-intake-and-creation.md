@@ -106,12 +106,14 @@ When a policyholder calls to report a motor accident or damage:
      timestamp: new Date()
    }
    ```
+5. **Rule BR-CLAIM-6 (Intake Incident Date Invariant):** When `incidentDate` (`YYYY-MM-DD`) is supplied during claim creation, it is validated against policy coverage dates and persisted on the Claim document (`claim.incidentDate`). If omitted, it defaults to `null`. It is distinct from `claim.accident.accidentDate` recorded during on-site inspection.
 
 ---
 
 ## 5. Automated Testing Suite
 
 Tested in:
+* [tests/claim.read.test.js](../../tests/claim.read.test.js)
 * [tests/claim.lifecycle.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.lifecycle.test.js)
 * [tests/claim.numbering.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.numbering.test.js)
 * [tests/claim.statusMachine.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.statusMachine.test.js)

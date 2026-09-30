@@ -123,6 +123,10 @@ const claimSchema = new mongoose.Schema(
     },
 
     // ── Incident Info ───────────────────────────────────────────────
+    incidentDate: {
+      type: String,
+      default: null,
+    },
     incidentType: {
       type: String,
       enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER'],

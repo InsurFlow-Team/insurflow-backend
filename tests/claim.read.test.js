@@ -442,4 +442,71 @@ describe('Claim Read Endpoints', () => {
       name: 'Test Adjuster',
     });
   });
+
+  // ─── GAP-05: Incident Date Persistence Tests ────────────────────
+
+  it('POST /api/v1/claims persists incidentDate when supplied and GET /claims/:claimId returns it', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/claims')
+      .set('Authorization', `Bearer ${tokenOfficer}`)
+      .send({
+        policyId: policy1._id.toString(),
+        plateNumber: 'ABC-123',
+        incidentType: 'COLLISION',
+        incidentLocation: 'King Abdullah St, Amman',
+        incidentDate: '2026-06-15',
+      });
+
+    expect(createRes.statusCode).toBe(201);
+    const createdClaimId = createRes.body.data.id;
+
+    // Verify persisted directly in MongoDB
+    const claimDoc = await Claim.findById(createdClaimId).lean();
+    expect(claimDoc.incidentDate).toBe('2026-06-15');
+
+    // Verify returned by GET /claims/:claimId
+    const getRes = await request(app)
+      .get(`/api/v1/claims/${createdClaimId}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.data.incidentDate).toBe('2026-06-15');
+  });
+
+  it('POST /api/v1/claims persists incidentDate as null when omitted and GET /claims/:claimId returns null', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/claims')
+      .set('Authorization', `Bearer ${tokenOfficer}`)
+      .send({
+        policyId: policy1._id.toString(),
+        plateNumber: 'ABC-123',
+        incidentType: 'COLLISION',
+        incidentLocation: 'King Abdullah St, Amman',
+      });
+
+    expect(createRes.statusCode).toBe(201);
+    const createdClaimId = createRes.body.data.id;
+
+    // Verify persisted directly in MongoDB as null
+    const claimDoc = await Claim.findById(createdClaimId).lean();
+    expect(claimDoc.incidentDate).toBeNull();
+
+    // Verify returned as null by GET /claims/:claimId
+    const getRes = await request(app)
+      .get(`/api/v1/claims/${createdClaimId}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.data.incidentDate).toBeNull();
+  });
+
+  it('GET /api/v1/claims/:claimId safely returns incidentDate as null on legacy claims without incidentDate', async () => {
+    // newClaim was created via Claim.create without incidentDate field
+    const res = await request(app)
+      .get(`/api/v1/claims/${newClaim._id}`)
+      .set('Authorization', `Bearer ${tokenOfficer}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.incidentDate).toBeNull();
+  });
 });
