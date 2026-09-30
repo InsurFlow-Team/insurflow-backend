@@ -34,6 +34,7 @@ const config = {
   },
   currency: process.env.APP_CURRENCY || 'ILS',
   maxFinancialAmount: parseInt(process.env.MAX_FINANCIAL_AMOUNT, 10) || 1000000,
+  publicFrontendUrl: process.env.PUBLIC_FRONTEND_URL ? process.env.PUBLIC_FRONTEND_URL.trim().replace(/\/+$/, '') || null : null,
 };
 
 
