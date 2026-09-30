@@ -376,6 +376,18 @@
         "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
         "deductibleAmount": 500
       },
+      "coverage": {
+        "policyType": "COMPREHENSIVE",
+        "effectiveFrom": "2025-01-01",
+        "effectiveTo": "2026-12-31",
+        "deductible": 500,
+        "incidents": [
+          { "code": "COLLISION", "covered": true },
+          { "code": "THEFT", "covered": true },
+          { "code": "FIRE", "covered": true },
+          { "code": "NATURAL_DISASTER", "covered": true }
+        ]
+      },
       "vehicle": {
         "id": "60d0fe4f5311236168a109d0",
         "plateNumber": "ABC-1234",
@@ -392,6 +404,7 @@
     }
   }
   ```
+  *(ملاحظة خاصة بكائن التغطية `coverage` - GAP-02: يعكس كائن `coverage` التغطية الحقيقية السارية على الحادث المراد التحقق منه. يتضمن نوع الوثيقة `policyType`، وتواريخ السريان `effectiveFrom` و `effectiveTo`، ومبلغ التحمل الإجمالي للوثيقة `deductible`، ومصفوفة `incidents` لجميع الأخطار المعتمدة رسمياً مع حالة تغطية كل خطر `covered: true/false`. في الوثائق القديمة غير المرحلة يرجع `coverage: null`).*
 * **الأخطاء المحتملة (Validation & Rejection Rules):**
   * `400 Bad Request`:
     * `VALIDATION_ERROR`: عدم إرسال كل من `policyNumber` و `plateNumber`، أو صيغة تاريخ غير صالحة، أو قيمة `incidentType` غير مطابقة للأنواع المسموحة.

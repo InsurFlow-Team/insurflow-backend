@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-22 & Public Claim Tracking (Feature 23) Completed** |
+| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-22, Public Claim Tracking (Feature 23), GAP-05 & GAP-02 Completed** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (31 Suites / 494 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (31 Suites / 506 Tests - 100% Pass)** |
 
 ---
 
@@ -162,6 +162,20 @@
   - Security: opaque unguessable tokens, identical 404 for all invalid/malformed/unknown tokens (no enumeration), `Cache-Control: no-store` headers, rate-limited via existing `apiLimiter`.
   - Sparse unique index on `trackingToken` for O(1) lookups with backward compatibility for existing claims.
   - Dedicated test suite (`tests/claim.publicTracking.test.js`) with 30 tests covering functional, security (7 data leakage tests), status mapping (all 10 statuses), timeline filtering, cross-org isolation, regression, and rate limiting, bringing total to **31 Suites / 491 Tests (100% Pass Rate)**.
+- [x] **Intake Incident Date Persistence (GAP-05 Completed & Verified):**
+  - Added `incidentDate: { type: String, default: null }` attribute to `Claim` schema ([claim.model.js](../../src/modules/claims/claim.model.js)).
+  - Persisted validated `incidentDate: incidentDate || null` during claim creation in `createClaim` ([claim.service.js](../../src/modules/claims/claim.service.js)).
+  - Exposed `incidentDate: claim.incidentDate ?? null` in Section 1 (Claim Information) of `GET /api/v1/claims/:claimId`.
+  - Maintained strict domain distinction from inspection-stage `accident.accidentDate`.
+  - Full backward compatibility for legacy claims without `incidentDate` returning explicit `null`.
+  - Added 3 automated tests in `tests/claim.read.test.js`, bringing total test count to 31 Suites / 497 Tests.
+- [x] **Coverage Verification & Coverage Applicability (GAP-02 Completed & Verified):**
+  - Enhanced existing `POST /api/v1/policies/verify` endpoint response to return dedicated `coverage` object containing authoritative coverage details for the incident being verified.
+  - Maps `policyType` (`COMPREHENSIVE` | `THIRD_PARTY`), `effectiveFrom`, `effectiveTo`, `deductible` (policy-level, never per-peril), and `incidents` (peril applicability matrix dynamically derived from canonical `Policy.COVERED_PERILS`).
+  - Strict data fidelity: does not fabricate currency (omitted since not in Policy schema) or coverage limits.
+  - Safe legacy policy handling: policies missing coverage structure return `coverage: null` without guessing.
+  - Maintains 100% backward compatibility of existing response fields (`isEligible`, `eligibilityHint`, `policy`, `vehicle`, `customer`).
+  - Added 9 dedicated integration tests in `tests/policy.verification.test.js` (48 tests in suite), bringing total system coverage to **31 Suites / 506 Tests (100% Pass Rate)**.
 
 ---
 

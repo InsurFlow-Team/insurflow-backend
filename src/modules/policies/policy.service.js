@@ -152,7 +152,33 @@ const verifyPolicy = async (body, authUser) => {
     }
   }
 
-  // 5. Build standardized response
+  // 5. Build coverage object (null for legacy policies without policyType)
+  let coverage = null;
+
+  if (policy.policyType) {
+    const policyPerils = Array.isArray(policy.coveredPerils) ? policy.coveredPerils : [];
+    const incidents = Policy.COVERED_PERILS.map((peril) => ({
+      code: peril,
+      covered: policyPerils.includes(peril),
+    }));
+
+    coverage = {
+      policyType: policy.policyType,
+      effectiveFrom: policy.startDate ? new Date(policy.startDate).toISOString().split('T')[0] : null,
+      effectiveTo: policy.expiryDate ? new Date(policy.expiryDate).toISOString().split('T')[0] : null,
+      deductible:
+        policy.deductibleAmount !== undefined && policy.deductibleAmount !== null
+          ? policy.deductibleAmount
+          : null,
+      incidents,
+    };
+
+    if (policy.currency) {
+      coverage.currency = policy.currency;
+    }
+  }
+
+  // 6. Build standardized response
   const result = {
     isEligible: true,
     eligibilityHint,
@@ -169,6 +195,7 @@ const verifyPolicy = async (body, authUser) => {
           ? policy.deductibleAmount
           : null,
     },
+    coverage,
     vehicle: vehicle
       ? {
           id: vehicle._id,

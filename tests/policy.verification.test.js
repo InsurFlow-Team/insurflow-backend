@@ -809,4 +809,218 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(secondRunResult.found).toBe(0);
     expect(secondRunResult.updated).toBe(0);
   });
+
+  // ─────────────────────────────────────────────────────
+  // 🛡️ GAP-02: COVERAGE VERIFICATION & COVERAGE APPLICABILITY
+  // ─────────────────────────────────────────────────────
+  describe('GAP-02: Coverage Visibility & Incident Applicability in Verification Flow', () => {
+    it('GAP-02 Test 1: should return full coverage object for COMPREHENSIVE policy with verified incidentDate', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyNumber: 'POL-V-1000',
+          incidentDate: '2026-06-15',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.isEligible).toBe(true);
+
+      const { coverage } = res.body.data;
+      expect(coverage).toBeDefined();
+      expect(coverage.policyType).toBe('COMPREHENSIVE');
+      expect(coverage.effectiveFrom).toBe('2025-01-01');
+      expect(coverage.effectiveTo).toBe('2026-12-31');
+      expect(coverage.deductible).toBe(500);
+
+      // Verify canonical perils derived from Policy.COVERED_PERILS
+      expect(Array.isArray(coverage.incidents)).toBe(true);
+      expect(coverage.incidents).toHaveLength(Policy.COVERED_PERILS.length);
+      Policy.COVERED_PERILS.forEach((peril) => {
+        const item = coverage.incidents.find((i) => i.code === peril);
+        expect(item).toBeDefined();
+        expect(item.covered).toBe(true);
+      });
+
+      // Crucial: no fabricated fields leak
+      expect(coverage.currency).toBeUndefined();
+      expect(coverage.limit).toBeUndefined();
+      expect(coverage.coverageLimit).toBeUndefined();
+      expect(coverage.limitType).toBeUndefined();
+    });
+
+    it('GAP-02 Test 2: should confirm incident coverage for covered incidentType (COLLISION)', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyNumber: 'POL-V-1000',
+          incidentDate: '2026-06-15',
+          incidentType: 'COLLISION',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.isEligible).toBe(true);
+      expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+
+      const collisionIncident = res.body.data.coverage.incidents.find(
+        (i) => i.code === 'COLLISION'
+      );
+      expect(collisionIncident).toEqual({ code: 'COLLISION', covered: true });
+    });
+
+    it('GAP-02 Test 3: should indicate uncovered status for excluded incidentType on partial policy', async () => {
+      // POL-V-COLL-ONLY only covers COLLISION
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyNumber: 'POL-V-COLL-ONLY',
+          incidentType: 'THEFT',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.isEligible).toBe(true);
+      expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+
+      const { coverage } = res.body.data;
+      expect(coverage.policyType).toBe('COMPREHENSIVE');
+      expect(coverage.deductible).toBe(500);
+
+      const theftIncident = coverage.incidents.find((i) => i.code === 'THEFT');
+      expect(theftIncident).toEqual({ code: 'THEFT', covered: false });
+
+      const collisionIncident = coverage.incidents.find((i) => i.code === 'COLLISION');
+      expect(collisionIncident).toEqual({ code: 'COLLISION', covered: true });
+    });
+
+    it('GAP-02 Test 4: should reject verification and not expose false coverage when incidentDate is outside policy period', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyNumber: 'POL-V-1000',
+          incidentDate: '2024-06-15',
+          incidentType: 'COLLISION',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('POLICY_NOT_ACTIVE_ON_DATE');
+      expect(res.body.data).toBeUndefined();
+    });
+
+    it('GAP-02 Test 5: should return coverage: null for legacy policy missing coverage structure', async () => {
+      const rawLegacyId = new mongoose.Types.ObjectId();
+      await Policy.collection.insertOne({
+        _id: rawLegacyId,
+        policyNumber: 'POL-V-LEG-GAP02',
+        status: 'ACTIVE',
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        expiryDate: new Date('2026-12-31T00:00:00Z'),
+        organizationId: org1._id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-LEG-GAP02', incidentType: 'COLLISION' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.isEligible).toBe(true);
+      expect(res.body.data.coverage).toBeNull();
+      expect(res.body.data.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+    });
+
+    it('GAP-02 Test 6: should not fabricate currency when policy model has no currency field', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-1000' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.coverage).toBeDefined();
+      expect(res.body.data.coverage.currency).toBeUndefined();
+    });
+
+    it('GAP-02 Test 7: should not fabricate coverage limits when policy model has no limit field', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-1000' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.coverage).toBeDefined();
+      expect(res.body.data.coverage.limit).toBeUndefined();
+      expect(res.body.data.coverage.coverageLimit).toBeUndefined();
+      expect(res.body.data.coverage.limitType).toBeUndefined();
+    });
+
+    it('GAP-02 Test 8: should return coverage for THIRD_PARTY policy with deductible 0 and all incidents un-covered', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-4000', incidentType: 'COLLISION' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.isEligible).toBe(true);
+      expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+
+      const { coverage } = res.body.data;
+      expect(coverage).toBeDefined();
+      expect(coverage.policyType).toBe('THIRD_PARTY');
+      expect(coverage.deductible).toBe(0);
+      expect(coverage.effectiveFrom).toBe('2025-01-01');
+      expect(coverage.effectiveTo).toBe('2026-12-31');
+
+      // All perils must be covered: false for THIRD_PARTY
+      coverage.incidents.forEach((inc) => {
+        expect(inc.covered).toBe(false);
+      });
+    });
+
+    it('GAP-02 Test 9: should maintain 100% backward compatibility of existing response envelope & fields', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-1000' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Policy verified successfully');
+
+      const data = res.body.data;
+      expect(data).toHaveProperty('isEligible', true);
+      expect(data).toHaveProperty('eligibilityHint');
+      expect(data).toHaveProperty('policy');
+      expect(data).toHaveProperty('coverage');
+      expect(data).toHaveProperty('vehicle');
+      expect(data).toHaveProperty('customer');
+
+      // Verify policy object fields are completely unchanged
+      expect(data.policy).toHaveProperty('id');
+      expect(data.policy).toHaveProperty('policyNumber', 'POL-V-1000');
+      expect(data.policy).toHaveProperty('status', 'ACTIVE');
+      expect(data.policy).toHaveProperty('startDate', '2025-01-01');
+      expect(data.policy).toHaveProperty('expiryDate', '2026-12-31');
+      expect(data.policy).toHaveProperty('policyType', 'COMPREHENSIVE');
+      expect(data.policy).toHaveProperty('coveredPerils');
+      expect(data.policy).toHaveProperty('deductibleAmount', 500);
+
+      // Verify vehicle object fields
+      expect(data.vehicle).toHaveProperty('id');
+      expect(data.vehicle).toHaveProperty('plateNumber', 'ABC-1234');
+      expect(data.vehicle).toHaveProperty('make', 'Toyota');
+
+      // Verify customer object fields
+      expect(data.customer).toHaveProperty('id');
+      expect(data.customer).toHaveProperty('fullName', 'Ahmad Ali');
+      expect(data.customer).toHaveProperty('phone', '+962791234567');
+    });
+  });
 });

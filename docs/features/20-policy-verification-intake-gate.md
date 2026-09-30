@@ -111,6 +111,18 @@ Only after successful verification does the system allow the officer to proceed 
         "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
         "deductibleAmount": 500
       },
+      "coverage": {
+        "policyType": "COMPREHENSIVE",
+        "effectiveFrom": "2025-01-01",
+        "effectiveTo": "2026-12-31",
+        "deductible": 500,
+        "incidents": [
+          { "code": "COLLISION", "covered": true },
+          { "code": "THEFT", "covered": true },
+          { "code": "FIRE", "covered": true },
+          { "code": "NATURAL_DISASTER", "covered": true }
+        ]
+      },
       "vehicle": {
         "id": "60d0fe4f5311236168a109d0",
         "plateNumber": "ABC-1234",
@@ -206,8 +218,17 @@ Only after successful verification does the system allow the officer to proceed 
 
 ## 7. Automated Testing Suite
 
-Tested in [tests/policy.verification.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/policy.verification.test.js) (33 tests):
-* Successful verification with active policy (CLAIMS_OFFICER and ADMIN) returning coverage snapshot (`policyType`, `coveredPerils`, `deductibleAmount`).
+Tested in [tests/policy.verification.test.js](../../tests/policy.verification.test.js) (48 tests):
+* Successful verification with active policy (CLAIMS_OFFICER and ADMIN) returning coverage snapshot (`policyType`, `coveredPerils`, `deductibleAmount`) and dedicated `coverage` object.
+* GAP-02 Coverage Visibility & Incident Applicability:
+  * COMPREHENSIVE policy with verified `incidentDate` returns full `coverage` object with `effectiveFrom`, `effectiveTo`, `deductible`, and all canonical perils mapped with `covered: true`.
+  * Covered incidentType (`COLLISION`) confirms `covered: true` in `coverage.incidents` and `ELIGIBLE_FOR_REVIEW`.
+  * Uncovered incidentType on partial policy confirms `covered: false` in `coverage.incidents` and `NOT_COVERED_BY_POLICY_TYPE`.
+  * Incident date outside policy period is rejected with 422 `POLICY_NOT_ACTIVE_ON_DATE` and exposes no false coverage.
+  * Legacy policy missing coverage data safely returns `coverage: null` without fabricating data.
+  * Absence of currency and coverage limits verified (no fabricated financial metadata).
+  * THIRD_PARTY policy returns `coverage` with `deductible: 0` and all incidents un-covered.
+  * 100% backward compatibility of response envelope and legacy fields.
 * Coverage Snapshot & Hint:
   * COMPREHENSIVE with matching peril returns `ELIGIBLE_FOR_REVIEW`.
   * THIRD_PARTY with own-damage peril returns `NOT_COVERED_BY_POLICY_TYPE`.

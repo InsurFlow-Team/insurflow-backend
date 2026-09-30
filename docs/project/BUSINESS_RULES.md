@@ -151,7 +151,6 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-CLAIM-3 (Audit Log Initiation):** Every new claim initializes an immutable timeline array with an initial event: `action: 'Claim Created'`, recording the creator's user ID, role, and current timestamp.
 - **Rule BR-CLAIM-4 (Tenant-Scoped Claim Number):** Every claim receives a unique, sequential human-readable identifier formatted as `CLM-<ORG_CODE>-NNNN` via an atomic tenant-scoped Counter model.
 - **Rule BR-CLAIM-5 (Ambiguous Vehicle Selection Protection):** When creating a claim (`POST /api/v1/claims`), if the resolved policy has more than one registered vehicle and the request does not provide `plateNumber`, claim creation is rejected with `HTTP 422 Unprocessable Entity` (`AMBIGUOUS_VEHICLE_SELECTION`). The caller must explicitly supply `plateNumber` to prevent silent attachment of an arbitrary vehicle.
-- **Rule BR-CLAIM-6 (Intake Incident Date Invariant):** When `incidentDate` (`YYYY-MM-DD`) is supplied during claim creation (`POST /api/v1/claims`), it is validated against policy coverage dates and persisted on the Claim document (`claim.incidentDate`). If omitted, it defaults to `null`. It represents the intake report date of the incident and is distinct from `claim.accident.accidentDate` recorded later during field inspection.
 
 ---
 
