@@ -13,6 +13,12 @@ const { createAndSendNotification, sendToOrganization } = require('../notificati
 const config = require('../../config/env');
 const computeEligibilityHint = require('../../utils/computeEligibilityHint');
 
+const buildTrackingUrl = (token) => {
+  if (!token || !config.publicFrontendUrl) {
+    return null;
+  }
+  return `${config.publicFrontendUrl}/track/${token}`;
+};
 
 const createClaim = async (body, authUser) => {
   const {
@@ -168,6 +174,16 @@ const createClaim = async (body, authUser) => {
     claimNumber: claim.claimNumber,
     status: claim.status,
     trackingToken: claim.trackingToken,
+    trackingUrl: buildTrackingUrl(claim.trackingToken),
+    eligibilityHint: claim.eligibilityHint ?? null,
+    coverageSnapshot: claim.coverageSnapshot
+      ? {
+          policyType: claim.coverageSnapshot.policyType,
+          coveredPerils: claim.coverageSnapshot.coveredPerils,
+          deductibleAmount: claim.coverageSnapshot.deductibleAmount,
+          capturedAt: claim.coverageSnapshot.capturedAt,
+        }
+      : null,
     createdAt: claim.createdAt,
   };
 };
@@ -1425,6 +1441,7 @@ const getPublicClaimStatus = async (trackingToken) => {
 };
 
 module.exports = {
+  buildTrackingUrl,
   createClaim,
   getClaims,
   getClaimById,

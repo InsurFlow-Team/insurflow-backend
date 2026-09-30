@@ -406,7 +406,52 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
     });
   });
 
-  describe.skip('Creation Response Shape: trackingUrl, eligibilityHint, coverageSnapshot (C3)', () => {
+  describe('Creation Response Shape: trackingUrl, eligibilityHint, coverageSnapshot (C3)', () => {
+    it('returns trackingUrl, eligibilityHint, and populated coverageSnapshot on claim creation', async () => {
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: activeCompPolicy._id.toString(),
+          plateNumber: 'INT-1111',
+          incidentType: 'COLLISION',
+          incidentLocation: 'Amman Highway',
+          incidentDate: '2026-06-15',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data).toHaveProperty('id');
+      expect(res.body.data).toHaveProperty('claimNumber');
+      expect(res.body.data.status).toBe('NEW');
+      expect(res.body.data).toHaveProperty('trackingToken');
+      expect(res.body.data).toHaveProperty('trackingUrl');
+      expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+      expect(res.body.data.coverageSnapshot).toEqual({
+        policyType: 'COMPREHENSIVE',
+        coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
+        deductibleAmount: 500,
+        capturedAt: expect.any(String),
+      });
+      expect(res.body.data).toHaveProperty('createdAt');
+    });
+
+    it('returns coverageSnapshot as null when policy has no coverage details', async () => {
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: legacyPolicy._id.toString(),
+          plateNumber: 'INT-5555',
+          incidentType: 'COLLISION',
+          incidentLocation: 'Amman Highway',
+          incidentDate: '2026-06-15',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.coverageSnapshot).toBeNull();
+      expect(res.body.data.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+    });
+
     it('builds trackingUrl from config and returns null when publicFrontendUrl is unset', async () => {
       const originalUrl = config.publicFrontendUrl;
       try {
