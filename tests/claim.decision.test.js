@@ -97,7 +97,15 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED', notes: 'All documentation verified' });
+      .send({
+        decision: 'APPROVED',
+        notes: 'All documentation verified',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
@@ -142,7 +150,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(200);
     expect(response.body.data.status).toBe('APPROVED');
@@ -159,7 +174,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(200);
     expect(response.body.data.status).toBe('APPROVED');
@@ -172,7 +194,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(403);
   });
@@ -183,7 +212,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimUnderReview._id}/decision`) // claim belongs to org1
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(404);
     expect(response.body.errors[0].code).toBe('CLAIM_NOT_FOUND');
@@ -195,7 +231,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimNew._id}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(409);
     expect(response.body.errors[0].code).toBe('INVALID_STATUS_TRANSITION');
@@ -206,7 +249,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${claimApproved._id}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(409);
     expect(response.body.errors[0].code).toBe('INVALID_STATUS_TRANSITION');
@@ -219,7 +269,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post(`/api/v1/claims/${nonExistentId}/decision`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(404);
     expect(response.body.errors[0].code).toBe('CLAIM_NOT_FOUND');
@@ -254,7 +311,14 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
     const response = await request(app)
       .post('/api/v1/claims/invalid-id-123/decision')
       .set('Authorization', `Bearer ${token}`)
-      .send({ decision: 'APPROVED' });
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
+      });
 
     expect(response.status).toBe(400);
     expect(response.body.success).toBe(false);
@@ -270,7 +334,15 @@ describe('POST /api/v1/claims/:claimId/decision', () => {
       request(app)
         .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ decision: 'APPROVED', notes: 'First officer' }),
+        .send({
+          decision: 'APPROVED',
+          notes: 'First officer',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
+        }),
       request(app)
         .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
         .set('Authorization', `Bearer ${token}`)

@@ -313,6 +313,11 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
         .send({
           decision: 'APPROVED',
           notes: 'Inspection complete and verified',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
         });
       expect(decisionRes.status).toBe(200);
       expect(decisionRes.body.data.status).toBe('APPROVED');
@@ -567,7 +572,14 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       const res = await request(app)
         .post(`/api/v1/claims/${testClaim._id}/decision`)
         .set('Authorization', `Bearer ${officerToken}`)
-        .send({ decision: 'APPROVED' });
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
+        });
       expect(res.status).toBe(409);
       expect(res.body.errors[0].code).toBe('INVALID_STATUS_TRANSITION');
     });

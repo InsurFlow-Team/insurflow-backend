@@ -29,7 +29,6 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  delete process.env.REQUIRE_LOSS_ASSESSMENT;
   const collections = mongoose.connection.collections;
   for (const key in collections) {
     await collections[key].deleteMany();
@@ -606,9 +605,8 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
     expect(la.netApprovedPayout).toBe(800);
   });
 
-  // ─── 11. Feature Flag (REQUIRE_LOSS_ASSESSMENT) ──────────────────────────
-  it('should enforce lossAssessment when REQUIRE_LOSS_ASSESSMENT=true', async () => {
-    process.env.REQUIRE_LOSS_ASSESSMENT = 'true';
+  // ─── 11. Mandatory lossAssessment on Approval ──────────────────────────
+  it('should enforce lossAssessment when decision is APPROVED', async () => {
     const token = generateToken(officer1);
 
     const response = await request(app)
@@ -623,23 +621,6 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
     expect(response.body.success).toBe(false);
     expect(response.body.errors[0].code).toBe('VALIDATION_ERROR');
     expect(response.body.errors[0].details).toMatch(/lossAssessment is required/i);
-  });
-
-  it('should allow approval without lossAssessment when REQUIRE_LOSS_ASSESSMENT=false', async () => {
-    process.env.REQUIRE_LOSS_ASSESSMENT = 'false';
-    const token = generateToken(officer1);
-
-    const response = await request(app)
-      .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        decision: 'APPROVED',
-        notes: 'Classic approval without financial assessment',
-      });
-
-    expect(response.status).toBe(200);
-    expect(response.body.data.status).toBe('APPROVED');
-    expect(response.body.data.lossAssessment).toBeNull();
   });
 
   // ─── 12. Immutability: Claim Updates Never Alter coverageSnapshot or lossAssessment ─

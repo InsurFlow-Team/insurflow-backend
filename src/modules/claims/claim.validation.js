@@ -211,12 +211,11 @@ const lossAssessmentInputSchema = Joi.object({
     }),
   deductibleOverrideReason: Joi.string()
     .trim()
-    .min(5)
-    .max(300)
+    .max(1000)
+    .allow('', null)
     .optional()
     .messages({
-      'string.min': 'deductibleOverrideReason must be at least 5 characters',
-      'string.max': 'deductibleOverrideReason cannot exceed 300 characters',
+      'string.max': 'deductibleOverrideReason cannot exceed 1000 characters',
     }),
 }).unknown(false);
 
@@ -239,7 +238,9 @@ const decisionSchema = Joi.object({
     then: Joi.forbidden().messages({
       'any.unknown': 'lossAssessment is not allowed when decision is REJECTED',
     }),
-    otherwise: lossAssessmentInputSchema.optional(),
+    otherwise: lossAssessmentInputSchema.required().messages({
+      'any.required': 'lossAssessment is required when decision is APPROVED',
+    }),
   }),
 });
 

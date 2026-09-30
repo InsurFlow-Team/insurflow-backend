@@ -1006,11 +1006,6 @@ const decideClaim = async (claimId, body, authUser) => {
   // ── APPROVED Branch: pre-read claim scoped to organization ─────────
   const existingClaim = await handleClaimNotFoundOrStateError(claimId, organizationId);
 
-  // Feature flag enforcement: when REQUIRE_LOSS_ASSESSMENT=true, lossAssessment is mandatory
-  if (config.requireLossAssessment && !lossAssessment) {
-    throw new AppError('lossAssessment is required for claim approval', 400, 'VALIDATION_ERROR');
-  }
-
   let lossAssessmentDoc = null;
   if (lossAssessment) {
     // Deductible resolution hierarchy:

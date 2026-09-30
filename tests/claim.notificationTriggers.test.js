@@ -223,7 +223,15 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
       const res = await request(app)
         .post(`/api/v1/claims/${claim._id}/decision`)
         .set('Authorization', `Bearer ${officerToken}`)
-        .send({ decision: 'APPROVED', notes: 'Damage validated by report' });
+        .send({
+          decision: 'APPROVED',
+          notes: 'Damage validated by report',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
+        });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -257,7 +265,14 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
       const res = await request(app)
         .post(`/api/v1/claims/${claim._id}/decision`)
         .set('Authorization', `Bearer ${officerToken}`)
-        .send({ decision: 'APPROVED' });
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
+        });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

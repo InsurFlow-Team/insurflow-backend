@@ -609,6 +609,11 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
       .send({
         decision: 'APPROVED',
         notes: 'All inspection items verified and coverage confirmed under policy',
+        lossAssessment: {
+          estimatedPartsCost: 500,
+          laborCost: 300,
+          deductibleApplied: 500,
+        },
       });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
