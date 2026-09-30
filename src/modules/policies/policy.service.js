@@ -2,6 +2,7 @@ const Policy = require('./policy.model');
 const policyRepository = require('./policy.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
 const AppError = require('../../utils/appError');
+const computeEligibilityHint = require('../../utils/computeEligibilityHint');
 
 /**
  * Verify policy eligibility before claim intake.
@@ -95,16 +96,12 @@ const verifyPolicy = async (body, authUser) => {
     policy = vehicle.policyId;
   }
 
-  // 2. Check policy status
+  // 2. Check policy status - cancelled policies trigger a hard block
   if (policy.status === 'CANCELLED') {
     throw new AppError('Policy has been cancelled', 422, 'POLICY_CANCELLED');
   }
 
-  if (policy.status === 'EXPIRED') {
-    throw new AppError('Policy has expired', 422, 'POLICY_EXPIRED');
-  }
-
-  // 3. Date validity checks
+  // 3. Date validity checks - future incident dates are invalid
   const now = new Date();
 
   if (incidentDate) {
@@ -114,43 +111,15 @@ const verifyPolicy = async (body, authUser) => {
     if (incident > now) {
       throw new AppError('Incident date cannot be in the future', 400, 'INVALID_INCIDENT_DATE');
     }
-
-    const start = new Date(policy.startDate);
-    const expiry = new Date(policy.expiryDate);
-
-    // Set start to beginning of day and expiry to end of day for inclusive comparison
-    start.setUTCHours(0, 0, 0, 0);
-    expiry.setUTCHours(23, 59, 59, 999);
-
-    if (incident < start || incident > expiry) {
-      throw new AppError(
-        'Policy was not active on the incident date',
-        422,
-        'POLICY_NOT_ACTIVE_ON_DATE'
-      );
-    }
-  } else {
-    // If no incidentDate provided, check if calendar expiry date has elapsed
-    if (policy.expiryDate && new Date(policy.expiryDate) < now) {
-      throw new AppError('Policy has expired', 422, 'POLICY_EXPIRED');
-    }
   }
 
-  // 4. Compute eligibility hint (only evaluated on verified, active policy when incidentType is supplied)
-  let eligibilityHint = null;
-
-  if (incidentType) {
-    if (!policy.policyType) {
-      // Legacy document missing policyType — coverage is unknown
-      eligibilityHint = Policy.ELIGIBILITY_HINTS.COVERAGE_UNKNOWN;
-    } else if (Array.isArray(policy.coveredPerils) && policy.coveredPerils.includes(incidentType)) {
-      // Peril is covered under own-damage coverage
-      eligibilityHint = Policy.ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW;
-    } else {
-      // Policy type does not cover this peril for own-damage (e.g. THIRD_PARTY vehicle)
-      eligibilityHint = Policy.ELIGIBILITY_HINTS.NOT_COVERED_BY_POLICY_TYPE;
-    }
-  }
+  // 4. Compute eligibility hint using the centralized utility
+  const eligibilityHint = computeEligibilityHint({
+    policy,
+    incidentType,
+    incidentDate,
+    now,
+  });
 
   // 5. Build coverage object (null for legacy policies without policyType)
   let coverage = null;

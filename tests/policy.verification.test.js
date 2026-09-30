@@ -270,15 +270,16 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
   // ❌ POLICY STATUS REJECTION CASES
   // ─────────────────────────────────────────────────────
 
-  it('should reject expired policy with 422 POLICY_EXPIRED', async () => {
+  it('should return 200 with INCIDENT_OUTSIDE_POLICY_PERIOD for expired policy with no incidentDate', async () => {
     const res = await request(app)
       .post('/api/v1/policies/verify')
       .set('Authorization', `Bearer ${officerToken}`)
       .send({ policyNumber: 'POL-V-2000' });
 
-    expect(res.status).toBe(422);
-    expect(res.body.success).toBe(false);
-    expect(res.body.errors[0].code).toBe('POLICY_EXPIRED');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
   });
 
   it('should reject cancelled policy with 422 POLICY_CANCELLED', async () => {
@@ -296,15 +297,31 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
   // ❌ DATE AND VEHICLE MISMATCH CASES
   // ─────────────────────────────────────────────────────
 
-  it('should reject when incidentDate is outside policy period with 422', async () => {
+  it('should return 200 with INCIDENT_OUTSIDE_POLICY_PERIOD and populated coverage when incidentDate is before startDate', async () => {
     const res = await request(app)
       .post('/api/v1/policies/verify')
       .set('Authorization', `Bearer ${officerToken}`)
       .send({ policyNumber: 'POL-V-1000', incidentDate: '2024-06-15' }); // before startDate
 
-    expect(res.status).toBe(422);
-    expect(res.body.success).toBe(false);
-    expect(res.body.errors[0].code).toBe('POLICY_NOT_ACTIVE_ON_DATE');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
+    expect(res.body.data.coverage).toBeDefined();
+    expect(res.body.data.coverage.policyType).toBe('COMPREHENSIVE');
+  });
+
+  it('should return 200 with INCIDENT_OUTSIDE_POLICY_PERIOD and populated coverage when incidentDate is after expiryDate', async () => {
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-V-2000', incidentDate: '2024-06-15' }); // after expiryDate of POL-V-2000 (2023-12-31)
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
+    expect(res.body.data.coverage).toBeDefined();
   });
 
   it('should reject when plateNumber does not match policy vehicle with 422', async () => {
@@ -526,14 +543,16 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.errors[0].code).toBe('INVALID_INCIDENT_DATE');
   });
 
-  it('should reject policy when expiryDate has elapsed even if status is ACTIVE', async () => {
+  it('should return 200 with INCIDENT_OUTSIDE_POLICY_PERIOD when expiryDate has elapsed and status is ACTIVE', async () => {
     const res = await request(app)
       .post('/api/v1/policies/verify')
       .set('Authorization', `Bearer ${officerToken}`)
       .send({ policyNumber: 'POL-V-PASTEXP' });
 
-    expect(res.status).toBe(422);
-    expect(res.body.errors[0].code).toBe('POLICY_EXPIRED');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
   });
 
   it('should reject with 422 AMBIGUOUS_VEHICLE_SELECTION when policy has multiple vehicles and plateNumber is not provided', async () => {
@@ -718,7 +737,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.data.policy.coveredPerils).toEqual(['COLLISION']);
   });
 
-  it('should reject when incidentDate is outside policy period even if incidentType is provided', async () => {
+  it('should return 200 with INCIDENT_OUTSIDE_POLICY_PERIOD when incidentDate is outside policy period even if incidentType is provided', async () => {
     const res = await request(app)
       .post('/api/v1/policies/verify')
       .set('Authorization', `Bearer ${officerToken}`)
@@ -728,10 +747,10 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
         incidentType: 'COLLISION',
       });
 
-    // Existing behavior: rejected at date check gate before hint evaluation
-    expect(res.status).toBe(422);
-    expect(res.body.success).toBe(false);
-    expect(res.body.errors[0].code).toBe('POLICY_NOT_ACTIVE_ON_DATE');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isEligible).toBe(true);
+    expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
   });
 
   // ─────────────────────────────────────────────────────
@@ -895,7 +914,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       expect(collisionIncident).toEqual({ code: 'COLLISION', covered: true });
     });
 
-    it('GAP-02 Test 4: should reject verification and not expose false coverage when incidentDate is outside policy period', async () => {
+    it('GAP-02 Test 4: should return 200 with INCIDENT_OUTSIDE_POLICY_PERIOD and populated coverage when incidentDate is outside policy period', async () => {
       const res = await request(app)
         .post('/api/v1/policies/verify')
         .set('Authorization', `Bearer ${officerToken}`)
@@ -905,10 +924,13 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
           incidentType: 'COLLISION',
         });
 
-      expect(res.status).toBe(422);
-      expect(res.body.success).toBe(false);
-      expect(res.body.errors[0].code).toBe('POLICY_NOT_ACTIVE_ON_DATE');
-      expect(res.body.data).toBeUndefined();
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.isEligible).toBe(true);
+      expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
+      expect(res.body.data.coverage).toBeDefined();
+      expect(res.body.data.coverage.policyType).toBe('COMPREHENSIVE');
+      expect(res.body.data.coverage.incidents).toHaveLength(4);
     });
 
     it('GAP-02 Test 5: should return coverage: null for legacy policy missing coverage structure', async () => {
@@ -1021,6 +1043,40 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       expect(data.customer).toHaveProperty('id');
       expect(data.customer).toHaveProperty('fullName', 'Ahmad Ali');
       expect(data.customer).toHaveProperty('phone', '+962791234567');
+      expect(Object.keys(data.customer)).toEqual(['id', 'fullName', 'phone']);
+    });
+
+    it('returns 200 and ELIGIBLE_FOR_REVIEW for policy status EXPIRED with incidentDate inside the period', async () => {
+      const expCompId = new mongoose.Types.ObjectId();
+      await Policy.collection.insertOne({
+        _id: expCompId,
+        policyNumber: 'POL-V-EXP-COMP',
+        status: 'EXPIRED',
+        startDate: new Date('2022-01-01T00:00:00Z'),
+        expiryDate: new Date('2023-12-31T23:59:59Z'),
+        policyType: 'COMPREHENSIVE',
+        coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
+        deductibleAmount: 500,
+        organizationId: org1._id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyNumber: 'POL-V-EXP-COMP',
+          incidentDate: '2023-06-15',
+          incidentType: 'COLLISION',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.isEligible).toBe(true);
+      expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+      expect(res.body.data.coverage).toBeDefined();
+      expect(res.body.data.coverage.policyType).toBe('COMPREHENSIVE');
     });
   });
 });
