@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Counter = require('../../utils/counter.model');
 const Organization = require('../organizations/organization.model');
+const Policy = require('../policies/policy.model');
 
 // ─── Timeline Sub-document Schema ────────────────────────────────────────────
 const timelineEventSchema = new mongoose.Schema(
@@ -100,6 +101,13 @@ const claimSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ── Eligibility Advisory (captured at intake) ───────────────────
+    eligibilityHint: {
+      type: String,
+      enum: Object.values(Policy.ELIGIBILITY_HINTS),
+      default: null,
+    },
+
     // ── Status & Lifecycle ──────────────────────────────────────────
     status: {
       type: String,
@@ -123,8 +131,15 @@ const claimSchema = new mongoose.Schema(
     },
 
     // ── Incident Info ───────────────────────────────────────────────
+    // Test fixtures create claims through Claim.create without the field, and the API layer enforces presence in Stage 4
     incidentDate: {
       type: String,
+      default: null,
+    },
+    incidentDescription: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
       default: null,
     },
     incidentType: {
@@ -304,6 +319,10 @@ const claimSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 0,
+          },
+          deductibleOverridden: {
+            type: Boolean,
+            default: false,
           },
           deductibleOverrideReason: {
             type: String,
