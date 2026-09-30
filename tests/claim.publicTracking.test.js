@@ -481,6 +481,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
           plateNumber: 'TRK-001',
           incidentType: 'COLLISION',
           incidentLocation: 'Test Location',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(201);

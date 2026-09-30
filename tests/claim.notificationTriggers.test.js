@@ -333,6 +333,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
           plateNumber: vehicle.plateNumber,
           incidentType: 'COLLISION',
           incidentLocation: 'King Abdullah Street',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(201);
@@ -360,6 +361,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
           plateNumber: vehicle.plateNumber,
           incidentType: 'COLLISION',
           incidentLocation: 'King Abdullah Street',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(201);

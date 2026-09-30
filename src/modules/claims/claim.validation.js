@@ -33,9 +33,19 @@ const createClaimSchema = Joi.object({
   }),
   incidentDate: Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
-    .optional()
+    .required()
     .messages({
       'string.pattern.base': 'incidentDate must be in YYYY-MM-DD format',
+      'string.empty': 'incidentDate is required',
+      'any.required': 'incidentDate is required',
+    }),
+  description: Joi.string()
+    .trim()
+    .max(1000)
+    .allow('', null)
+    .optional()
+    .messages({
+      'string.max': 'description cannot exceed 1000 characters',
     }),
   latitude: Joi.number().min(-90).max(90).optional().messages({
     'number.base': 'Latitude must be a valid number between -90 and 90',

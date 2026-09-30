@@ -460,6 +460,7 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
           plateNumber: vehicle1.plateNumber,
           incidentType: 'COLLISION',
           incidentLocation: 'Rainbow Street',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(201);
@@ -553,6 +554,7 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
           plateNumber: vehicle1.plateNumber,
           incidentType: 'COLLISION',
           incidentLocation: 'Rainbow Street',
+          incidentDate: '2026-06-15',
         });
 
       // Claim creation must still succeed with 201

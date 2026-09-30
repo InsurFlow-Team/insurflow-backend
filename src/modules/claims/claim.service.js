@@ -20,6 +20,7 @@ const createClaim = async (body, authUser) => {
     incidentType,
     incidentLocation,
     incidentDate,
+    description,
     latitude,
     longitude,
   } = body;
@@ -141,6 +142,7 @@ const createClaim = async (body, authUser) => {
       customerId: vehicle?.customerId?._id || vehicle?.customerId || null,
     },
     incidentDate: incidentDate || null,
+    incidentDescription: description || null,
     incidentType,
     incidentLocation,
     incidentCoordinates: incidentCoordinatesObj,
@@ -273,6 +275,7 @@ const getClaimById = async (claimId, authUser) => {
     status: claim.status,
     trackingToken: claim.trackingToken ?? null,
     incidentDate: claim.incidentDate ?? null,
+    incidentDescription: claim.incidentDescription ?? null,
     incidentType: claim.incidentType,
     incidentLocation: claim.incidentLocation,
     incidentCoordinates: claim.incidentCoordinates ?? null,

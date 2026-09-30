@@ -354,6 +354,7 @@ describe('Claim Read Endpoints', () => {
         plateNumber: 'ABC-123',
         incidentType: 'COLLISION',
         incidentLocation: 'King Abdullah St, Amman',
+        incidentDate: '2026-06-15',
       });
 
     expect(createRes.statusCode).toBe(201);
@@ -473,7 +474,7 @@ describe('Claim Read Endpoints', () => {
     expect(getRes.body.data.incidentDate).toBe('2026-06-15');
   });
 
-  it('POST /api/v1/claims persists incidentDate as null when omitted and GET /claims/:claimId returns null', async () => {
+  it('POST /api/v1/claims returns 400 VALIDATION_ERROR when incidentDate is omitted', async () => {
     const createRes = await request(app)
       .post('/api/v1/claims')
       .set('Authorization', `Bearer ${tokenOfficer}`)
@@ -484,20 +485,9 @@ describe('Claim Read Endpoints', () => {
         incidentLocation: 'King Abdullah St, Amman',
       });
 
-    expect(createRes.statusCode).toBe(201);
-    const createdClaimId = createRes.body.data.id;
-
-    // Verify persisted directly in MongoDB as null
-    const claimDoc = await Claim.findById(createdClaimId).lean();
-    expect(claimDoc.incidentDate).toBeNull();
-
-    // Verify returned as null by GET /claims/:claimId
-    const getRes = await request(app)
-      .get(`/api/v1/claims/${createdClaimId}`)
-      .set('Authorization', `Bearer ${tokenOfficer}`);
-
-    expect(getRes.statusCode).toBe(200);
-    expect(getRes.body.data.incidentDate).toBeNull();
+    expect(createRes.statusCode).toBe(400);
+    expect(createRes.body.success).toBe(false);
+    expect(createRes.body.errors[0].code).toBe('VALIDATION_ERROR');
   });
 
   it('GET /api/v1/claims/:claimId safely returns incidentDate as null on legacy claims without incidentDate', async () => {

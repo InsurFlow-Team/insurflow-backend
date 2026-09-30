@@ -209,6 +209,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
           plateNumber: '77-888-99',
           incidentType: 'COLLISION',
           incidentLocation: 'Al-Irsal St, Ramallah',
+          incidentDate: '2026-06-15',
           latitude: 31.9050,
           longitude: 35.2040,
         });
@@ -243,6 +244,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
           plateNumber: '77-888-99',
           incidentType: 'COLLISION',
           incidentLocation: 'Unknown Street 123',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(201);

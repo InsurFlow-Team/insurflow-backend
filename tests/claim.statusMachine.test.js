@@ -161,6 +161,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           plateNumber: 'ABC-123',
           incidentType: 'COLLISION',
           incidentLocation: 'Downtown',
+          incidentDate: '2026-06-15',
         });
       expect(createRes.status).toBe(201);
       const claimId = createRes.body.data.id;
@@ -699,6 +700,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           plateNumber: 'ABC-123',
           incidentType: 'COLLISION',
           incidentLocation: 'King Fahd Road',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(201);
@@ -723,6 +725,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           plateNumber: 'ABC-123',
           incidentType: 'COLLISION',
           incidentLocation: 'Olaya Street',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(403);
@@ -746,6 +749,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           policyId: policy._id.toString(),
           incidentType: 'COLLISION',
           incidentLocation: 'King Fahd Road',
+          incidentDate: '2026-06-15',
         });
 
       expect(res.status).toBe(422);

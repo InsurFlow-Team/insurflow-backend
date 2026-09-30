@@ -345,6 +345,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
         policyId: testPolicy._id,
         incidentType: 'COLLISION',
         incidentLocation: 'Al-Irsal St, Ramallah',
+        incidentDate: '2026-06-15',
         latitude: 31.9050,
         longitude: 35.2040,
       });

@@ -333,7 +333,8 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
           policyId: policy._id.toString(),
           plateNumber: 'XYZ-123',
           incidentType: 'COLLISION',
-          incidentLocation: 'L'
+          incidentLocation: 'L',
+          incidentDate: '2026-06-15',
         });
       expect(createRes.status).toBe(201);
       const claimId = createRes.body.data.id;
