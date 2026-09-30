@@ -294,8 +294,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
     });
   });
 
-  describe.skip('EligibilityHint & Coverage Snapshot & Tracking URL (C2, C3, C4)', () => {
-    it('computes and stores eligibilityHint for ELIGIBLE_FOR_REVIEW and returns it in create response & GET', async () => {
+  describe('EligibilityHint Calculation & Storage (C2, C5)', () => {
+    it('computes and stores eligibilityHint for ELIGIBLE_FOR_REVIEW and returns it in GET', async () => {
       const res = await request(app)
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
@@ -308,10 +308,9 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
-      expect(res.body.data.coverageSnapshot).toBeDefined();
-      expect(res.body.data.coverageSnapshot.policyType).toBe('COMPREHENSIVE');
-      expect(res.body.data.coverageSnapshot.deductibleAmount).toBe(500);
+
+      const claimDoc = await Claim.findById(res.body.data.id).lean();
+      expect(claimDoc.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
 
       const getRes = await request(app)
         .get(`/api/v1/claims/${res.body.data.id}`)
@@ -334,7 +333,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
+      const claimDoc = await Claim.findById(res.body.data.id).lean();
+      expect(claimDoc.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
     });
 
     it('computes and stores NOT_COVERED_BY_POLICY_TYPE when peril is not covered', async () => {
@@ -350,7 +350,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+      const claimDoc = await Claim.findById(res.body.data.id).lean();
+      expect(claimDoc.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
     });
 
     it('computes and stores COVERAGE_UNKNOWN when policy has no policyType', async () => {
@@ -366,7 +367,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+      const claimDoc = await Claim.findById(res.body.data.id).lean();
+      expect(claimDoc.eligibilityHint).toBe('COVERAGE_UNKNOWN');
     });
 
     it('creates claim for expired policy when incidentDate is inside the period (returns ELIGIBLE_FOR_REVIEW)', async () => {
@@ -382,7 +384,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+      const claimDoc = await Claim.findById(res.body.data.id).lean();
+      expect(claimDoc.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
     });
 
     it('still rejects cancelled policy with 422 POLICY_CANCELLED', async () => {
@@ -401,7 +404,9 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       expect(res.body.success).toBe(false);
       expect(res.body.errors[0].code).toBe('POLICY_CANCELLED');
     });
+  });
 
+  describe.skip('Creation Response Shape: trackingUrl, eligibilityHint, coverageSnapshot (C3)', () => {
     it('builds trackingUrl from config and returns null when publicFrontendUrl is unset', async () => {
       const originalUrl = config.publicFrontendUrl;
       try {

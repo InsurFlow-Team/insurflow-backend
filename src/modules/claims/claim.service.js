@@ -11,6 +11,7 @@ const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 const config = require('../../config/env');
+const computeEligibilityHint = require('../../utils/computeEligibilityHint');
 
 
 const createClaim = async (body, authUser) => {
@@ -35,39 +36,22 @@ const createClaim = async (body, authUser) => {
   if (policy.status === 'CANCELLED') {
     throw new AppError('Policy has been cancelled', 422, 'POLICY_CANCELLED');
   }
-  if (policy.status === 'EXPIRED') {
-    throw new AppError('Policy has expired', 422, 'POLICY_EXPIRED');
-  }
-
-  // ── 3. Calendar expiry check ───────────────────────────────────
+  // ── 3. Incident date future validation ────────────────────────
   const now = new Date();
-
   if (incidentDate) {
     const incident = new Date(incidentDate + 'T00:00:00.000Z');
-
-    // Incident cannot be in the future
     if (incident > now) {
       throw new AppError('Incident date cannot be in the future', 400, 'INVALID_INCIDENT_DATE');
     }
-
-    const start = new Date(policy.startDate);
-    const expiry = new Date(policy.expiryDate);
-    start.setUTCHours(0, 0, 0, 0);
-    expiry.setUTCHours(23, 59, 59, 999);
-
-    if (incident < start || incident > expiry) {
-      throw new AppError(
-        'Policy was not active on the incident date',
-        422,
-        'POLICY_NOT_ACTIVE_ON_DATE'
-      );
-    }
-  } else {
-    // No incidentDate — check current calendar expiry
-    if (policy.expiryDate && new Date(policy.expiryDate) < now) {
-      throw new AppError('Policy has expired', 422, 'POLICY_EXPIRED');
-    }
   }
+
+  // ── 3b. Compute advisory eligibility hint ───────────────────────
+  const eligibilityHint = computeEligibilityHint({
+    policy,
+    incidentType,
+    incidentDate,
+    now,
+  });
 
   // ── 4. Resolve vehicle & customer from policy ──────────────────
   const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, authUser.organizationId);
@@ -144,6 +128,7 @@ const createClaim = async (body, authUser) => {
     incidentDate: incidentDate || null,
     incidentDescription: description || null,
     incidentType,
+    eligibilityHint,
     incidentLocation,
     incidentCoordinates: incidentCoordinatesObj,
 
@@ -274,6 +259,7 @@ const getClaimById = async (claimId, authUser) => {
     claimNumber: claim.claimNumber,
     status: claim.status,
     trackingToken: claim.trackingToken ?? null,
+    eligibilityHint: claim.eligibilityHint ?? null,
     incidentDate: claim.incidentDate ?? null,
     incidentDescription: claim.incidentDescription ?? null,
     incidentType: claim.incidentType,
@@ -1014,6 +1000,7 @@ const decideClaim = async (claimId, body, authUser) => {
     // Deductible resolution hierarchy:
     // 1. Snapshot deductible if defined
     // 2. Fallback to live policy query ONLY if snapshot is null / deductible missing
+    // Note: Live-policy fallback serves claims created before coverageSnapshot existed and is removed after the legacy claims are deleted.
     // 3. 0 if policy or deductible not found
     let policyDeductible = 0;
     if (existingClaim.coverageSnapshot && existingClaim.coverageSnapshot.deductibleAmount != null) {
