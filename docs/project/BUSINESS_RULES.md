@@ -142,6 +142,14 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
     * `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (e.g. own-damage claim for a third-party policy).
     * `COVERAGE_UNKNOWN`: When `policyType` is missing (legacy unmigrated policy).
     * `null`: When `incidentType` is not provided in the request or policy is not active.
+- **Rule BR-POL-VERIFY-8 (Authoritative Coverage Object & Incident Applicability — GAP-02):**
+  - The verification response provides a dedicated `coverage` object containing authoritative coverage details:
+    * `policyType`: Canonical policy classification (`COMPREHENSIVE` | `THIRD_PARTY`).
+    * `effectiveFrom` & `effectiveTo`: Policy validity period (`YYYY-MM-DD`).
+    * `deductible`: Policy-level deductible amount (`0` for `THIRD_PARTY`). Must never be formatted as per-peril deductibles.
+    * `incidents`: Full peril applicability matrix dynamically derived from canonical `Policy.COVERED_PERILS`. Every standard peril is evaluated as `{ code, covered: boolean }` against the policy's `coveredPerils`.
+    * No unsupported financial metadata (e.g. currency, coverage limits, limit types) is fabricated.
+    * In legacy policies where coverage cannot be established, `coverage: null` is safely returned.
 
 ---
 

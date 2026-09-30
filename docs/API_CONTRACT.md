@@ -157,6 +157,18 @@ Valid status transitions (enforced by the Backend):
         "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
         "deductibleAmount": 500
       },
+      "coverage": {
+        "policyType": "COMPREHENSIVE",
+        "effectiveFrom": "2025-01-01",
+        "effectiveTo": "2026-12-31",
+        "deductible": 500,
+        "incidents": [
+          { "code": "COLLISION", "covered": true },
+          { "code": "THEFT", "covered": true },
+          { "code": "FIRE", "covered": true },
+          { "code": "NATURAL_DISASTER", "covered": true }
+        ]
+      },
       "vehicle": {
         "id": "60d0fe4f5311236168a109cb",
         "plateNumber": "ABC-1234",
@@ -173,6 +185,15 @@ Valid status transitions (enforced by the Backend):
     }
   }
   ```
+- **Coverage Object Specification (GAP-02):**
+  - Dedicated `coverage` object reflects actual policy coverage applicability for the incident being verified.
+  - `policyType` (String): Policy type (`COMPREHENSIVE` or `THIRD_PARTY`).
+  - `effectiveFrom` (String, `YYYY-MM-DD`): Policy validity start date.
+  - `effectiveTo` (String, `YYYY-MM-DD`): Policy validity expiry date.
+  - `deductible` (Number): Authoritative policy-level deductible amount (`0` for `THIRD_PARTY`).
+  - `incidents` (Array): Full peril applicability matrix dynamically derived from canonical `Policy.COVERED_PERILS`. Each item contains `{ "code": String, "covered": Boolean }`.
+  - `currency` (String, optional): Exposed strictly if present on the policy record (never fabricated or defaulted).
+  - Legacy policies missing coverage data return `coverage: null`.
 - **Eligibility Hint Values:**
   - `ELIGIBLE_FOR_REVIEW`: When `incidentType` is in `coveredPerils`.
   - `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (badge: "الضرر الذاتي غير مشمول").
@@ -742,12 +763,28 @@ Valid status transitions (enforced by the Backend):
     "message": "Policy verified successfully",
     "data": {
       "isEligible": true,
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "policy": {
         "id": "policy-uuid",
         "policyNumber": "POL-1000",
         "status": "ACTIVE",
-        "startDate": "2025-01-01T00:00:00.000Z",
-        "expiryDate": "2026-12-31T23:59:59.999Z"
+        "startDate": "2025-01-01",
+        "expiryDate": "2026-12-31",
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
+        "deductibleAmount": 500
+      },
+      "coverage": {
+        "policyType": "COMPREHENSIVE",
+        "effectiveFrom": "2025-01-01",
+        "effectiveTo": "2026-12-31",
+        "deductible": 500,
+        "incidents": [
+          { "code": "COLLISION", "covered": true },
+          { "code": "THEFT", "covered": true },
+          { "code": "FIRE", "covered": true },
+          { "code": "NATURAL_DISASTER", "covered": true }
+        ]
       },
       "vehicle": {
         "id": "vehicle-uuid",
