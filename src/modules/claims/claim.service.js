@@ -9,7 +9,7 @@ const Organization = require('../organizations/organization.model');
 const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const maskPlateNumber = require('../../utils/maskPlateNumber');
-const { PUBLIC_STATUS_MAP, PUBLIC_TIMELINE_TEXT } = require('./claim.public.constants');
+const { PUBLIC_STATUS_MAP, PUBLIC_STATUS_RANK, PUBLIC_TIMELINE_TEXT } = require('./claim.public.constants');
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 const config = require('../../config/env');
@@ -1418,8 +1418,44 @@ const getPublicClaimStatus = async (trackingToken) => {
     };
   }
 
-  // Temporary minimal timeline until forward-only algorithm step
-  const publicTimeline = [];
+  // Derive forward-only public timeline by tracking milestone progress in strict ascending rank order
+  const events = Array.isArray(claim.timeline) ? claim.timeline : [];
+  const createdEvent = events.find((e) => e.action === 'Claim Created');
+  const initialTimestamp = createdEvent?.timestamp || claim.createdAt;
+  const initialText = PUBLIC_TIMELINE_TEXT.RECEIVED || {};
+
+  const publicTimeline = [
+    {
+      status: 'RECEIVED',
+      title: initialText.title,
+      description: initialText.description,
+      timestamp: initialTimestamp,
+    },
+  ];
+
+  let highestRank = PUBLIC_STATUS_RANK.RECEIVED;
+
+  for (const event of events) {
+    if (!event.newStatus) {
+      continue;
+    }
+    const mapped = PUBLIC_STATUS_MAP[event.newStatus];
+    if (!mapped) {
+      continue;
+    }
+    const publicStatusKey = mapped.status;
+    const rank = PUBLIC_STATUS_RANK[publicStatusKey];
+    if (rank && rank > highestRank) {
+      highestRank = rank;
+      const text = PUBLIC_TIMELINE_TEXT[publicStatusKey] || {};
+      publicTimeline.push({
+        status: publicStatusKey,
+        title: text.title,
+        description: text.description,
+        timestamp: event.timestamp,
+      });
+    }
+  }
 
   return {
     claimNumber: claim.claimNumber,

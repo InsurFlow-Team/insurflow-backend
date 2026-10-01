@@ -82,8 +82,18 @@ const PUBLIC_TIMELINE_TEXT = Object.freeze({
   },
 });
 
+const PUBLIC_STATUS_RANK = Object.freeze({
+  RECEIVED: 1,
+  IN_PROGRESS: 2,
+  IN_REVIEW: 3,
+  APPROVED: 4,
+  REJECTED: 4,
+  CLOSED: 5,
+});
+
 module.exports = {
   PUBLIC_STATUSES,
   PUBLIC_STATUS_MAP,
+  PUBLIC_STATUS_RANK,
   PUBLIC_TIMELINE_TEXT,
 };

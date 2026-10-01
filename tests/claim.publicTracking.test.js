@@ -10,7 +10,7 @@ const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const { buildPolicy } = require('./helpers/policyFactory');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
-const { PUBLIC_STATUS_MAP } = require('../src/modules/claims/claim.public.constants');
+const { PUBLIC_STATUS_MAP, PUBLIC_TIMELINE_TEXT } = require('../src/modules/claims/claim.public.constants');
 
 let mongoServer;
 
@@ -352,19 +352,44 @@ describe('Public Claim Tracking (Feature 23)', () => {
   // ─── Timeline Filtering Tests ──────────────────────────────────────────
 
   describe('Public timeline filtering', () => {
-    it('should show only customer-visible timeline events', async () => {
+    it('new claim returns one RECEIVED entry with exact keys', async () => {
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
+
+      const res = await request(app)
+        .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.timeline).toHaveLength(1);
+      const first = res.body.data.timeline[0];
+      expect(first.status).toBe('RECEIVED');
+      expect(first.title).toBe(PUBLIC_TIMELINE_TEXT.RECEIVED.title);
+      expect(first.description).toBe(PUBLIC_TIMELINE_TEXT.RECEIVED.description);
+      expect(new Date(first.timestamp).toISOString()).toBe(claim.timeline[0].timestamp.toISOString());
+
+      // Exact key sets
+      expect(Object.keys(res.body.data).sort()).toEqual(['claimNumber', 'status', 'statusDescription', 'timeline', 'vehicle']);
+      expect(Object.keys(first).sort()).toEqual(['description', 'status', 'timestamp', 'title']);
+    });
+
+    it('uses claim.createdAt when no Claim Created action exists in timeline', async () => {
       const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
-        status: 'SUBMITTED',
+        timeline: [],
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.timeline).toHaveLength(1);
+      expect(new Date(res.body.data.timeline[0].timestamp).toISOString()).toBe(claim.createdAt.toISOString());
+    });
+
+    it('assigned and pending-acceptance add nothing to timeline', async () => {
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         timeline: [
           { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
-          { action: 'Claim Assigned', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T11:00:00Z') },
-          { action: '[ASSIGNMENT ACCEPTED] by A-1', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-20T12:00:00Z') },
-          { action: 'Inspection Started', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
-          { action: 'Vehicle Updated', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:30:00Z') },
-          { action: 'Accident Updated', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T10:00:00Z') },
-          { action: 'Location Updated', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T10:30:00Z') },
-          { action: 'Evidence Uploaded', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T11:00:00Z') },
-          { action: 'Inspection Submitted', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-22T14:00:00Z') },
+          { action: 'Assignment Pending Acceptance', newStatus: 'PENDING_ACCEPTANCE', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T11:00:00Z') },
+          { action: 'Claim Assigned', newStatus: 'ASSIGNED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T12:00:00Z') },
         ],
       });
 
@@ -372,29 +397,15 @@ describe('Public Claim Tracking (Feature 23)', () => {
         .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
 
       expect(res.status).toBe(200);
-      const timeline = res.body.data.timeline;
-
-      // Should include: Claim Received, Inspector Assigned, Inspection Started, Inspection Submitted
-      // Should exclude: Claim Assigned, Vehicle Updated, Accident Updated, Location Updated, Evidence Uploaded
-      expect(timeline.length).toBe(4);
-      expect(timeline[0].label).toBe('Claim Received');
-      expect(timeline[1].label).toBe('Inspector Assigned');
-      expect(timeline[2].label).toBe('Inspection Started');
-      expect(timeline[3].label).toBe('Inspection Submitted');
-
-      // Should NOT contain performedBy or role
-      timeline.forEach((event) => {
-        expect(event.performedBy).toBeUndefined();
-        expect(event.role).toBeUndefined();
-        expect(event.action).toBeUndefined();
-        expect(event.notes).toBeUndefined();
-      });
+      expect(res.body.data.timeline).toHaveLength(1);
+      expect(res.body.data.timeline[0].status).toBe('RECEIVED');
     });
 
-    it('should return empty timeline when no customer-visible events exist', async () => {
+    it('declined assignment adds nothing to timeline', async () => {
       const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         timeline: [
-          { action: 'Vehicle Updated', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date() },
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
+          { action: 'Assignment Declined', newStatus: 'NEW', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-20T11:00:00Z') },
         ],
       });
 
@@ -402,41 +413,134 @@ describe('Public Claim Tracking (Feature 23)', () => {
         .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.data.timeline).toEqual([]);
+      expect(res.body.data.timeline).toHaveLength(1);
+      expect(res.body.data.timeline[0].status).toBe('RECEIVED');
     });
 
-    it('should correctly map real domain decision and resumption events (Claim Approved, Claim Rejected, Inspection Resumed)', async () => {
+    it('started inspection adds IN_PROGRESS', async () => {
+      const inspectionTime = new Date('2026-09-21T09:00:00Z');
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        timeline: [
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: inspectionTime },
+        ],
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.timeline).toHaveLength(2);
+      expect(res.body.data.timeline[0].status).toBe('RECEIVED');
+      expect(res.body.data.timeline[1].status).toBe('IN_PROGRESS');
+      expect(res.body.data.timeline[1].title).toBe(PUBLIC_TIMELINE_TEXT.IN_PROGRESS.title);
+      expect(res.body.data.timeline[1].description).toBe(PUBLIC_TIMELINE_TEXT.IN_PROGRESS.description);
+      expect(new Date(res.body.data.timeline[1].timestamp).toISOString()).toBe(inspectionTime.toISOString());
+    });
+
+    it('correction loop adds no entry after the first IN_REVIEW, and status reflects the real current state', async () => {
+      const tCreated = new Date('2026-09-20T10:00:00Z');
+      const tStarted = new Date('2026-09-21T09:00:00Z');
+      const tSubmitted = new Date('2026-09-21T14:00:00Z');
+      const tCorrection = new Date('2026-09-22T08:00:00Z');
+      const tResumed = new Date('2026-09-22T10:00:00Z');
+
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        status: 'CORRECTION_REQUIRED',
+        timeline: [
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tCreated },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tStarted },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tSubmitted },
+          { action: 'Correction Requested', newStatus: 'CORRECTION_REQUIRED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tCorrection },
+          { action: 'Inspection Resumed', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tResumed },
+        ],
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('IN_PROGRESS');
+      expect(res.body.data.statusDescription).toBe('يجري استكمال بعض المعلومات على مطالبتك');
+      expect(res.body.data.timeline).toHaveLength(3);
+      expect(res.body.data.timeline.map((e) => e.status)).toEqual(['RECEIVED', 'IN_PROGRESS', 'IN_REVIEW']);
+      expect(new Date(res.body.data.timeline[0].timestamp).toISOString()).toBe(tCreated.toISOString());
+      expect(new Date(res.body.data.timeline[1].timestamp).toISOString()).toBe(tStarted.toISOString());
+      expect(new Date(res.body.data.timeline[2].timestamp).toISOString()).toBe(tSubmitted.toISOString());
+    });
+
+    it('approved, rejected, and closed claims show the full sequence', async () => {
       const claimApproved = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         status: 'APPROVED',
         timeline: [
           { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
-          { action: 'Inspection Resumed', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
-          { action: 'Claim Approved', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T14:00:00Z') },
+          { action: 'Claim Approved', newStatus: 'APPROVED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
         ],
       });
 
       const resApproved = await request(app)
         .get(`/api/v1/public/claims/track/${claimApproved.trackingToken}`);
-
       expect(resApproved.status).toBe(200);
-      expect(resApproved.body.data.timeline.length).toBe(3);
-      expect(resApproved.body.data.timeline[1].label).toBe('Inspection Started');
-      expect(resApproved.body.data.timeline[2].label).toBe('Claim Approved');
+      expect(resApproved.body.data.status).toBe('APPROVED');
+      expect(resApproved.body.data.timeline.map((e) => e.status)).toEqual(['RECEIVED', 'IN_PROGRESS', 'IN_REVIEW', 'APPROVED']);
 
       const claimRejected = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         status: 'REJECTED',
         timeline: [
           { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
-          { action: 'Claim Rejected', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T14:00:00Z') },
+          { action: 'Claim Rejected', newStatus: 'REJECTED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
         ],
       });
 
       const resRejected = await request(app)
         .get(`/api/v1/public/claims/track/${claimRejected.trackingToken}`);
-
       expect(resRejected.status).toBe(200);
-      expect(resRejected.body.data.timeline.length).toBe(2);
-      expect(resRejected.body.data.timeline[1].label).toBe('Claim Declined');
+      expect(resRejected.body.data.status).toBe('REJECTED');
+      expect(resRejected.body.data.timeline.map((e) => e.status)).toEqual(['RECEIVED', 'IN_PROGRESS', 'IN_REVIEW', 'REJECTED']);
+
+      const claimClosed = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        status: 'CLOSED',
+        timeline: [
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T14:00:00Z') },
+          { action: 'Claim Approved', newStatus: 'APPROVED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
+          { action: 'Claim Closed', newStatus: 'CLOSED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-23T10:00:00Z') },
+        ],
+      });
+
+      const resClosed = await request(app)
+        .get(`/api/v1/public/claims/track/${claimClosed.trackingToken}`);
+      expect(resClosed.status).toBe(200);
+      expect(resClosed.body.data.status).toBe('CLOSED');
+      expect(resClosed.body.data.timeline.map((e) => e.status)).toEqual(['RECEIVED', 'IN_PROGRESS', 'IN_REVIEW', 'APPROVED', 'CLOSED']);
+    });
+
+    it('returns no internal notes, performer names, actions, or roles in any response', async () => {
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        status: 'IN_PROGRESS',
+        timeline: [
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', notes: 'Secret intake note', timestamp: new Date('2026-09-20T10:00:00Z') },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', notes: 'Secret adjuster note', timestamp: new Date('2026-09-21T09:00:00Z') },
+        ],
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
+
+      expect(res.status).toBe(200);
+      res.body.data.timeline.forEach((item) => {
+        expect(item.notes).toBeUndefined();
+        expect(item.performedBy).toBeUndefined();
+        expect(item.role).toBeUndefined();
+        expect(item.action).toBeUndefined();
+        expect(item.label).toBeUndefined();
+        expect(Object.keys(item).sort()).toEqual(['description', 'status', 'timestamp', 'title']);
+      });
     });
   });
 
