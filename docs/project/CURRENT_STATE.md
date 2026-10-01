@@ -10,9 +10,9 @@
 | Metric | Status |
 |---|---|
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
-| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-22, Public Claim Tracking (Feature 23), GAP-05 & GAP-02 Completed** |
+| **Current Sprint** | **Sprint 1, Sprint 2, Features 18-23 (Public Claim Tracking), Stage 4A-4C Contract Alignment Completed** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (34 Suites / 553 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (38 Suites / 596 Tests - 100% Pass)** |
 
 ---
 
@@ -185,7 +185,8 @@
     - `totalDamage <= deductibleApplied` returns 422 `DAMAGE_BELOW_DEDUCTIBLE`.
     - Deductible override rules: `overridden = appliedCents !== policyDeductibleCents`. When overridden, requires 10-300 char reason (else 422 `OVERRIDE_REASON_REQUIRED`) and appends `[DEDUCTIBLE OVERRIDE] policy deductible <X>, applied <Y>. Reason: <reason>` to timeline note. When not overridden, non-empty reason returns 422 `OVERRIDE_REASON_NOT_ALLOWED`. Persists `deductibleOverridden` boolean in `lossAssessment`.
     - Both `CLAIMS_OFFICER` and `ADMIN` authorized to override deductible.
-  - Total automated test suites: **34 Suites / 553 Tests (100% Pass Rate)** across dedicated suites `tests/computeEligibilityHint.test.js`, `tests/claim.intakeStage4.test.js`, `tests/claim.decisionStage4.test.js`, and updated existing suites.
+  - **Public Tracking & Frontend Alignment (Stages 4B & 4C):** Forward-only timeline, dedicated tracking rate limiter, plate number masking, tracking token restricted to officers/admins, decision accepts null lossAssessment on rejection (F4), contract key locks locked in `tests/contract.keys.test.js`, and full Arabic frontend handoff in `docs/FRONTEND_HANDOFF.md`.
+  - Total automated test suites: **38 Suites / 596 Tests (100% Pass Rate)** across 38 suites with 100% pass rate.
 
 ---
 
