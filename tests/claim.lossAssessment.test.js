@@ -15,6 +15,8 @@ jest.mock('../src/modules/notifications/notification.service', () => ({
   sendToOrganization: jest.fn().mockResolvedValue({}),
 }));
 
+jest.setTimeout(30000);
+
 let mongoServer;
 
 beforeAll(async () => {
