@@ -658,5 +658,26 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       expect(resOther.status).toBe(201);
       expect(resOther.body.data.eligibilityHint).toBeNull();
     });
+
+    it('creates claim with verifiable perils and sets eligibilityHint to ELIGIBLE_FOR_REVIEW on comprehensive policy', async () => {
+      const perils = ['THEFT', 'FIRE', 'NATURAL_DISASTER'];
+      for (const peril of perils) {
+        const res = await request(app)
+          .post('/api/v1/claims')
+          .set('Authorization', `Bearer ${officerToken}`)
+          .send({
+            policyId: activeCompPolicy._id.toString(),
+            plateNumber: compVehicle.plateNumber,
+            incidentType: peril,
+            incidentLocation: 'Ramallah',
+            incidentDate: '2026-06-15',
+          });
+        expect(res.status).toBe(201);
+        expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+        const claimDoc = await Claim.findById(res.body.data.id).lean();
+        expect(claimDoc.incidentType).toBe(peril);
+      }
+    });
   });
 });
+

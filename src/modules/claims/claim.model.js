@@ -144,7 +144,7 @@ const claimSchema = new mongoose.Schema(
     },
     incidentType: {
       type: String,
-      enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER'],
+      enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
       required: true,
     },
     incidentLocation: {
@@ -216,7 +216,7 @@ const claimSchema = new mongoose.Schema(
     accident: {
       accidentType: {
         type: String,
-        enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER'],
+        enum: ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
         default: null,
       },
       accidentDate: {

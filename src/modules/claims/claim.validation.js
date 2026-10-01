@@ -21,10 +21,10 @@ const createClaimSchema = Joi.object({
     'string.base': 'Plate number must be a string',
   }),
   incidentType: Joi.string()
-    .valid('COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER')
+    .valid('COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER', 'THEFT', 'FIRE', 'NATURAL_DISASTER')
     .required()
     .messages({
-      'any.only': 'incidentType must be one of: COLLISION, REAR_END_COLLISION, SIDE_IMPACT, PARKING_DAMAGE, OTHER',
+      'any.only': 'incidentType must be one of: COLLISION, REAR_END_COLLISION, SIDE_IMPACT, PARKING_DAMAGE, OTHER, THEFT, FIRE, NATURAL_DISASTER',
       'any.required': 'Incident type is required',
     }),
   incidentLocation: Joi.string().trim().required().messages({
@@ -110,7 +110,7 @@ const updateVehicleSchema = Joi.object({
 
 const updateAccidentSchema = Joi.object({
   accidentType: Joi.string()
-    .valid('COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER')
+    .valid('COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER', 'THEFT', 'FIRE', 'NATURAL_DISASTER')
     .required(),
   accidentDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required().messages({
     'string.pattern.base': 'accidentDate must be in YYYY-MM-DD format',

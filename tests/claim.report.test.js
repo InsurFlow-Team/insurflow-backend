@@ -359,6 +359,39 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     expect(res.body.toString('utf-8').startsWith('%PDF')).toBe(true);
   });
 
+  test('200 generating PDF report for claims with THEFT, FIRE, and NATURAL_DISASTER incident types', async () => {
+    const officerToken = generateToken(officer1);
+    const perils = ['THEFT', 'FIRE', 'NATURAL_DISASTER'];
+
+    for (const peril of perils) {
+      const claim = await Claim.create({
+        organizationId: org1._id,
+        policyId: policy1._id,
+        createdBy: officer1._id,
+        assignedTo: adjuster1._id,
+        status: 'APPROVED',
+        customer: { name: `Customer ${peril}`, phone: '+971501234567' },
+        incidentType: peril,
+        incidentLocation: 'Test Location',
+        vehicle: {
+          plateNumber: vehicle1.plateNumber,
+          vehicleId: vehicle1._id,
+          policyId: policy1._id,
+        },
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/claims/${claim._id}/report`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .buffer(true);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/application\/pdf/);
+      expect(res.body.toString('utf-8').startsWith('%PDF')).toBe(true);
+    }
+  });
+
+
   test('403 for FIELD_ADJUSTER, even when assigned to the APPROVED claim', async () => {
     const adjusterToken = generateToken(adjuster1);
 
