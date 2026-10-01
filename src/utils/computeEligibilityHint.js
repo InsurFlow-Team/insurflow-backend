@@ -1,6 +1,20 @@
 const { ELIGIBILITY_HINTS } = require('../modules/policies/policy.model');
 
 /**
+ * Mapping between granular claim incident types and core policy covered perils.
+ * Granular collision variants map to the canonical COLLISION peril.
+ * Unmapped perils (THEFT, FIRE, NATURAL_DISASTER) pass through unchanged.
+ * OTHER explicitly maps to null as it does not correspond to a standard peril.
+ */
+const CLAIM_TYPE_TO_PERIL = Object.freeze({
+  COLLISION: 'COLLISION',
+  REAR_END_COLLISION: 'COLLISION',
+  SIDE_IMPACT: 'COLLISION',
+  PARKING_DAMAGE: 'COLLISION',
+  OTHER: null,
+});
+
+/**
  * Pure function to compute eligibility hint based on policy coverage and incident details.
  * Evaluates policy type presence, validity period against incident date, and covered perils.
  *
@@ -37,14 +51,25 @@ const computeEligibilityHint = ({ policy, incidentType, incidentDate, now = new 
     return null;
   }
 
-  // 4. Verify whether the incident peril is covered by the policy's coveredPerils array.
+  // 4. Map the claim incident type to its policy covered peril.
+  const mappedPeril = Object.prototype.hasOwnProperty.call(CLAIM_TYPE_TO_PERIL, incidentType)
+    ? CLAIM_TYPE_TO_PERIL[incidentType]
+    : incidentType;
+
+  if (mappedPeril === null) {
+    return null;
+  }
+
+  // 5. Verify whether the mapped peril is covered by the policy's coveredPerils array.
   const coveredPerils = Array.isArray(policy.coveredPerils) ? policy.coveredPerils : [];
-  if (!coveredPerils.includes(incidentType)) {
+  if (!coveredPerils.includes(mappedPeril)) {
     return ELIGIBILITY_HINTS.NOT_COVERED_BY_POLICY_TYPE;
   }
 
-  // 5. When all criteria pass, the claim is eligible for review.
+  // 6. When all criteria pass, the claim is eligible for review.
   return ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW;
 };
+
+computeEligibilityHint.CLAIM_TYPE_TO_PERIL = CLAIM_TYPE_TO_PERIL;
 
 module.exports = computeEligibilityHint;

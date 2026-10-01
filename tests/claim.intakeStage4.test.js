@@ -516,4 +516,147 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       expect('publicFrontendUrl' in config).toBe(true);
     });
   });
+
+  describe('Claim intake eligibility hint mapping per incident type', () => {
+    let thirdPartyPolicy, theftOnlyPolicy, tpVehicle, theftVehicle;
+
+    beforeAll(async () => {
+      thirdPartyPolicy = await buildPolicy({
+        policyNumber: 'POL-INTAKE-TP',
+        status: 'ACTIVE',
+        policyType: 'THIRD_PARTY',
+        coveredPerils: [],
+        deductibleAmount: 0,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        expiryDate: new Date('2027-12-31T00:00:00Z'),
+        organizationId: org._id,
+      });
+
+      tpVehicle = await Vehicle.create({
+        plateNumber: 'INT-TP-1',
+        make: 'Honda',
+        model: 'Civic',
+        year: 2021,
+        color: 'Black',
+        customerId: customer._id,
+        policyId: thirdPartyPolicy._id,
+        organizationId: org._id,
+      });
+
+      theftOnlyPolicy = await buildPolicy({
+        policyNumber: 'POL-INTAKE-THEFT',
+        status: 'ACTIVE',
+        policyType: 'COMPREHENSIVE',
+        coveredPerils: ['THEFT'],
+        deductibleAmount: 500,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        expiryDate: new Date('2027-12-31T00:00:00Z'),
+        organizationId: org._id,
+      });
+
+      theftVehicle = await Vehicle.create({
+        plateNumber: 'INT-TH-1',
+        make: 'Hyundai',
+        model: 'Elantra',
+        year: 2020,
+        color: 'Silver',
+        customerId: customer._id,
+        policyId: theftOnlyPolicy._id,
+        organizationId: org._id,
+      });
+    });
+
+    it('sets eligibilityHint ELIGIBLE_FOR_REVIEW for collision types and null for OTHER on all-perils policy', async () => {
+      const types = ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE'];
+      for (const t of types) {
+        const res = await request(app)
+          .post('/api/v1/claims')
+          .set('Authorization', `Bearer ${officerToken}`)
+          .send({
+            policyId: activeCompPolicy._id.toString(),
+            plateNumber: 'INT-1111',
+            incidentType: t,
+            incidentLocation: 'Ramallah',
+            incidentDate: '2026-06-15',
+          });
+        expect(res.status).toBe(201);
+        expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
+      }
+
+      const resOther = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: activeCompPolicy._id.toString(),
+          plateNumber: 'INT-1111',
+          incidentType: 'OTHER',
+          incidentLocation: 'Ramallah',
+          incidentDate: '2026-06-15',
+        });
+      expect(resOther.status).toBe(201);
+      expect(resOther.body.data.eligibilityHint).toBeNull();
+    });
+
+    it('sets eligibilityHint NOT_COVERED_BY_POLICY_TYPE for collision types and null for OTHER on THIRD_PARTY policy', async () => {
+      const types = ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE'];
+      for (const t of types) {
+        const res = await request(app)
+          .post('/api/v1/claims')
+          .set('Authorization', `Bearer ${officerToken}`)
+          .send({
+            policyId: thirdPartyPolicy._id.toString(),
+            plateNumber: 'INT-TP-1',
+            incidentType: t,
+            incidentLocation: 'Ramallah',
+            incidentDate: '2026-06-15',
+          });
+        expect(res.status).toBe(201);
+        expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+      }
+
+      const resOther = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: thirdPartyPolicy._id.toString(),
+          plateNumber: 'INT-TP-1',
+          incidentType: 'OTHER',
+          incidentLocation: 'Ramallah',
+          incidentDate: '2026-06-15',
+        });
+      expect(resOther.status).toBe(201);
+      expect(resOther.body.data.eligibilityHint).toBeNull();
+    });
+
+    it('sets eligibilityHint NOT_COVERED_BY_POLICY_TYPE for collision types and null for OTHER on theft-only policy', async () => {
+      const types = ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE'];
+      for (const t of types) {
+        const res = await request(app)
+          .post('/api/v1/claims')
+          .set('Authorization', `Bearer ${officerToken}`)
+          .send({
+            policyId: theftOnlyPolicy._id.toString(),
+            plateNumber: 'INT-TH-1',
+            incidentType: t,
+            incidentLocation: 'Ramallah',
+            incidentDate: '2026-06-15',
+          });
+        expect(res.status).toBe(201);
+        expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+      }
+
+      const resOther = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: theftOnlyPolicy._id.toString(),
+          plateNumber: 'INT-TH-1',
+          incidentType: 'OTHER',
+          incidentLocation: 'Ramallah',
+          incidentDate: '2026-06-15',
+        });
+      expect(resOther.status).toBe(201);
+      expect(resOther.body.data.eligibilityHint).toBeNull();
+    });
+  });
 });

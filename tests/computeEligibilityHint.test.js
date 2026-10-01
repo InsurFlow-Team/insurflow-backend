@@ -204,4 +204,98 @@ describe('computeEligibilityHint utility', () => {
       expect(hint).toBe(ELIGIBILITY_HINTS.NOT_COVERED_BY_POLICY_TYPE);
     });
   });
+
+  describe('Claim incident type to policy peril mapping', () => {
+    const allPerilsPolicy = {
+      ...basePolicy,
+      coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
+    };
+
+    const thirdPartyPolicy = {
+      ...basePolicy,
+      policyType: 'THIRD_PARTY',
+      coveredPerils: [],
+    };
+
+    const theftOnlyPolicy = {
+      ...basePolicy,
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['THEFT'],
+    };
+
+    it('maps collision claim subtypes to COLLISION peril on a comprehensive policy covering all perils', () => {
+      const types = ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE'];
+      types.forEach((type) => {
+        const hint = computeEligibilityHint({
+          policy: allPerilsPolicy,
+          incidentType: type,
+          incidentDate: '2025-06-15',
+        });
+        expect(hint).toBe(ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW);
+      });
+    });
+
+    it('maps OTHER to null returning null after validity period check passes', () => {
+      const hint = computeEligibilityHint({
+        policy: allPerilsPolicy,
+        incidentType: 'OTHER',
+        incidentDate: '2025-06-15',
+      });
+      expect(hint).toBeNull();
+    });
+
+    it('passes unmapped perils like THEFT, FIRE, and NATURAL_DISASTER through as given', () => {
+      ['THEFT', 'FIRE', 'NATURAL_DISASTER'].forEach((type) => {
+        const hint = computeEligibilityHint({
+          policy: allPerilsPolicy,
+          incidentType: type,
+          incidentDate: '2025-06-15',
+        });
+        expect(hint).toBe(ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW);
+      });
+    });
+
+    it('evaluates all claim types against a THIRD_PARTY policy', () => {
+      ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE'].forEach((type) => {
+        const hint = computeEligibilityHint({
+          policy: thirdPartyPolicy,
+          incidentType: type,
+          incidentDate: '2025-06-15',
+        });
+        expect(hint).toBe(ELIGIBILITY_HINTS.NOT_COVERED_BY_POLICY_TYPE);
+      });
+
+      const otherHint = computeEligibilityHint({
+        policy: thirdPartyPolicy,
+        incidentType: 'OTHER',
+        incidentDate: '2025-06-15',
+      });
+      expect(otherHint).toBeNull();
+    });
+
+    it('evaluates all claim types against a policy covering only THEFT', () => {
+      ['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE'].forEach((type) => {
+        const hint = computeEligibilityHint({
+          policy: theftOnlyPolicy,
+          incidentType: type,
+          incidentDate: '2025-06-15',
+        });
+        expect(hint).toBe(ELIGIBILITY_HINTS.NOT_COVERED_BY_POLICY_TYPE);
+      });
+
+      const otherHint = computeEligibilityHint({
+        policy: theftOnlyPolicy,
+        incidentType: 'OTHER',
+        incidentDate: '2025-06-15',
+      });
+      expect(otherHint).toBeNull();
+
+      const theftHint = computeEligibilityHint({
+        policy: theftOnlyPolicy,
+        incidentType: 'THEFT',
+        incidentDate: '2025-06-15',
+      });
+      expect(theftHint).toBe(ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW);
+    });
+  });
 });
