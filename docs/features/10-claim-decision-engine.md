@@ -7,7 +7,7 @@ Key operational characteristics:
 1. **Source State:** Claims must currently be in status **`UNDER_REVIEW`**.
 2. **Terminal Decisions:** Claims can transition to **`APPROVED`** or **`REJECTED`**.
 3. **Authorized Roles (Ratified):** Both **`CLAIMS_OFFICER`** and **`ADMIN`** hold adjudication authority.
-4. **Financial Adjudication (`lossAssessment`):** When approving a claim (`APPROVED`), financial loss assessment parameters (`estimatedPartsCost`, `laborCost`, `deductibleApplied`, `deductibleOverrideReason`) are calculated and recorded. Controlled via feature flag `REQUIRE_LOSS_ASSESSMENT`.
+4. **Financial Adjudication (`lossAssessment`):** When approving a claim (`APPROVED`), financial loss assessment parameters (`estimatedPartsCost`, `laborCost`, `deductibleApplied`, `deductibleOverrideReason`) are mandatory. For `REJECTED`, `lossAssessment` is strictly forbidden. Both return 400 `VALIDATION_ERROR`.
 5. **Concurrency Safety:** Simultaneous conflicting decisions (e.g. concurrent approval vs rejection) are resolved atomically: exactly one succeeds; competing requests fail with `409 Conflict`.
 
 ---
@@ -15,7 +15,7 @@ Key operational characteristics:
 ## 2. Technical Architecture & Implementation
 
 ### Endpoint Definition & Middleware
-Defined in [src/modules/claims/claim.routes.js:L91-L97](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.routes.js#L91-L97):
+Defined in [src/modules/claims/claim.routes.js](../../src/modules/claims/claim.routes.js):
 ```javascript
 router.post(
   '/:claimId/decision',
@@ -41,7 +41,7 @@ const handleClaimNotFoundOrStateError = async (claimId, organizationId) => {
 - In the `APPROVED` branch: The pre-read uses `handleClaimNotFoundOrStateError` if the claim does not exist or status is not `UNDER_REVIEW`. The atomic filter on `UNDER_REVIEW` remains the final concurrent defense.
 
 ### Atomic Repository Query
-Implemented in [src/modules/claims/claim.repository.js:L118-L135](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.repository.js#L118-L135):
+Implemented in [src/modules/claims/claim.repository.js](../../src/modules/claims/claim.repository.js):
 ```javascript
 const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent, lossAssessmentDoc = null) => {
   const updateDoc = {
@@ -86,13 +86,23 @@ const makeDecision = async (claimId, organizationId, decision, decisionNotes, ti
   * `decision`: Required enum: `'APPROVED'` or `'REJECTED'`.
   * `notes`: Optional string, trimmed.
   * `lossAssessment`:
-    * Prohibited when `decision === 'REJECTED'` (triggers 400).
-    * Optional when `REQUIRE_LOSS_ASSESSMENT=false`; mandatory when `REQUIRE_LOSS_ASSESSMENT=true`.
-    * Unknown keys strictly forbidden (`.unknown(false)` — triggers 400).
-    * `estimatedPartsCost`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, required.
-    * `laborCost`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, required.
-    * `deductibleApplied`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, optional.
-    * `deductibleOverrideReason`: String, trimmed, min 5, max 300 chars, required if `deductibleApplied !== policyDeductible`.
+    * Mandatory when `decision === 'APPROVED'` (triggers 400 `VALIDATION_ERROR` if omitted).
+    * Forbidden when `decision === 'REJECTED'` (triggers 400 `VALIDATION_ERROR` if supplied).
+    * Unknown keys strictly forbidden (`.unknown(false)` — triggers 400, e.g. client-sent `totalDamage` or `netApprovedPayout`).
+    * `estimatedPartsCost`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, required. Zero allowed.
+    * `laborCost`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, required. Zero allowed.
+    * `deductibleApplied`: Number, `.strict()`, min 0, max 1,000,000, max 2 decimals, optional. Zero allowed.
+    * `deductibleOverrideReason`: String, trimmed, max 1000 chars payload guard.
+* **Business Evaluation Rules:**
+  * `totalDamage = estimatedPartsCost + laborCost`.
+  * If `totalDamage <= 0`, throws 400 `VALIDATION_ERROR` with `"totalDamage must be greater than zero"`.
+  * If `totalDamage <= deductibleApplied`, throws 422 `DAMAGE_BELOW_DEDUCTIBLE` with `"Total damage must be greater than the applied deductible"`.
+  * Policy deductible is retrieved from `claim.coverageSnapshot.deductibleAmount` (falling back to live policy lookup for legacy claims created before snapshot existed).
+  * `overridden = appliedCents !== policyDeductibleCents`:
+    * If overridden: trimmed reason must be between 10 and 300 characters, else 422 `OVERRIDE_REASON_REQUIRED` (`"Deductible override reason is required and must be between 10 and 300 characters when deductible is overridden"`).
+    * If not overridden: supplying a non-empty reason throws 422 `OVERRIDE_REASON_NOT_ALLOWED` (`"Deductible override reason is not allowed when deductible matches policy deductible"`).
+    * `deductibleOverridden` boolean is persisted in `lossAssessment`.
+    * Trimmed reason is stored only when overridden, otherwise `null`.
 * **Success Response (200 OK):**
   ```json
   {
@@ -109,6 +119,7 @@ const makeDecision = async (claimId, organizationId, decision, decisionNotes, ti
         "totalDamage": 5700.50,
         "policyDeductible": 1000.00,
         "deductibleApplied": 500.00,
+        "deductibleOverridden": true,
         "deductibleOverrideReason": "Waived 50% per promotional campaign",
         "netApprovedPayout": 5200.50,
         "assessedAt": "2026-09-28T14:30:00.000Z",
@@ -121,13 +132,14 @@ const makeDecision = async (claimId, organizationId, decision, decisionNotes, ti
     }
   }
   ```
-  * `400 Bad Request`: `VALIDATION_ERROR` (missing decision, invalid value, non-numeric strings, unknown keys, or invalid decimal places).
+  * `400 Bad Request`: `VALIDATION_ERROR` (missing decision, missing lossAssessment on APPROVED, lossAssessment present on REJECTED, unknown keys, invalid decimal places, or totalDamage <= 0).
   * `401 Unauthorized`: Unauthenticated.
   * `403 Forbidden`: Authenticated user is a `FIELD_ADJUSTER`.
   * `404 Not Found`: `CLAIM_NOT_FOUND` (claim does not exist or belongs to another tenant).
   * `409 Conflict`: `INVALID_STATUS_TRANSITION` (claim is not in `UNDER_REVIEW`).
   * `422 Unprocessable Entity`: `DAMAGE_BELOW_DEDUCTIBLE` (when `totalDamage <= deductibleApplied`).
-  * `422 Unprocessable Entity`: `OVERRIDE_REASON_REQUIRED` (when `deductibleApplied !== policyDeductible` without valid reason).
+  * `422 Unprocessable Entity`: `OVERRIDE_REASON_REQUIRED` (when `deductibleApplied !== policyDeductible` without valid 10-300 char reason).
+  * `422 Unprocessable Entity`: `OVERRIDE_REASON_NOT_ALLOWED` (when `deductibleApplied === policyDeductible` and a non-empty reason is supplied).
 
 ---
 
@@ -139,7 +151,8 @@ The decision appends a definitive audit entry to `claim.timeline`:
   action: decision === 'APPROVED' ? 'Claim Approved' : 'Claim Rejected',
   performedBy: authUser.userId,
   role: authUser.role, // 'CLAIMS_OFFICER' or 'ADMIN'
-  timestamp: new Date()
+  timestamp: new Date(),
+  notes: overridden ? `${notes ? notes + ' ' : ''}[DEDUCTIBLE OVERRIDE] policy deductible ${policyDeductible}, applied ${applied}. Reason: ${reason}` : notes
 }
 ```
 
@@ -147,7 +160,10 @@ The decision appends a definitive audit entry to `claim.timeline`:
 
 ## 5. Automated Testing Suite
 
-Tested in [tests/claim.decision.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.decision.test.js) (15 comprehensive tests):
+Tested in:
+* [tests/claim.decisionStage4.test.js](../../tests/claim.decisionStage4.test.js)
+* [tests/claim.decision.test.js](../../tests/claim.decision.test.js)
+* [tests/claim.lossAssessment.test.js](../../tests/claim.lossAssessment.test.js)
 * Happy path: `APPROVED` by `CLAIMS_OFFICER`.
 * Happy path: `REJECTED` by `CLAIMS_OFFICER`.
 * Happy path: Decision by `ADMIN`.

@@ -12,7 +12,7 @@
 | **Current Project Phase** | Active Development / Frontend & Mobile Integration Phase |
 | **Current Sprint** | **Sprint 1, Sprint 2, Features 18-22, Public Claim Tracking (Feature 23), GAP-05 & GAP-02 Completed** |
 | **Architectural Health** | Structurally Sound (Modular 5-layer architecture, 100% test passing) |
-| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (31 Suites / 506 Tests - 100% Pass)** |
+| **Overall Readiness** | **Backend Core & Lifecycle Deliverables: 100% Complete & Verified (34 Suites / 553 Tests - 100% Pass)** |
 
 ---
 
@@ -176,6 +176,16 @@
   - Safe legacy policy handling: policies missing coverage structure return `coverage: null` without guessing.
   - Maintains 100% backward compatibility of existing response fields (`isEligible`, `eligibilityHint`, `policy`, `vehicle`, `customer`).
   - Added 9 dedicated integration tests in `tests/policy.verification.test.js` (48 tests in suite), bringing total system coverage to **31 Suites / 506 Tests (100% Pass Rate)**.
+- [x] **Stage 4A: Intake and Money (Advisory Eligibility, Required Incident Date, & Financial Decision Engine - Completed & Verified):**
+  - **Advisory Policy Verification:** Period mismatch and expired status transformed to advisory hint (`INCIDENT_OUTSIDE_POLICY_PERIOD`) via pure utility `computeEligibilityHint.js`. Hard 422 errors removed for expired/date mismatch, while `POLICY_CANCELLED` and vehicle mismatches remain strict 422 blocks. Customer object returns strictly `['id', 'fullName', 'phone']`.
+  - **Claim Intake Expansion (`POST /api/v1/claims`):** Required `incidentDate` (`YYYY-MM-DD`, not in future), optional `description` stored as `incidentDescription`, advisory `eligibilityHint` computed on creation, and enhanced response containing `trackingToken`, `trackingUrl`, `eligibilityHint`, and `coverageSnapshot`. Flat `latitude` and `longitude` request shape.
+  - **Financial Adjudication Engine (`POST /api/v1/claims/:claimId/decision`):**
+    - Removed `REQUIRE_LOSS_ASSESSMENT` feature flag; `lossAssessment` is unconditionally mandatory for `APPROVED` and strictly forbidden for `REJECTED` (both return 400 `VALIDATION_ERROR`).
+    - Validates `totalDamage <= 0` prior to deductible check (returns 400 `VALIDATION_ERROR` with `"totalDamage must be greater than zero"`).
+    - `totalDamage <= deductibleApplied` returns 422 `DAMAGE_BELOW_DEDUCTIBLE`.
+    - Deductible override rules: `overridden = appliedCents !== policyDeductibleCents`. When overridden, requires 10-300 char reason (else 422 `OVERRIDE_REASON_REQUIRED`) and appends `[DEDUCTIBLE OVERRIDE] policy deductible <X>, applied <Y>. Reason: <reason>` to timeline note. When not overridden, non-empty reason returns 422 `OVERRIDE_REASON_NOT_ALLOWED`. Persists `deductibleOverridden` boolean in `lossAssessment`.
+    - Both `CLAIMS_OFFICER` and `ADMIN` authorized to override deductible.
+  - Total automated test suites: **34 Suites / 553 Tests (100% Pass Rate)** across dedicated suites `tests/computeEligibilityHint.test.js`, `tests/claim.intakeStage4.test.js`, `tests/claim.decisionStage4.test.js`, and updated existing suites.
 
 ---
 

@@ -4,10 +4,10 @@
 The **Policy Verification / Intake Gate** introduces a mandatory eligibility check before any claim can be created in InsurFlow. When a policyholder calls to report an accident, the **`CLAIMS_OFFICER`** or **`ADMIN`** first verifies that:
 
 1. The caller holds a valid insurance policy with the company.
-2. The policy is currently **ACTIVE** (not expired or cancelled).
-3. The policy was active on the date the incident occurred.
+2. The policy is not cancelled (`CANCELLED` returns 422 `POLICY_CANCELLED`).
+3. Policy period mismatch or expired status produces an advisory intake hint (`INCIDENT_OUTSIDE_POLICY_PERIOD`) and does not block verification.
 4. The vehicle involved matches the policy record.
-5. **Coverage Snapshot & Eligibility Hint:** Returns the policy's coverage structure (`policyType`, `coveredPerils`, `deductibleAmount`) and provides an immediate intake hint (`eligibilityHint`) if an `incidentType` is supplied.
+5. **Coverage Snapshot & Eligibility Hint:** Returns the policy's coverage structure (`policyType`, `coveredPerils`, `deductibleAmount`), authoritative `coverage` object, and provides an immediate intake hint (`eligibilityHint`) if an `incidentType` is supplied.
 
 Only after successful verification does the system allow the officer to proceed with claim creation (`POST /claims`).
 
@@ -16,10 +16,11 @@ Only after successful verification does the system allow the officer to proceed 
 > - **`COMPREHENSIVE`**: Covers own-damage to the insured vehicle for perils specified in `coveredPerils` (must be non-empty), subject to `deductibleAmount`.
 > - **`THIRD_PARTY`**: Covers third-party liability only. Excludes own-damage to the insured vehicle (`coveredPerils` is strictly `[]`, deductible is `0`). Badge/hint text: **"الضرر الذاتي غير مشمول"** (*Own-damage is not covered*). Third-party liability is separate from compulsory insurance; compulsory insurance is a distinct product not modeled here.
 > - **`eligibilityHint`**:
->   - `ELIGIBLE_FOR_REVIEW`: When `incidentType` is included in `coveredPerils`.
+>   - `ELIGIBLE_FOR_REVIEW`: When `incidentType` is included in `coveredPerils` and reference date is within policy period.
 >   - `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (e.g. own-damage claim under a `THIRD_PARTY` policy).
->   - `COVERAGE_UNKNOWN`: Legacy policy missing `policyType` / `deductibleAmount`.
->   - `null`: No `incidentType` was provided in the request or policy is not active.
+>   - `COVERAGE_UNKNOWN`: Legacy policy missing `policyType` or peril check unknown.
+>   - `INCIDENT_OUTSIDE_POLICY_PERIOD`: Reference date falls outside `[startDate, expiryDate]`. Advisory hint, never blocks 200 OK.
+>   - `null`: No `incidentType` was provided in the request.
 
 ---
 
@@ -42,34 +43,33 @@ Only after successful verification does the system allow the officer to proceed 
    ├── 1. Query Policy: policyRepository.findByPolicyNumberAndOrganization(policyNumber, orgId)
    │      └── Not found → 404 POLICY_NOT_FOUND
    ├── 2. Status Check:
-   │      ├── CANCELLED → 422 POLICY_CANCELLED
-   │      └── EXPIRED → 422 POLICY_EXPIRED
+   │      └── CANCELLED → 422 POLICY_CANCELLED
    ├── 3. Date Check (if incidentDate provided):
-   │      ├── incidentDate in future → 400 INVALID_INCIDENT_DATE
-   │      └── Outside [startDate, expiryDate] → 422 POLICY_NOT_ACTIVE_ON_DATE
+   │      └── incidentDate in future → 400 INVALID_INCIDENT_DATE
    ├── 4. Vehicle Lookup: vehicleRepository.findByPolicyAndOrganization(policyId, orgId)
    │      └── Populates customerId for customer data
    ├── 5. Plate Cross-Match (if plateNumber provided):
    │      └── Mismatch → 422 VEHICLE_MISMATCH
-   ├── 6. Coverage Snapshot & Eligibility Hint Evaluation:
-   │      ├── Reference Date = incidentDate ? new Date(incidentDate) : now
-   │      └── If policy ACTIVE & valid on reference date and incidentType provided:
-   │            ├── policyType missing → COVERAGE_UNKNOWN
-   │            ├── incidentType in coveredPerils → ELIGIBLE_FOR_REVIEW
-   │            └── incidentType not in coveredPerils → NOT_COVERED_BY_POLICY_TYPE
-   └── 7. Return { isEligible: true, eligibilityHint, policy, vehicle, customer }
+   ├── 6. Compute Advisory Eligibility Hint: computeEligibilityHint({ policy, incidentType, incidentDate })
+   │      ├── incidentType provided & policyType missing → COVERAGE_UNKNOWN
+   │      ├── Reference date outside [startDate, expiryDate] → INCIDENT_OUTSIDE_POLICY_PERIOD
+   │      ├── incidentType absent → null
+   │      ├── incidentType not in coveredPerils → NOT_COVERED_BY_POLICY_TYPE
+   │      └── Otherwise → ELIGIBLE_FOR_REVIEW
+   └── 7. Return { isEligible: true, eligibilityHint, policy, vehicle, customer, coverage }
 ```
 
 ### Components Involved
-* **Route:** [src/modules/policies/policy.routes.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/policies/policy.routes.js)
-* **Controller:** [src/modules/policies/policy.controller.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/policies/policy.controller.js)
-* **Service:** [src/modules/policies/policy.service.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/policies/policy.service.js)
-* **Model:** [src/modules/policies/policy.model.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/policies/policy.model.js)
-* **Validation:** [src/modules/policies/policy.validation.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/policies/policy.validation.js)
+* **Route:** [src/modules/policies/policy.routes.js](../../src/modules/policies/policy.routes.js)
+* **Controller:** [src/modules/policies/policy.controller.js](../../src/modules/policies/policy.controller.js)
+* **Service:** [src/modules/policies/policy.service.js](../../src/modules/policies/policy.service.js)
+* **Model:** [src/modules/policies/policy.model.js](../../src/modules/policies/policy.model.js)
+* **Validation:** [src/modules/policies/policy.validation.js](../../src/modules/policies/policy.validation.js)
 * **Repositories:**
-  * `policyRepository`: [src/modules/policies/policy.repository.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/policies/policy.repository.js)
-  * `vehicleRepository`: [src/modules/vehicles/vehicle.repository.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/vehicles/vehicle.repository.js)
-* **Migration Script:** [src/scripts/migrateLegacyPolicies.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/scripts/migrateLegacyPolicies.js)
+  * `policyRepository`: [src/modules/policies/policy.repository.js](../../src/modules/policies/policy.repository.js)
+  * `vehicleRepository`: [src/modules/vehicles/vehicle.repository.js](../../src/modules/vehicles/vehicle.repository.js)
+* **Migration Script:** [src/scripts/migrateLegacyPolicies.js](../../src/scripts/migrateLegacyPolicies.js)
+* **Utility:** [src/utils/computeEligibilityHint.js](../../src/utils/computeEligibilityHint.js)
 
 ---
 
@@ -151,9 +151,7 @@ Only after successful verification does the system allow the officer to proceed 
     * `POLICY_NOT_FOUND` — Policy does not exist in the caller's organization (includes cross-tenant stealth rejection), or vehicle has no linked policy.
     * `VEHICLE_NOT_FOUND` — Vehicle with the given `plateNumber` does not exist in the organization.
   * `422 Unprocessable Entity`:
-    * `POLICY_EXPIRED` — Policy status is `EXPIRED` or calendar `expiryDate` has passed.
     * `POLICY_CANCELLED` — Policy status is `CANCELLED`.
-    * `POLICY_NOT_ACTIVE_ON_DATE` — The incident date falls outside the policy's coverage period `[startDate, expiryDate]`.
     * `VEHICLE_MISMATCH` — The provided plate number does not match the vehicle registered with the policy, or policy has no vehicle record linked to match.
     * `AMBIGUOUS_VEHICLE_SELECTION` — Policy has multiple linked vehicles and `plateNumber` was not specified.
 
@@ -162,11 +160,11 @@ Only after successful verification does the system allow the officer to proceed 
 ## 4. Business Invariants & Multi-Tenancy
 
 1. **Rule BR-POL-VERIFY-1 (Intake Gate):** No claim should be created without first verifying that the policyholder and vehicle belong to the company and the policy is active.
-2. **Rule BR-POL-VERIFY-2 (Eligibility vs Coverage Snapshot):** Successful verification confirms the caller is insured and active (`isEligible: true`). When `incidentType` is supplied, `eligibilityHint` provides an advisory intake hint (`ELIGIBLE_FOR_REVIEW` or `NOT_COVERED_BY_POLICY_TYPE`).
+2. **Rule BR-POL-VERIFY-2 (Eligibility vs Coverage Snapshot):** Successful verification confirms the caller is insured (`isEligible: true`). When `incidentType` is supplied, `eligibilityHint` provides an advisory intake hint (`ELIGIBLE_FOR_REVIEW`, `NOT_COVERED_BY_POLICY_TYPE`, `COVERAGE_UNKNOWN`, or `INCIDENT_OUTSIDE_POLICY_PERIOD`). Policy period mismatches produce an advisory hint and never block intake.
 3. **Rule BR-POL-VERIFY-3 (Role Restriction):** Only `CLAIMS_OFFICER` and `ADMIN` can perform policy verification.
 4. **Rule BR-POL-VERIFY-4 (Strict Tenancy):** Policies and vehicles are queried exclusively within the caller's `organizationId`. Resources belonging to another tenant return `404 Not Found` (stealth rejection per BR-TENANT-3).
 5. **Rule BR-POL-VERIFY-5 (Dual Input Support & Plate Normalization):** The gate supports verification by `policyNumber`, `plateNumber`, or both. Plate number comparison is case-insensitive and whitespace-trimmed.
-6. **Rule BR-POL-VERIFY-6 (Temporal Validity):** Rejects future incident dates (`incidentDate > today`) and enforces that elapsed `expiryDate` marks a policy as expired even if DB status string is not yet updated.
+6. **Rule BR-POL-VERIFY-6 (Temporal Validity & Advisory Period Invariant):** Rejects future incident dates (`incidentDate > today`) with 400 `INVALID_INCIDENT_DATE`. Past expirations and incident dates outside policy boundaries return 200 OK with `eligibilityHint: 'INCIDENT_OUTSIDE_POLICY_PERIOD'`.
 7. **Rule BR-POL-VERIFY-7 (Own-Damage Scope):** `coveredPerils` defines own-damage coverage for the insured vehicle. A `THIRD_PARTY` policy has empty perils and indicates that own-damage is not covered ("الضرر الذاتي غير مشمول").
 
 ---
@@ -179,12 +177,13 @@ Only after successful verification does the system allow the officer to proceed 
 │ Officer enters policyNumber OR plateNumber (+ date, peril)      │
 │ Frontend calls: POST /api/v1/policies/verify                    │
 │                                                                 │
-│ ❌ Error → Show rejection reason, BLOCK intake                  │
+│ ❌ Error → Show rejection reason (CANCELLED, mismatch), BLOCK    │
 │ ✅ Success → Auto-fill customer/vehicle/coverage fields         │
 │           → Display Eligibility Hint badge:                     │
 │             * ELIGIBLE_FOR_REVIEW (Green badge)                 │
 │             * NOT_COVERED_BY_POLICY_TYPE (Warning badge:        │
 │               "الضرر الذاتي غير مشمول")                         │
+│             * INCIDENT_OUTSIDE_POLICY_PERIOD (Advisory badge)   │
 │             * COVERAGE_UNKNOWN (Advisory badge)                 │
 │           → Enable "Continue to Claim" button                   │
 └────────────────────────────────┬────────────────────────────────┘
@@ -202,29 +201,32 @@ Only after successful verification does the system allow the officer to proceed 
 
 ## 6. Test Data for Frontend Development
 
-| Scenario | `policyNumber` | `plateNumber` | `incidentType` | Expected Result |
-|---|---|---|---|---|
-| Active COMPREHENSIVE (covered) | `POL-1000` | `ABC-1234` | `COLLISION` | 200 OK — `isEligible: true`, `eligibilityHint: 'ELIGIBLE_FOR_REVIEW'` |
-| Active THIRD_PARTY (own-damage) | `POL-4000` | `TPL-4000` | `COLLISION` | 200 OK — `isEligible: true`, `eligibilityHint: 'NOT_COVERED_BY_POLICY_TYPE'` |
-| Active policy without incidentType | `POL-1000` | — | — | 200 OK — `isEligible: true`, `eligibilityHint: null` |
-| Expired policy (reject) | `POL-2000` | — | — | 422 `POLICY_EXPIRED` |
-| Cancelled policy (reject) | `POL-3000` | — | — | 422 `POLICY_CANCELLED` |
-| Future incident date | `POL-1000` | — | — | 400 `INVALID_INCIDENT_DATE` |
-| Invalid peril | `POL-1000` | — | `FLOOD` | 400 `VALIDATION_ERROR` |
-| Non-existent policy | `POL-9999` | — | — | 404 `POLICY_NOT_FOUND` |
-| Wrong plate on policy | `POL-1000` | `WRONG-123` | — | 422 `VEHICLE_MISMATCH` |
+| Scenario | `policyNumber` | `plateNumber` | `incidentDate` | `incidentType` | Expected Result |
+|---|---|---|---|---|---|
+| Active COMPREHENSIVE (covered) | `POL-1000` | `ABC-1234` | `2026-09-08` | `COLLISION` | 200 OK — `isEligible: true`, `eligibilityHint: 'ELIGIBLE_FOR_REVIEW'` |
+| Active THIRD_PARTY (own-damage) | `POL-4000` | `TPL-4000` | `2026-09-08` | `COLLISION` | 200 OK — `isEligible: true`, `eligibilityHint: 'NOT_COVERED_BY_POLICY_TYPE'` |
+| Active policy without incidentType | `POL-1000` | — | — | — | 200 OK — `isEligible: true`, `eligibilityHint: null` |
+| Expired policy (advisory) | `POL-2000` | — | — | — | 200 OK — `isEligible: true`, `eligibilityHint: 'INCIDENT_OUTSIDE_POLICY_PERIOD'` |
+| Policy expired with date in period | `POL-2000` | — | `2024-05-15` | `COLLISION` | 200 OK — `isEligible: true`, `eligibilityHint: 'ELIGIBLE_FOR_REVIEW'` |
+| Cancelled policy (reject) | `POL-3000` | — | — | — | 422 `POLICY_CANCELLED` |
+| Future incident date | `POL-1000` | — | `2099-01-01` | — | 400 `INVALID_INCIDENT_DATE` |
+| Invalid peril | `POL-1000` | — | — | `FLOOD` | 400 `VALIDATION_ERROR` |
+| Non-existent policy | `POL-9999` | — | — | — | 404 `POLICY_NOT_FOUND` |
+| Wrong plate on policy | `POL-1000` | `WRONG-123` | — | — | 422 `VEHICLE_MISMATCH` |
 
 ---
 
 ## 7. Automated Testing Suite
 
-Tested in [tests/policy.verification.test.js](../../tests/policy.verification.test.js) (48 tests):
+Tested in:
+* [tests/computeEligibilityHint.test.js](../../tests/computeEligibilityHint.test.js)
+* [tests/policy.verification.test.js](../../tests/policy.verification.test.js) (48 tests)
 * Successful verification with active policy (CLAIMS_OFFICER and ADMIN) returning coverage snapshot (`policyType`, `coveredPerils`, `deductibleAmount`) and dedicated `coverage` object.
 * GAP-02 Coverage Visibility & Incident Applicability:
   * COMPREHENSIVE policy with verified `incidentDate` returns full `coverage` object with `effectiveFrom`, `effectiveTo`, `deductible`, and all canonical perils mapped with `covered: true`.
   * Covered incidentType (`COLLISION`) confirms `covered: true` in `coverage.incidents` and `ELIGIBLE_FOR_REVIEW`.
   * Uncovered incidentType on partial policy confirms `covered: false` in `coverage.incidents` and `NOT_COVERED_BY_POLICY_TYPE`.
-  * Incident date outside policy period is rejected with 422 `POLICY_NOT_ACTIVE_ON_DATE` and exposes no false coverage.
+  * Incident date outside policy period returns 200 OK with `eligibilityHint: 'INCIDENT_OUTSIDE_POLICY_PERIOD'`.
   * Legacy policy missing coverage data safely returns `coverage: null` without fabricating data.
   * Absence of currency and coverage limits verified (no fabricated financial metadata).
   * THIRD_PARTY policy returns `coverage` with `deductible: 0` and all incidents un-covered.
@@ -244,5 +246,5 @@ Tested in [tests/policy.verification.test.js](../../tests/policy.verification.te
   * Dry-run mode (`--apply` omitted) produces zero updates and keeps legacy documents unmodified.
   * Apply mode persists `THIRD_PARTY`, `coveredPerils: []`, `deductibleAmount: 0`.
   * Script idempotency: second run finds zero records to update.
-* Status & Mismatch rejections (expired, cancelled, date mismatch, plate mismatch, multi-vehicle ambiguity).
+* Status & Mismatch rejections (cancelled, plate mismatch, multi-vehicle ambiguity).
 * Multi-tenancy and RBAC isolation tests.

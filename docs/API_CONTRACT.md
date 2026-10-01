@@ -135,8 +135,6 @@ Valid status transitions (enforced by the Backend):
   - `404 POLICY_NOT_FOUND`: Policy not found within tenant.
   - `404 VEHICLE_NOT_FOUND`: Vehicle not found by plate within tenant.
   - `422 POLICY_CANCELLED`: Policy is cancelled.
-  - `422 POLICY_EXPIRED`: Policy is expired or calendar expiry has elapsed.
-  - `422 POLICY_NOT_ACTIVE_ON_DATE`: `incidentDate` outside policy period.
   - `422 VEHICLE_MISMATCH`: Specified plate number does not match policy vehicle.
   - `422 AMBIGUOUS_VEHICLE_SELECTION`: Policy has multiple vehicles registered and caller omitted `plateNumber`.
 - **Success Response (200 OK):**
@@ -198,6 +196,7 @@ Valid status transitions (enforced by the Backend):
   - `ELIGIBLE_FOR_REVIEW`: When `incidentType` is in `coveredPerils`.
   - `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (badge: "الضرر الذاتي غير مشمول").
   - `COVERAGE_UNKNOWN`: For legacy policies missing `policyType`.
+  - `INCIDENT_OUTSIDE_POLICY_PERIOD`: Reference date (`incidentDate`, or UTC date of `now` when omitted) falls outside policy period `[startDate, expiryDate]`. Advisory hint only, never blocks verification or intake.
   - `null`: When `incidentType` is not provided.
 
 ## 8. Claims APIs
@@ -214,6 +213,7 @@ Valid status transitions (enforced by the Backend):
     "incidentDate": "2026-06-15",
     "incidentType": "COLLISION",
     "incidentLocation": "Main St, Riyadh",
+    "description": "Front collision with another vehicle",
     "latitude": 31.9050,
     "longitude": 35.2040
   }
@@ -221,19 +221,18 @@ Valid status transitions (enforced by the Backend):
 - **Fields:**
   - `policyId` (String, required): Valid MongoDB ObjectId of an active policy verified via `POST /policies/verify`.
   - `plateNumber` (String, optional): License plate number. If the policy has more than one registered vehicle, this field is mandatory; otherwise, intake is rejected with 422 `AMBIGUOUS_VEHICLE_SELECTION`. If provided, must match a vehicle registered on the policy.
-  - `incidentDate` (String, optional): `YYYY-MM-DD`. Cannot be in the future and must fall within policy `[startDate, expiryDate]`.
+  - `incidentDate` (String, required): `YYYY-MM-DD`. Cannot be in the future. (Policy period mismatch produces an advisory `eligibilityHint` and does not block claim intake).
   - `incidentType` (String, required): One of `COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`.
   - `incidentLocation` (String, required): Incident location address/description.
-  - `latitude` (Number, optional): GPS coordinate (-90 to 90).
-  - `longitude` (Number, optional): GPS coordinate (-180 to 180).
-- **Incident Coordinates (Feature 18):** `latitude` and `longitude` are optional numeric coordinates. When provided, they are stored in a dedicated `claim.incidentCoordinates: { latitude, longitude, capturedAt }` subdocument (separate from incident address string `claim.incidentLocation` and inspection GPS `claim.location`). If omitted, `incidentCoordinates` is stored as `null` and `incidentLocation` text is preserved as given.
-- **Business Rules:** The Backend automatically determines `organizationId`, `createdBy`, `createdAt`, `status` (`NEW`), and resolves `customer` (`name`, `phone`) and `vehicle` (`plateNumber`) from the policy vehicle record. The client must not attempt to control these values.
+  - `description` (String, optional): Incident description narrative (trimmed, max 1000 characters). Stored internally as `incidentDescription`.
+  - `latitude` (Number, optional): Flat GPS coordinate (-90 to 90).
+  - `longitude` (Number, optional): Flat GPS coordinate (-180 to 180).
+- **Incident Coordinates (Feature 18):** `latitude` and `longitude` are flat optional numeric coordinates in the request payload. When provided, they are stored in a dedicated `claim.incidentCoordinates: { latitude, longitude, capturedAt }` subdocument (separate from incident address string `claim.incidentLocation` and inspection GPS `claim.location`). If omitted, `incidentCoordinates` is stored as `null`.
+- **Business Rules:** The Backend automatically determines `organizationId`, `createdBy`, `createdAt`, `status` (`NEW`), computes `eligibilityHint`, captures `coverageSnapshot`, and resolves `customer` (`name`, `phone`) and `vehicle` (`plateNumber`) from the policy vehicle record. The client must not attempt to control these values (sending `eligibilityHint` returns 400 `VALIDATION_ERROR`).
 - **Error Codes:**
-  - `400 VALIDATION_ERROR`: Missing `policyId`, missing `incidentType`, missing `incidentLocation`, or invalid format.
+  - `400 VALIDATION_ERROR`: Missing `policyId`, missing `incidentDate`, missing `incidentType`, missing `incidentLocation`, client-sent `eligibilityHint`, or invalid format.
   - `404 POLICY_NOT_FOUND`: Policy not found in the authenticated user's organization.
   - `422 POLICY_CANCELLED`: Policy is cancelled.
-  - `422 POLICY_EXPIRED`: Policy has expired.
-  - `422 POLICY_NOT_ACTIVE_ON_DATE`: Policy was not active on `incidentDate`.
   - `422 NO_VEHICLE_ON_POLICY`: No vehicle registered under the policy.
   - `422 VEHICLE_MISMATCH`: Specified plate number does not match any vehicle registered under the policy.
   - `422 AMBIGUOUS_VEHICLE_SELECTION`: Policy has multiple vehicles registered and caller omitted `plateNumber`.
@@ -243,10 +242,19 @@ Valid status transitions (enforced by the Backend):
     "success": true,
     "message": "Claim created successfully",
     "data": {
-      "id": "claim-uuid",
-      "claimNumber": "CLM-0001",
+      "id": "60d0fe4f5311236168a109cc",
+      "claimNumber": "CLM-INS-0001",
       "status": "NEW",
-      "createdAt": "2026-08-26T15:00:00Z"
+      "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "trackingUrl": "http://localhost:3000/track/d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
+      "coverageSnapshot": {
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
+        "deductibleAmount": 500,
+        "capturedAt": "2026-08-26T15:00:00.000Z"
+      },
+      "createdAt": "2026-08-26T15:00:00.000Z"
     }
   }
   ```
@@ -317,8 +325,10 @@ Valid status transitions (enforced by the Backend):
       "claimNumber": "CLM-DEMO-0001",
       "status": "ASSIGNED",
       "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "incidentType": "COLLISION",
       "incidentLocation": "Al-Irsal St, Ramallah",
+      "incidentDescription": "Front collision with another vehicle",
       "incidentCoordinates": {
         "latitude": 31.9050,
         "longitude": 35.2040,
@@ -439,6 +449,7 @@ Valid status transitions (enforced by the Backend):
         "totalDamage": 2000.0,
         "policyDeductible": 500.0,
         "deductibleApplied": 500.0,
+        "deductibleOverridden": false,
         "deductibleOverrideReason": null,
         "netApprovedPayout": 1500.0,
         "currency": "ILS",
@@ -1134,19 +1145,23 @@ Valid status transitions (enforced by the Backend):
   - `notes`: Optional string.
   - `lossAssessment`:
     - **Forbidden** when `decision === "REJECTED"` (returns `400 VALIDATION_ERROR`).
-    - **Optional** when `decision === "APPROVED"` under feature flag default (`REQUIRE_LOSS_ASSESSMENT=false`).
-    - **Mandatory** when `decision === "APPROVED"` and `REQUIRE_LOSS_ASSESSMENT=true`.
+    - **Mandatory** when `decision === "APPROVED"` (returns `400 VALIDATION_ERROR` if omitted).
     - Strict Numeric Types: Numeric fields (`estimatedPartsCost`, `laborCost`, `deductibleApplied`) must be JSON numbers, strictly rejecting string numbers like `"12.50"` (`400 VALIDATION_ERROR`).
     - Decimal Precision: Maximum 2 decimal places (e.g. `12.345` is rejected with `400 VALIDATION_ERROR`).
-    - Bounds: Minimum `0`, Maximum `1,000,000`.
-    - Disallowed Keys: Any unknown key (including `totalDamage`, `netApprovedPayout`, `policyDeductible`, `assessedBy`) is strictly rejected with `400 VALIDATION_ERROR`.
-    - `deductibleOverrideReason`: Required string (length 5–300 after trim) if and only if `deductibleApplied` differs from `policyDeductible`. If equal, stored as `null`.
+    - Bounds: Minimum `0`, Maximum `1,000,000`. Zero is allowed for `estimatedPartsCost`, `laborCost`, and `deductibleApplied`.
+    - Disallowed Keys: Any unknown key (including client-sent `totalDamage`, `netApprovedPayout`, `policyDeductible`, `assessedBy`) is strictly rejected with `400 VALIDATION_ERROR` (`.unknown(false)`).
+    - `deductibleOverrideReason`: String, trimmed, max 1000 in payload schema. If deductible is overridden, must be between 10 and 300 characters, else `422 OVERRIDE_REASON_REQUIRED`. If deductible matches policy and a non-empty reason is sent, throws `422 OVERRIDE_REASON_NOT_ALLOWED`.
 - **Financial Calculation & Business Rules:**
   - **Deductible Resolution Hierarchy:**
-    1. Taken directly from `claim.coverageSnapshot.deductibleAmount` (0 extra database queries in standard flow).
-    2. If `coverageSnapshot` is null (legacy claim), falls back to live policy query (`policy.deductibleAmount`).
+    1. Taken directly from `claim.coverageSnapshot.deductibleAmount`.
+    2. Fallback to live policy query (`policy.deductibleAmount`) for legacy claims created before `coverageSnapshot` existed (removed after legacy claims are deleted).
     3. If live policy or deductible is missing/deleted, falls back safely to `0`.
-  - **Damage Below Deductible Invariant:** If `totalDamage <= deductibleApplied`, the request is rejected with `422 DAMAGE_BELOW_DEDUCTIBLE`. The claim state remains in `UNDER_REVIEW`, no financial record is saved, and no audit timeline event is appended.
+  - **Total Damage Invariant:** `totalDamage` must be greater than zero (`totalDamageCents > 0`). If `totalDamageCents <= 0`, throws `400 VALIDATION_ERROR` with message `"totalDamage must be greater than zero"`.
+  - **Damage Below Deductible Invariant:** If `totalDamageCents <= appliedCents`, the request is rejected with `422 DAMAGE_BELOW_DEDUCTIBLE` ("Total damage must be greater than the applied deductible"). The claim state remains in `UNDER_REVIEW`, no financial record is saved, and no audit timeline event is appended.
+  - **Deductible Override Audit:**
+    - `overridden = appliedCents !== policyDeductibleCents`.
+    - `deductibleOverridden` (Boolean) is stored inside `lossAssessment` in the same atomic `findOneAndUpdate` as the status change.
+    - When overridden, the audit note marker `"[DEDUCTIBLE OVERRIDE] policy deductible <X>, applied <Y>. Reason: <reason>"` is appended to the timeline event notes. The timeline action stays `'Claim Approved'`.
   - **Cents Arithmetic:** All computations are performed using integer cents (`Math.round(amount * 100)`) to eliminate binary floating point imprecision.
 - **Success Response (200 - Approval with Loss Assessment):**
   ```json
@@ -1164,6 +1179,7 @@ Valid status transitions (enforced by the Backend):
         "totalDamage": 2000.0,
         "policyDeductible": 500.0,
         "deductibleApplied": 500.0,
+        "deductibleOverridden": false,
         "deductibleOverrideReason": null,
         "netApprovedPayout": 1500.0,
         "currency": "ILS",
@@ -1174,12 +1190,13 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 - **Error Responses:**
-  - `400 Bad Request`: `VALIDATION_ERROR` (invalid decision enum, string numbers, > 2 decimals, negative amounts, > 1,000,000, unknown keys in lossAssessment, or `lossAssessment` present on `REJECTED`).
+  - `400 Bad Request`: `VALIDATION_ERROR` (invalid decision enum, missing `lossAssessment` on `APPROVED`, `lossAssessment` present on `REJECTED`, string numbers, > 2 decimals, negative amounts, > 1,000,000, `totalDamage <= 0`, or unknown keys in lossAssessment).
   - `404 Not Found`: `CLAIM_NOT_FOUND` (claim does not exist or belongs to another tenant organization).
   - `409 Conflict`: `INVALID_STATUS_TRANSITION` (claim is not in `UNDER_REVIEW` status, or concurrent decision race lost).
   - `422 Unprocessable Entity`:
     - `DAMAGE_BELOW_DEDUCTIBLE` (`totalDamage <= deductibleApplied`).
-    - `OVERRIDE_REASON_REQUIRED` (`deductibleApplied !== policyDeductible` without valid `deductibleOverrideReason` of 5–300 chars).
+    - `OVERRIDE_REASON_REQUIRED` (`deductibleApplied !== policyDeductible` without valid `deductibleOverrideReason` of 10–300 chars).
+    - `OVERRIDE_REASON_NOT_ALLOWED` (`deductibleApplied === policyDeductible` with non-empty `deductibleOverrideReason`).
 - **Status Transition:** `UNDER_REVIEW` → `APPROVED` | `REJECTED`
 
 ## 13. Admin Closure API

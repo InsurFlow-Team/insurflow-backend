@@ -123,10 +123,8 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
   - If queried by `policyNumber`: policy must exist in the caller's organization (`404 POLICY_NOT_FOUND`).
   - If queried by `plateNumber` alone: vehicle must exist in the organization (`404 VEHICLE_NOT_FOUND`) and have a linked policy (`404 POLICY_NOT_FOUND`).
   - Policy status must not be `CANCELLED` (`422 POLICY_CANCELLED`).
-  - Policy status must not be `EXPIRED` and current date must not exceed `expiryDate` (`422 POLICY_EXPIRED`).
-  - If `incidentDate` is provided:
-    - Must not be in the future (`400 INVALID_INCIDENT_DATE`).
-    - Must fall within `[startDate, expiryDate]` (`422 POLICY_NOT_ACTIVE_ON_DATE`).
+  - Period mismatches and calendar expiry do not block verification; they produce advisory hints.
+  - If `incidentDate` is provided, it must not be in the future (`400 INVALID_INCIDENT_DATE`).
   - If `plateNumber` is provided alongside `policyNumber`, the plate is case-insensitively verified against the policy's registered vehicle; mismatch or lack of linked vehicle record returns `422 VEHICLE_MISMATCH`.
   - If `plateNumber` is omitted and the policy has more than one registered vehicle, verification is rejected with `422 AMBIGUOUS_VEHICLE_SELECTION` requiring the caller to specify `plateNumber`.
 - **Rule BR-POL-VERIFY-6 (Coverage Snapshot & Own-Damage Scope):**
@@ -141,6 +139,7 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
     * `ELIGIBLE_FOR_REVIEW`: When `incidentType` is included in `coveredPerils`.
     * `NOT_COVERED_BY_POLICY_TYPE`: When `incidentType` is not in `coveredPerils` (e.g. own-damage claim for a third-party policy).
     * `COVERAGE_UNKNOWN`: When `policyType` is missing (legacy unmigrated policy).
+    * `INCIDENT_OUTSIDE_POLICY_PERIOD`: Reference date falls outside policy period `[startDate, expiryDate]`. Advisory hint only, never blocks verification or claim intake.
     * `null`: When `incidentType` is not provided in the request or policy is not active.
 - **Rule BR-POL-VERIFY-8 (Authoritative Coverage Object & Incident Applicability — GAP-02):**
   - The verification response provides a dedicated `coverage` object containing authoritative coverage details:
@@ -159,6 +158,11 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
 - **Rule BR-CLAIM-3 (Audit Log Initiation):** Every new claim initializes an immutable timeline array with an initial event: `action: 'Claim Created'`, recording the creator's user ID, role, and current timestamp.
 - **Rule BR-CLAIM-4 (Tenant-Scoped Claim Number):** Every claim receives a unique, sequential human-readable identifier formatted as `CLM-<ORG_CODE>-NNNN` via an atomic tenant-scoped Counter model.
 - **Rule BR-CLAIM-5 (Ambiguous Vehicle Selection Protection):** When creating a claim (`POST /api/v1/claims`), if the resolved policy has more than one registered vehicle and the request does not provide `plateNumber`, claim creation is rejected with `HTTP 422 Unprocessable Entity` (`AMBIGUOUS_VEHICLE_SELECTION`). The caller must explicitly supply `plateNumber` to prevent silent attachment of an arbitrary vehicle.
+- **Rule BR-CLAIM-6 (Intake Incident Date, Description & Response Invariants):**
+  - `incidentDate` (`YYYY-MM-DD`) is strictly mandatory during claim creation and cannot be in the future (`400 VALIDATION_ERROR`). Policy period mismatch does not block creation and generates advisory `eligibilityHint`.
+  - `description` (optional narrative string, max 1000) is stored internally as `incidentDescription`.
+  - Client-sent `eligibilityHint` is rejected with `400 VALIDATION_ERROR`.
+  - The creation response exposes `trackingToken`, `trackingUrl`, `eligibilityHint`, and `coverageSnapshot`.
 
 ---
 
@@ -244,17 +248,22 @@ The complete end-to-end business flow across Web Dashboard and Mobile App is def
   - Accepts `decision` (`APPROVED` or `REJECTED`) and optional `notes`.
   - Transitions status to **`APPROVED`** or **`REJECTED`**.
 - **Rule BR-DECISION-ASSESS (Financial Loss Assessment & Deductible Calculation):**
-  - **Financial Adjudication:** Upon claim approval (`APPROVED`), claims officers specify repair estimates: `estimatedPartsCost` ($\ge 0$) and `laborCost` ($\ge 0$).
+  - **Financial Adjudication:** Upon claim approval (`APPROVED`), claims officers specify repair estimates: `estimatedPartsCost` ($\ge 0$), `laborCost` ($\ge 0$), and optional `deductibleApplied` ($\ge 0$). Loss assessment is mandatory for `APPROVED` and forbidden for `REJECTED` (`400 VALIDATION_ERROR`).
   - **Deductible Resolution Hierarchy:**
     1. Resolved primarily from immutable `claim.coverageSnapshot.deductibleAmount` (0 extra queries).
-    2. Fallback to live policy query (`policy.deductibleAmount`) occurs only if the snapshot is missing/null (legacy claims).
+    2. Fallback to live policy query (`policy.deductibleAmount`) occurs only if the snapshot is missing/null (legacy claims, to be removed after legacy deletion).
     3. Safe default of `0` if policy or deductible cannot be resolved.
-  - **Deductible Override:** If `deductibleApplied` differs from policy deductible, a non-empty `deductibleOverrideReason` (5–300 chars) is mandatory (`HTTP 422 Unprocessable Entity` - `OVERRIDE_REASON_REQUIRED`). If equal, reason is stored as `null`.
-  - **Damage Below Deductible Invariant:** If `totalDamage <= deductibleApplied`, the server rejects with `HTTP 422 Unprocessable Entity` (`DAMAGE_BELOW_DEDUCTIBLE`). The claim remains `UNDER_REVIEW`, no financial record is created, and no audit event is added.
+  - **Deductible Override Rules:**
+    - `overridden = appliedCents !== policyDeductibleCents`.
+    - If overridden, a trimmed `deductibleOverrideReason` between 10 and 300 characters is mandatory (`HTTP 422 Unprocessable Entity` - `OVERRIDE_REASON_REQUIRED`).
+    - If not overridden and a non-empty reason is sent, returns `422 OVERRIDE_REASON_NOT_ALLOWED`.
+    - `deductibleOverridden` (Boolean) is persisted in `lossAssessment` and returned in API responses.
+    - When overridden, the audit note `"[DEDUCTIBLE OVERRIDE] policy deductible <X>, applied <Y>. Reason: <reason>"` is appended to the timeline event notes. Action remains `'Claim Approved'`.
+  - **Total Damage Invariant:** `totalDamage` must be greater than zero (`totalDamageCents > 0`). If `totalDamageCents <= 0`, throws `400 VALIDATION_ERROR` with message `"totalDamage must be greater than zero"`.
+  - **Damage Below Deductible Invariant:** If `totalDamageCents <= appliedCents`, the server rejects with `HTTP 422 Unprocessable Entity` (`DAMAGE_BELOW_DEDUCTIBLE`) with message `"Total damage must be greater than the applied deductible"`. The claim remains `UNDER_REVIEW`, no financial record is created, and no audit event is added.
   - **Integer Cents Precision:** All financial calculations (`totalDamage`, `deductibleApplied`, `netApprovedPayout`) are calculated using integer cents arithmetic (`Math.round(amount * 100)`), preventing floating-point imprecision.
   - **Strict Field Validation:** Rejects string numbers (e.g. `"12.50"`), values with > 2 decimal places, amounts > 1,000,000, or unknown keys (`totalDamage`, `netApprovedPayout`, `policyDeductible`, `assessedBy`) with `400 VALIDATION_ERROR`.
   - **Rejection Exclusivity:** When `decision === 'REJECTED'`, `lossAssessment` is forbidden. Rejection performs zero pre-read and directly updates state atomically.
-  - **Feature Flag Control:** Controlled by runtime feature flag `REQUIRE_LOSS_ASSESSMENT`. Defaults to `false` (allowing legacy approval payloads), and when `true`, mandates `lossAssessment` on all approvals.
 
 ---
 

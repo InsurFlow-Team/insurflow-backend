@@ -341,12 +341,13 @@
     * **`ELIGIBLE_FOR_REVIEW` (شارة خضراء):** نوع الحادث مشمول ضمن أخطار الضرر الذاتي للمركبة.
     * **`NOT_COVERED_BY_POLICY_TYPE` (شارة تحذيرية صفراء):** نص الشارة: **"الضرر الذاتي غير مشمول"** (على سبيل المثال: وثيقة ضد الغير `THIRD_PARTY` عند تسجيل حادث اصطدام كضرر ذاتي للمركبة المؤمنة).
     * **`COVERAGE_UNKNOWN` (شارة رمادية استشارية):** وثيقة قديمة غير مرحّلة تفتقر لبيانات التغطية.
+    * **`INCIDENT_OUTSIDE_POLICY_PERIOD` (شارة تحذيرية صفراء):** تاريخ الحادث المرجعي يقع خارج فترة سريان الوثيقة (تنبيه استشاري فقط ولا يمنع التحقق أو فتح المطالبة).
     * **`null`:** لم يتم إرسال `incidentType` في الطلب.
   - **مفهوم التغطية التأمينية:**
     * `coveredPerils` تعني حصراً **أخطار الضرر الذاتي للمركبة المؤمنة** (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
     * وثيقة `THIRD_PARTY` تغطي المسؤولية المدنية تجاه الغير وتستثني الضرر الذاتي لمركبة المؤمن له (تكون `coveredPerils` فارغة `[]` ومبلغ التحمل `deductibleAmount` يساوي `0`).
     * ملاحظة: التأمين ضد الغير منفصل تماماً عن التأمين الإلزامي؛ الإلزامي منتج منفصل غير مموّل في النظام حالياً.
-  - **إذا كانت الوثيقة غير مؤهلة أو غير صالحة:** يرجع الباك إند رسالة خطأ صريحة ويتم منع الانتقال لإنشاء المطالبة (`POST /api/v1/claims`).
+  - **إذا كانت الوثيقة ملغاة أو المركبة غير متطابقة:** يرجع الباك إند رسالة خطأ صريحة ويتم منع الانتقال لإنشاء المطالبة (`POST /api/v1/claims`). بينما عدم مطابقة فترة السريان أو عدم تغطية الخطر ينتج شارة استشارية `eligibilityHint` فقط ولا يمنع فتح المطالبة.
   - **إذا كانت الوثيقة صالحة وفعالة:** يرجع الباك إند كائن التأكيد وفيه بيانات الوثيقة والتغطية والسيارة والعميل، ويقوم الفرونت إند بملء حقول العميل والسيارة تلقائياً وتفعيل زر المتابعة لإنشاء المطالبة.
 * **Request Body:**
   ```json
@@ -413,11 +414,56 @@
     * `POLICY_NOT_FOUND`: الوثيقة غير مسجلة في الشركة (أو تتبع شركة أخرى - Stealth Tenancy)، أو المركبة لا تملك وثيقة مرتبطة.
     * `VEHICLE_NOT_FOUND`: المركبة غير موجودة باللوحة المدخلة في قاعدة بيانات الشركة.
   * `422 Unprocessable Entity`:
-    * `POLICY_EXPIRED`: الوثيقة منتهية الصلاحية (سواء بحالتها أو بانتهاء تاريخ سريانها التقويمي).
     * `POLICY_CANCELLED`: الوثيقة ملغاة.
-    * `POLICY_NOT_ACTIVE_ON_DATE`: تاريخ وقوع الحادث خارج فترة سريان الوثيقة `[startDate, expiryDate]`.
     * `VEHICLE_MISMATCH`: رقم اللوحة المدخل لا يطابق المركبة المؤمن عليها، أو لا توجد مركبة مسجلة تحت الوثيقة لمطابقتها.
     * `AMBIGUOUS_VEHICLE_SELECTION`: الوثيقة تضم أكثر من مركبة مسجلة ولم يتم تحديد رقم اللوحة.
+
+---
+
+### 3.0b فتح وتسجيل مطالبة جديدة (Claim Intake & Creation — Feature 03)
+* **المسار (Endpoint):** `POST /api/v1/claims`
+* **Headers:** `Authorization: Bearer <ADMIN_TOKEN or CLAIMS_OFFICER_TOKEN>`
+* **الأدوار المصرح لها:** `ADMIN`, `CLAIMS_OFFICER`.
+* **Request Body:**
+  ```json
+  {
+    "policyId": "651a2b3c4d5e6f7a8b9c0d1e",
+    "plateNumber": "ABC-1234",
+    "incidentDate": "2026-06-15",
+    "incidentType": "COLLISION",
+    "incidentLocation": "Main St, Riyadh",
+    "description": "Front collision with another vehicle",
+    "latitude": 31.9050,
+    "longitude": 35.2040
+  }
+  ```
+* **تعليمات صارمة لشكل البيانات في الواجهة:**
+  1. **إحداثيات مسطحة Flat Coordinates:** يجب إرسال `latitude` و `longitude` كحقول رقمية مسطحة في أصل كائن الطلب، **وليس كائناً متداخلاً (Nested Object)**.
+  2. **تاريخ الحادث إلزامي:** حقل `incidentDate` إلزامي بصيغة `YYYY-MM-DD` ولا يجوز أن يكون تاريخاً مستقبلياً. (إذا كان خارج فترة الوثيقة لا يمنع الحفظ، بل يتم تسجيله مع توليد `eligibilityHint` الاستشاري).
+  3. **وصف الحادث:** حقل `description` اختياري (نص حتى 1000 حرف)، ويتم حفظه داخلياً كـ `incidentDescription`.
+  4. **حظر تلميح الأهلية:** لا ترسلوا حقل `eligibilityHint` في الطلب؛ الخادم يقوم بحسابه وتوليده ذاتياً، وإرساله من العميل يسبب خطأ `400 VALIDATION_ERROR`.
+* **Success Response (201 Created):**
+  ```json
+  {
+    "success": true,
+    "message": "Claim created successfully",
+    "data": {
+      "id": "60d0fe4f5311236168a109cc",
+      "claimNumber": "CLM-INS-0001",
+      "status": "NEW",
+      "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "trackingUrl": "http://localhost:3000/track/d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
+      "coverageSnapshot": {
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
+        "deductibleAmount": 500,
+        "capturedAt": "2026-08-26T15:00:00.000Z"
+      },
+      "createdAt": "2026-08-26T15:00:00.000Z"
+    }
+  }
+  ```
 
 ---
 
@@ -590,8 +636,10 @@
       "id": "6a91ab09c9ff1dc54fabf15b",
       "claimNumber": "CLM-DEMO-0001",
       "status": "ASSIGNED",
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "incidentType": "COLLISION",
       "incidentLocation": "Al-Irsal St, Ramallah",
+      "incidentDescription": "Front collision with another vehicle",
       "incidentCoordinates": {
         "latitude": 31.905,
         "longitude": 35.204,
@@ -712,8 +760,8 @@
      - `estimatedPartsCost` (إلزامي، رقم $\ge 0$)
      - `laborCost` (إلزامي، رقم $\ge 0$)
      - `deductibleApplied` (اختياري، رقم $\ge 0$ — إن لم يُرسل يُعتمد تحمل الوثيقة تلقائياً)
-     - `deductibleOverrideReason` (إلزامي إذا وفقط إذا اختلف `deductibleApplied` عن تحمل الوثيقة، نص بين 5 و 300 حرف)
-  5. **مسار الرفض (REJECTED):** في حال كان القرار `REJECTED` يُمنع منعاً باتاً إرسال كائن `lossAssessment` في الطلب (إرساله يسبب رفض الطلب بـ `400`).
+     - `deductibleOverrideReason` (إلزامي إذا وفقط إذا اختلف `deductibleApplied` عن تحمل الوثيقة، نص بين 10 و 300 حرف)
+  5. **التقييم المالي إلزامي للاعتماد ومحظور للرفض:** في حال كان القرار `APPROVED`، فإن كائن `lossAssessment` إلزامي تماماً وغيابه يرجع `400 VALIDATION_ERROR`. وفي حال كان القرار `REJECTED` يُمنع منعاً باتاً إرسال كائن `lossAssessment` (إرساله يسبب رفض الطلب بـ `400 VALIDATION_ERROR`).
    6. **تحديث العرض في الواجهة بعد نجاح الاعتماد:** ترجع استجابة القرار `POST /claims/:claimId/decision` حقل `assessedBy` كمعرّف نصي فقط (`ID string`)، في حين أن مسار جلب تفاصيل المطالبة `GET /claims/:claimId` يُرجعه كائناً مفصلاً بالاسم والرقم الوظيفي (`{ id, name, employeeCode }`). لذلك، احرصوا بعد نجاح الاعتماد على إعادة جلب المطالبة (`GET /claims/:claimId`) واستخدامها لتحديث حالة الواجهة وعرض بيانات المقيّم المالي، ولا تعتمدوا على كائن استجابة القرار وحده للعرض.
 * **Request Body (حالة الاعتماد مع التقييم المالي):**
   ```json
@@ -751,6 +799,7 @@
         "totalDamage": 2000.0,
         "policyDeductible": 500.0,
         "deductibleApplied": 500.0,
+        "deductibleOverridden": false,
         "deductibleOverrideReason": null,
         "netApprovedPayout": 1500.0,
         "currency": "ILS",
@@ -763,8 +812,9 @@
 * **أكواد الأخطاء الخاصة بالواجهة:**
   * `422 Unprocessable Entity`:
     - كود `DAMAGE_BELOW_DEDUCTIBLE`: عندما يكون مجموع الأضرار (`totalDamage`) أقل من أو يساوي مبلغ التحمل المطبق (`deductibleApplied`). في هذه الحالة **لا يتم تعديل حالة المطالبة وتبقى `UNDER_REVIEW`** ودون حفظ أي بيانات مالية.
-    - كود `OVERRIDE_REASON_REQUIRED`: عندما يختلف مبلغ التحمل المطبق (`deductibleApplied`) عن تحمل الوثيقة (`policyDeductible`) دون تقديم سبب تعديل مبرر (`deductibleOverrideReason` بين 5 و 300 حرف).
-  * `400 Bad Request`: كود `VALIDATION_ERROR` عند إرسال نصوص في الحقول المالية بدلاً من أرقام، أو منازل عشرية تزيد عن 2، أو حقول مجهولة (مثل `totalDamage` أو `netApprovedPayout`)، أو إرسال تقييم مالي مع قرار الرفض `REJECTED`، أو عند غياب `lossAssessment` في حال تفعيل المفتاح الإلزامي `REQUIRE_LOSS_ASSESSMENT=true`.
+    - كود `OVERRIDE_REASON_REQUIRED`: عندما يختلف مبلغ التحمل المطبق (`deductibleApplied`) عن تحمل الوثيقة (`policyDeductible`) دون تقديم سبب تعديل مبرر (`deductibleOverrideReason` بين 10 و 300 حرف).
+    - كود `OVERRIDE_REASON_NOT_ALLOWED`: عند إرسال سبب تعديل مبرر (`deductibleOverrideReason`) رغم تطابق مبلغ التحمل المطبق مع تحمل الوثيقة.
+  * `400 Bad Request`: كود `VALIDATION_ERROR` عند إرسال نصوص في الحقول المالية بدلاً من أرقام، أو منازل عشرية تزيد عن 2، أو حقول مجهولة (مثل `totalDamage` أو `netApprovedPayout`)، أو إرسال تقييم مالي مع قرار الرفض `REJECTED`، أو أن يكون إجمالي الضرر صفر أو سالب (`totalDamage <= 0`)، أو عند غياب `lossAssessment` في قرار الاعتماد `APPROVED`.
   * `404 Not Found`: كود `CLAIM_NOT_FOUND` إذا كانت المطالبة غير موجودة أو تابعة لمنظمة أخرى (تأمين متعدد المستأجرين).
   * `409 Conflict`: كود `INVALID_STATUS_TRANSITION` إذا لم تكن المطالبة في حالة `UNDER_REVIEW` (أو عند حدوث تضارب تزامن بالاعتماد المتزامن).
 

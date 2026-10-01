@@ -37,12 +37,12 @@ When a policyholder calls to report a motor accident or damage:
 ```
 
 ### Components Involved
-* **Route:** [src/modules/claims/claim.routes.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.routes.js)
-* **Controller:** [src/modules/claims/claim.controller.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.controller.js)
-* **Service:** [src/modules/claims/claim.service.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.service.js)
-* **Repository:** [src/modules/claims/claim.repository.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.repository.js)
-* **Model:** [src/modules/claims/claim.model.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.model.js)
-* **Validation:** [src/modules/claims/claim.validation.js](file:///c:/Users/HP/Desktop/INSURFLOW/src/modules/claims/claim.validation.js)
+* **Route:** [src/modules/claims/claim.routes.js](../../src/modules/claims/claim.routes.js)
+* **Controller:** [src/modules/claims/claim.controller.js](../../src/modules/claims/claim.controller.js)
+* **Service:** [src/modules/claims/claim.service.js](../../src/modules/claims/claim.service.js)
+* **Repository:** [src/modules/claims/claim.repository.js](../../src/modules/claims/claim.repository.js)
+* **Model:** [src/modules/claims/claim.model.js](../../src/modules/claims/claim.model.js)
+* **Validation:** [src/modules/claims/claim.validation.js](../../src/modules/claims/claim.validation.js)
 
 ---
 
@@ -59,6 +59,7 @@ When a policyholder calls to report a motor accident or damage:
     "incidentType": "COLLISION",
     "incidentLocation": "Al-Irsal St, Ramallah",
     "incidentDate": "2026-09-08",
+    "description": "Front bumper collision at low speed near intersection",
     "latitude": 31.9050,
     "longitude": 35.2040
   }
@@ -68,14 +69,17 @@ When a policyholder calls to report a motor accident or damage:
   * `plateNumber`: String, optional. If provided, must match the vehicle registered on the policy.
   * `incidentType`: Required enum: `['COLLISION', 'REAR_END_COLLISION', 'SIDE_IMPACT', 'PARKING_DAMAGE', 'OTHER']`.
   * `incidentLocation`: String, required, trimmed.
-  * `incidentDate`: String `YYYY-MM-DD`, optional. Must fall within the policy period and not in the future.
-  * `latitude`: Number (-90 to 90), optional GPS coordinate.
-  * `longitude`: Number (-180 to 180), optional GPS coordinate.
+  * `incidentDate`: String `YYYY-MM-DD`, required. Cannot be in the future.
+  * `description`: String, optional, trimmed, max 1000 chars, null and empty string allowed. Stored as `incidentDescription`.
+  * `latitude`: Number (-90 to 90), optional GPS coordinate (flat, top-level request body).
+  * `longitude`: Number (-180 to 180), optional GPS coordinate (flat, top-level request body).
 * **Intake Business Gates:**
-  * Validates policy existence and status (`ACTIVE`).
+  * Validates policy existence. Rejects `POLICY_CANCELLED` with 422.
+  * Policy period mismatch (expired or incident date outside period) produces an advisory `eligibilityHint` (`INCIDENT_OUTSIDE_POLICY_PERIOD`) and does not block claim creation.
+  * Uncovered peril produces an advisory `eligibilityHint` (`NOT_COVERED_BY_POLICY_TYPE`) and does not block claim creation.
   * Cross-verifies vehicle/plate against policy vehicle.
   * If policy has multiple vehicles registered and `plateNumber` is omitted, request is rejected with 422 `AMBIGUOUS_VEHICLE_SELECTION`.
-  * Auto-populates customer name, customer phone, vehicle plate number, and `policyId` reference onto the new Claim record.
+  * Auto-populates customer name, customer phone, vehicle plate number, `policyId` reference, and creates immutable `coverageSnapshot` onto the new Claim record.
 * **Success Response (201 Created):**
   ```json
   {
@@ -85,6 +89,15 @@ When a policyholder calls to report a motor accident or damage:
       "id": "60d0fe4f5311236168a109cc",
       "claimNumber": "CLM-INS-0001",
       "status": "NEW",
+      "trackingToken": "8f4b1e2a-4c9d-4e8a-bf3d-2b4a5c6d7e8f",
+      "trackingUrl": "https://track.insurflow.ps/track/8f4b1e2a-4c9d-4e8a-bf3d-2b4a5c6d7e8f",
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
+      "coverageSnapshot": {
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT"],
+        "deductibleAmount": 500,
+        "capturedAt": "2026-09-08T10:00:00.000Z"
+      },
       "createdAt": "2026-09-08T10:00:00.000Z"
     }
   }
@@ -106,14 +119,16 @@ When a policyholder calls to report a motor accident or damage:
      timestamp: new Date()
    }
    ```
-5. **Rule BR-CLAIM-6 (Intake Incident Date Invariant):** When `incidentDate` (`YYYY-MM-DD`) is supplied during claim creation, it is validated against policy coverage dates and persisted on the Claim document (`claim.incidentDate`). If omitted, it defaults to `null`. It is distinct from `claim.accident.accidentDate` recorded during on-site inspection.
+5. **Rule BR-CLAIM-5 (Advisory Eligibility Invariant):** Evaluates `eligibilityHint` (`ELIGIBLE_FOR_REVIEW`, `NOT_COVERED_BY_POLICY_TYPE`, `COVERAGE_UNKNOWN`, `INCIDENT_OUTSIDE_POLICY_PERIOD`) via `computeEligibilityHint`. Client cannot send `eligibilityHint`. Period mismatch never blocks claim intake.
+6. **Rule BR-CLAIM-6 (Intake Incident Date & Description):** `incidentDate` (`YYYY-MM-DD`, not in future) is mandatory on creation and persisted as `claim.incidentDate`. Optional `description` is stored as `claim.incidentDescription`.
 
 ---
 
 ## 5. Automated Testing Suite
 
 Tested in:
+* [tests/claim.intakeStage4.test.js](../../tests/claim.intakeStage4.test.js)
 * [tests/claim.read.test.js](../../tests/claim.read.test.js)
-* [tests/claim.lifecycle.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.lifecycle.test.js)
-* [tests/claim.numbering.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.numbering.test.js)
-* [tests/claim.statusMachine.test.js](file:///c:/Users/HP/Desktop/INSURFLOW/tests/claim.statusMachine.test.js)
+* [tests/claim.lifecycle.test.js](../../tests/claim.lifecycle.test.js)
+* [tests/claim.numbering.test.js](../../tests/claim.numbering.test.js)
+* [tests/claim.statusMachine.test.js](../../tests/claim.statusMachine.test.js)
