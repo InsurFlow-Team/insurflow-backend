@@ -487,4 +487,108 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     expect(Buffer.isBuffer(res.body)).toBe(true);
     expect(res.body.toString('utf-8').startsWith('%PDF')).toBe(true);
   });
+
+  test('200 on an APPROVED claim with lossAssessment including Deductible Overridden Yes and reason', async () => {
+    const claimWithLossAssessment = await Claim.create({
+      organizationId: org1._id,
+      policyId: policy1._id,
+      createdBy: officer1._id,
+      assignedTo: adjuster1._id,
+      status: 'APPROVED',
+      customer: { name: 'Fin Test', phone: '+971501234567' },
+      incidentType: 'COLLISION',
+      incidentLocation: 'Test Loc',
+      vehicle: { plateNumber: vehicle1.plateNumber, vehicleId: vehicle1._id, policyId: policy1._id },
+      lossAssessment: {
+        estimatedPartsCost: 3000,
+        laborCost: 1500,
+        totalDamage: 4500,
+        policyDeductible: 500,
+        deductibleApplied: 0,
+        deductibleOverridden: true,
+        deductibleOverrideReason: 'VIP customer courtesy waiver',
+        netApprovedPayout: 4500,
+        assessedAt: new Date(),
+        assessedBy: officer1._id,
+      },
+    });
+
+    const officerToken = generateToken(officer1);
+    const res = await request(app)
+      .get(`/api/v1/claims/${claimWithLossAssessment._id}/report`)
+      .set('Authorization', `Bearer ${officerToken}`)
+      .buffer(true);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/application\/pdf/);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.toString('utf-8').startsWith('%PDF')).toBe(true);
+  });
+
+  test('buildClaimReportDocDefinition includes Deductible Overridden Yes/No row in financial table', async () => {
+    const { buildClaimReportDocDefinition } = require('../src/modules/claims/claim.report.builder');
+
+    const claimOverridden = {
+      claimNumber: 'CLM-OVERRIDE-1',
+      status: 'APPROVED',
+      customer: { name: 'Test' },
+      vehicle: { plateNumber: 'A-123' },
+      timeline: [],
+      lossAssessment: {
+        estimatedPartsCost: 1000,
+        laborCost: 500,
+        totalDamage: 1500,
+        policyDeductible: 200,
+        deductibleApplied: 0,
+        deductibleOverridden: true,
+        deductibleOverrideReason: 'Special waiver',
+        netApprovedPayout: 1500,
+      },
+    };
+
+    const docDefOverridden = await buildClaimReportDocDefinition({
+      claim: claimOverridden,
+      organization: { name: 'Org1' },
+      vehicle: null,
+      policy: null,
+    });
+
+    const financialSection = docDefOverridden.content.find(
+      (item) => item.text === '8. Financial Loss Assessment'
+    );
+    expect(financialSection).toBeDefined();
+
+    const financialTableIndex = docDefOverridden.content.indexOf(financialSection) + 1;
+    const financialTable = docDefOverridden.content[financialTableIndex].table.body;
+
+    const overrideRow = financialTable.find((row) => row[0].text === 'Deductible Overridden');
+    expect(overrideRow).toBeDefined();
+    expect(overrideRow[1].text).toBe('Yes');
+
+    const reasonRow = financialTable.find((row) => row[0].text === 'Deductible Override Reason');
+    expect(reasonRow).toBeDefined();
+    expect(reasonRow[1].text).toBe('Special waiver');
+
+    // Test without override
+    const claimNotOverridden = {
+      ...claimOverridden,
+      lossAssessment: {
+        ...claimOverridden.lossAssessment,
+        deductibleOverridden: false,
+        deductibleOverrideReason: null,
+      },
+    };
+
+    const docDefNotOverridden = await buildClaimReportDocDefinition({
+      claim: claimNotOverridden,
+      organization: { name: 'Org1' },
+      vehicle: null,
+      policy: null,
+    });
+
+    const notOverriddenTable = docDefNotOverridden.content[financialTableIndex].table.body;
+    const notOverriddenRow = notOverriddenTable.find((row) => row[0].text === 'Deductible Overridden');
+    expect(notOverriddenRow).toBeDefined();
+    expect(notOverriddenRow[1].text).toBe('No');
+  });
 });

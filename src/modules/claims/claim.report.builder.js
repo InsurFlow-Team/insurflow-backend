@@ -446,8 +446,10 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
       [{ text: 'Total Assessed Damage', bold: true, style: 'labelCell' }, { text: `${la.totalDamage != null ? la.totalDamage.toFixed(2) : '0.00'} ${currency}`, bold: true, style: 'valueCell' }],
       [{ text: 'Policy Deductible', bold: true, style: 'labelCell' }, { text: `${la.policyDeductible != null ? la.policyDeductible.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
       [{ text: 'Deductible Applied', bold: true, style: 'labelCell' }, { text: `${la.deductibleApplied != null ? la.deductibleApplied.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Deductible Overridden', bold: true, style: 'labelCell' }, { text: la.deductibleOverridden ? 'Yes' : 'No', style: 'valueCell' }],
     ];
 
+    // Display deductible override justification when override is present
     if (la.deductibleOverrideReason) {
       financialBody.push([
         { text: 'Deductible Override Reason', bold: true, style: 'labelCell' },
@@ -564,5 +566,6 @@ const generateClaimReportPdf = async ({ claim, organization, vehicle, policy }) 
 
 module.exports = {
   generateClaimReportPdf,
+  buildClaimReportDocDefinition,
   fetchImageAsDataUri,
 };
