@@ -10,7 +10,7 @@ const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const { buildPolicy } = require('./helpers/policyFactory');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
-const { PUBLIC_STATUS_MAP } = require('../src/modules/claims/claim.service');
+const { PUBLIC_STATUS_MAP } = require('../src/modules/claims/claim.public.constants');
 
 let mongoServer;
 
@@ -111,13 +111,20 @@ describe('Public Claim Tracking (Feature 23)', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Claim status retrieved successfully');
+      expect(Object.keys(res.body.data).sort()).toEqual(['claimNumber', 'status', 'statusDescription', 'timeline', 'vehicle']);
       expect(res.body.data.claimNumber).toBe(claim.claimNumber);
-      expect(res.body.data.status).toBe('RECEIVED'); // NEW → RECEIVED
-      expect(res.body.data.statusDescription).toBe('Your claim has been received and is being processed.');
-      expect(res.body.data.customerName).toBe('Ahmad Khalid');
-      expect(res.body.data.incidentType).toBe('COLLISION');
-      expect(res.body.data.createdAt).toBeDefined();
-      expect(res.body.data.updatedAt).toBeDefined();
+      expect(res.body.data.status).toBe('RECEIVED');
+      expect(res.body.data.statusDescription).toBe('تم استلام بلاغك وهو قيد المعالجة');
+      expect(res.body.data.customerName).toBeUndefined();
+      expect(res.body.data.incidentType).toBeUndefined();
+      expect(res.body.data.createdAt).toBeUndefined();
+      expect(res.body.data.updatedAt).toBeUndefined();
+      expect(res.body.data.vehicle).toEqual({
+        plateNumber: 'ABC-xx3',
+        make: null,
+        model: null,
+        year: null,
+      });
       expect(Array.isArray(res.body.data.timeline)).toBe(true);
     });
 
@@ -182,10 +189,19 @@ describe('Public Claim Tracking (Feature 23)', () => {
   // ─── Customer-Friendly Status Mapping Tests ────────────────────────────
 
   describe('Customer-friendly status mapping', () => {
+    it('asserts every value of the Claim status enum has an entry in PUBLIC_STATUS_MAP', () => {
+      const claimStatuses = Claim.schema.path('status').enumValues;
+      claimStatuses.forEach((status) => {
+        expect(PUBLIC_STATUS_MAP[status]).toBeDefined();
+        expect(PUBLIC_STATUS_MAP[status].status).toBeDefined();
+        expect(PUBLIC_STATUS_MAP[status].statusDescription).toBeDefined();
+      });
+    });
+
     const statusTests = [
       { internal: 'NEW', expectedPublic: 'RECEIVED' },
       { internal: 'PENDING_ACCEPTANCE', expectedPublic: 'RECEIVED' },
-      { internal: 'ASSIGNED', expectedPublic: 'IN_PROGRESS' },
+      { internal: 'ASSIGNED', expectedPublic: 'RECEIVED' },
       { internal: 'IN_PROGRESS', expectedPublic: 'IN_PROGRESS' },
       { internal: 'SUBMITTED', expectedPublic: 'IN_REVIEW' },
       { internal: 'UNDER_REVIEW', expectedPublic: 'IN_REVIEW' },
@@ -207,7 +223,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.data.status).toBe(expectedPublic);
-        expect(res.body.data.statusDescription).toBe(PUBLIC_STATUS_MAP[internal].description);
+        expect(res.body.data.statusDescription).toBe(PUBLIC_STATUS_MAP[internal].statusDescription);
       }
     );
   });
@@ -298,7 +314,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
       expect(res.body.data.trackingToken).toBeUndefined();
     });
 
-    it('should NOT expose policy, vehicle, or location details', async () => {
+    it('should NOT expose policy, location details, or internal vehicle IDs', async () => {
       const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         location: { latitude: 24.7, longitude: 46.7, address: 'Secret Address' },
       });
@@ -307,9 +323,29 @@ describe('Public Claim Tracking (Feature 23)', () => {
         .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
 
       expect(res.body.data.policyId).toBeUndefined();
-      expect(res.body.data.vehicle).toBeUndefined();
       expect(res.body.data.location).toBeUndefined();
       expect(res.body.data.coverageSnapshot).toBeUndefined();
+      expect(res.body.data.vehicle).toEqual({
+        plateNumber: 'ABC-xx3',
+        make: null,
+        model: null,
+        year: null,
+      });
+      expect(res.body.data.vehicle).not.toHaveProperty('customerId');
+      expect(res.body.data.vehicle).not.toHaveProperty('vehicleId');
+      expect(res.body.data.vehicle).not.toHaveProperty('_id');
+    });
+
+    it('returns vehicle as null when no vehicle data exists on claim', async () => {
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        vehicle: null,
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/public/claims/track/${claim.trackingToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.vehicle).toBeNull();
     });
   });
 

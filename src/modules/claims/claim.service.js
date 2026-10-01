@@ -8,6 +8,8 @@ const Claim = require('./claim.model');
 const Organization = require('../organizations/organization.model');
 const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
+const maskPlateNumber = require('../../utils/maskPlateNumber');
+const { PUBLIC_STATUS_MAP, PUBLIC_TIMELINE_TEXT } = require('./claim.public.constants');
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 const config = require('../../config/env');
@@ -1387,42 +1389,8 @@ const getClaimReport = async (claimId, authUser) => {
 // ─── Public Claim Tracking ────────────────────────────────────────────────────
 
 /**
- * Maps internal claim statuses to customer-friendly status labels and descriptions.
- */
-const PUBLIC_STATUS_MAP = {
-  NEW: { status: 'RECEIVED', description: 'Your claim has been received and is being processed.' },
-  PENDING_ACCEPTANCE: { status: 'RECEIVED', description: 'Your claim has been received and is being processed.' },
-  ASSIGNED: { status: 'IN_PROGRESS', description: 'An inspector has been assigned to your claim.' },
-  IN_PROGRESS: { status: 'IN_PROGRESS', description: 'Your claim is being inspected.' },
-  SUBMITTED: { status: 'IN_REVIEW', description: 'Your inspection is complete and under review.' },
-  UNDER_REVIEW: { status: 'IN_REVIEW', description: 'Your inspection is complete and under review.' },
-  CORRECTION_REQUIRED: { status: 'IN_PROGRESS', description: 'Additional information is being gathered.' },
-  APPROVED: { status: 'APPROVED', description: 'Your claim has been approved.' },
-  REJECTED: { status: 'REJECTED', description: 'Your claim has been declined.' },
-  CLOSED: { status: 'CLOSED', description: 'Your claim has been finalized and closed.' },
-};
-
-/**
- * Maps internal timeline action strings to customer-visible milestone labels.
- * Only actions present in this map are shown in the public timeline.
- */
-const PUBLIC_TIMELINE_MAP = {
-  'Claim Created': 'Claim Received',
-  'Assignment Accepted': 'Inspector Assigned',
-  'Inspection Started': 'Inspection Started',
-  'Inspection Resumed': 'Inspection Started',
-  'Inspection Submitted': 'Inspection Submitted',
-  'Review Started': 'Review Started',
-  'Claim Approved': 'Claim Approved',
-  'Decision: APPROVED': 'Claim Approved',
-  'Claim Rejected': 'Claim Declined',
-  'Decision: REJECTED': 'Claim Declined',
-  'Claim Closed': 'Claim Closed',
-};
-
-/**
  * Retrieves the public-facing status and progress of a claim by its tracking token.
- * Returns a sanitized DTO containing no internal IDs, PII, financials, or evidence.
+ * Returns a sanitized DTO containing only customer-facing status, masked vehicle, and timeline.
  *
  * @param {string} trackingToken - The 64-char hex tracking token
  * @returns {object|null} Public claim status DTO, or null if claim not found
@@ -1433,35 +1401,31 @@ const getPublicClaimStatus = async (trackingToken) => {
     return null;
   }
 
-  const publicStatus = PUBLIC_STATUS_MAP[claim.status] || { status: claim.status, description: '' };
+  const publicStatus = PUBLIC_STATUS_MAP[claim.status] || {
+    status: claim.status,
+    statusDescription: '',
+  };
 
-  // Filter timeline to only customer-visible milestones
-  const publicTimeline = (claim.timeline || [])
-    .filter((event) => {
-      // Match exact keys or startsWith for assignment accepted variations
-      if (PUBLIC_TIMELINE_MAP[event.action]) return true;
-      if (event.action && event.action.startsWith('[ASSIGNMENT ACCEPTED]')) return true;
-      return false;
-    })
-    .map((event) => {
-      let label = PUBLIC_TIMELINE_MAP[event.action];
-      if (!label && event.action && event.action.startsWith('[ASSIGNMENT ACCEPTED]')) {
-        label = 'Inspector Assigned';
-      }
-      return {
-        label,
-        timestamp: event.timestamp,
-      };
-    });
+  let vehicle = null;
+  const populatedVehicle = claim.vehicle?.vehicleId;
+  const rawPlate = populatedVehicle?.plateNumber || claim.vehicle?.plateNumber || null;
+  if (populatedVehicle || rawPlate) {
+    vehicle = {
+      plateNumber: maskPlateNumber(rawPlate),
+      make: populatedVehicle?.make || null,
+      model: populatedVehicle?.model || null,
+      year: populatedVehicle?.year ?? null,
+    };
+  }
+
+  // Temporary minimal timeline until forward-only algorithm step
+  const publicTimeline = [];
 
   return {
     claimNumber: claim.claimNumber,
     status: publicStatus.status,
-    statusDescription: publicStatus.description,
-    customerName: claim.customer?.name || null,
-    incidentType: claim.incidentType,
-    createdAt: claim.createdAt,
-    updatedAt: claim.updatedAt,
+    statusDescription: publicStatus.statusDescription,
+    vehicle,
     timeline: publicTimeline,
   };
 };
@@ -1488,5 +1452,4 @@ module.exports = {
   getClaimStats,
   getClaimReport,
   getPublicClaimStatus,
-  PUBLIC_STATUS_MAP,
 };

@@ -304,11 +304,15 @@ const declineAssignment = async (claimId, organizationId, assignedTo, timelineEv
 
 /**
  * Finds a claim by its public tracking token.
- * Returns only the fields safe for public (unauthenticated) exposure.
+ * Populates vehicle details for public status display and selects only needed fields.
  */
 const findByTrackingToken = async (trackingToken) => {
   return await Claim.findOne({ trackingToken })
-    .select('claimNumber status customer.name incidentType timeline.action timeline.timestamp createdAt updatedAt')
+    .select('claimNumber status vehicle timeline createdAt')
+    .populate({
+      path: 'vehicle.vehicleId',
+      select: 'plateNumber make model year',
+    })
     .lean();
 };
 
