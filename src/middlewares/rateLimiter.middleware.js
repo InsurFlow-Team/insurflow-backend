@@ -63,10 +63,45 @@ const apiLimiter = rateLimit({
 
 apiLimiter.reset = () => apiRateLimitStore.resetAll();
 
+// In-memory store for public tracking rate limiting hits
+const publicTrackingRateLimitStore = new MemoryStore();
+
+/**
+ * Dedicated rate limiter for the public claim tracking endpoint.
+ * Throttles public token lookups to prevent brute-forcing tokens and scraping claim data.
+ * Keyed by client IP address.
+ */
+const publicTrackingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: (req) =>
+    (config.nodeEnv === 'test' && req.headers['x-test-rate-limit-max']
+      ? parseInt(req.headers['x-test-rate-limit-max'], 10)
+      : config.publicTrackingRateLimitMax || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  skip: (req) => config.nodeEnv === 'test' && !req.headers['x-test-rate-limit'],
+  store: publicTrackingRateLimitStore,
+  handler: (req, res, next, options) => {
+    const message = 'Too many requests. Please try again later.';
+    const errors = [
+      {
+        code: 'TOO_MANY_REQUESTS',
+        details: message,
+      },
+    ];
+    return res.status(options.statusCode || 429).json(errorResponse(message, errors));
+  },
+});
+
+publicTrackingLimiter.reset = () => publicTrackingRateLimitStore.resetAll();
+
 module.exports = {
   loginLimiter,
   loginRateLimitStore,
   apiLimiter,
   apiRateLimitStore,
+  publicTrackingLimiter,
+  publicTrackingRateLimitStore,
 };
 

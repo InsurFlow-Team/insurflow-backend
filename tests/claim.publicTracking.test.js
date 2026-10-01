@@ -128,7 +128,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
       expect(Array.isArray(res.body.data.timeline)).toBe(true);
     });
 
-    it('should return 404 for an unknown tracking token with anti-cache headers and no error details', async () => {
+    it('should return 404 for an unknown tracking token with CLAIM_NOT_FOUND code and security headers', async () => {
       const unknownToken = 'a'.repeat(64);
 
       const res = await request(app)
@@ -137,44 +137,75 @@ describe('Public Claim Tracking (Feature 23)', () => {
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
       expect(res.body.message).toBe('Claim not found');
-      expect(res.body.errors).toBeUndefined();
+      expect(res.body.errors).toEqual([
+        { code: 'CLAIM_NOT_FOUND', details: 'Claim not found' },
+      ]);
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.headers['pragma']).toBe('no-cache');
+      expect(res.headers['x-robots-tag']).toBe('noindex, nofollow');
     });
 
-    it('should return 404 for a malformed token (too short) with identical anti-cache headers', async () => {
+    it('should return deeply equal 404 envelope as another endpoint returning CLAIM_NOT_FOUND', async () => {
+      const token = generateToken(officer1);
+      const fakeClaimId = new mongoose.Types.ObjectId();
+
+      const referenceRes = await request(app)
+        .get(`/api/v1/claims/${fakeClaimId}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(referenceRes.status).toBe(404);
+
+      const publicRes = await request(app)
+        .get(`/api/v1/public/claims/track/${'b'.repeat(64)}`);
+
+      expect(publicRes.status).toBe(404);
+      expect(publicRes.body).toEqual(referenceRes.body);
+    });
+
+    it('should return identical 404 envelope and headers for a malformed token (too short)', async () => {
       const res = await request(app)
         .get('/api/v1/public/claims/track/abc123');
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
       expect(res.body.message).toBe('Claim not found');
-      expect(res.body.errors).toBeUndefined();
+      expect(res.body.errors).toEqual([
+        { code: 'CLAIM_NOT_FOUND', details: 'Claim not found' },
+      ]);
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.headers['pragma']).toBe('no-cache');
+      expect(res.headers['x-robots-tag']).toBe('noindex, nofollow');
     });
 
-    it('should return 404 for a malformed token (uppercase hex)', async () => {
+    it('should return identical 404 envelope and headers for a malformed token (uppercase hex)', async () => {
       const res = await request(app)
         .get(`/api/v1/public/claims/track/${'A'.repeat(64)}`);
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
-      expect(res.body.errors).toBeUndefined();
+      expect(res.body.errors).toEqual([
+        { code: 'CLAIM_NOT_FOUND', details: 'Claim not found' },
+      ]);
       expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.headers['pragma']).toBe('no-cache');
+      expect(res.headers['x-robots-tag']).toBe('noindex, nofollow');
     });
 
-    it('should return 404 for a malformed token (non-hex characters)', async () => {
+    it('should return identical 404 envelope and headers for a malformed token (non-hex characters)', async () => {
       const res = await request(app)
         .get(`/api/v1/public/claims/track/${'g'.repeat(64)}`);
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
-      expect(res.body.errors).toBeUndefined();
+      expect(res.body.errors).toEqual([
+        { code: 'CLAIM_NOT_FOUND', details: 'Claim not found' },
+      ]);
       expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.headers['pragma']).toBe('no-cache');
+      expect(res.headers['x-robots-tag']).toBe('noindex, nofollow');
     });
 
-    it('should set Cache-Control: no-store header', async () => {
+    it('should set Cache-Control: no-store, Pragma: no-cache, and X-Robots-Tag: noindex, nofollow headers on success', async () => {
       const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
 
       const res = await request(app)
@@ -183,6 +214,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
       expect(res.status).toBe(200);
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.headers['pragma']).toBe('no-cache');
+      expect(res.headers['x-robots-tag']).toBe('noindex, nofollow');
     });
   });
 
