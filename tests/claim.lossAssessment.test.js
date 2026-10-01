@@ -385,7 +385,7 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
     expect(response.body.errors[0].code).toBe('OVERRIDE_REASON_REQUIRED');
   });
 
-  it('should ignore deductibleOverrideReason and store null if deductibleApplied equals policyDeductible', async () => {
+  it('should return 422 OVERRIDE_REASON_NOT_ALLOWED if deductibleOverrideReason is sent when deductibleApplied equals policyDeductible', async () => {
     const token = generateToken(officer1);
     const response = await request(app)
       .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
@@ -400,12 +400,8 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
         },
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body.data.lossAssessment.deductibleOverrideReason).toBeNull();
-
-    // DB-level verification that deductibleOverrideReason is null even though it was sent
-    const dbClaim = await Claim.findById(claimUnderReview._id);
-    expect(dbClaim.lossAssessment.deductibleOverrideReason).toBeNull();
+    expect(response.status).toBe(422);
+    expect(response.body.errors[0].code).toBe('OVERRIDE_REASON_NOT_ALLOWED');
   });
 
   it('should store deductibleOverrideReason ONLY when deductibleApplied differs from policyDeductible', async () => {
