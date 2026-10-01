@@ -24,7 +24,7 @@ const generateToken = (user) => {
   );
 };
 
-describe('API Contract Keys — Sorted Key Sets (Stage 4C / Part D)', () => {
+describe('API Contract Keys — Sorted Key Sets', () => {
   let mongoServer;
   let org, officer, officerToken, adjuster, adjusterToken;
   let customer, vehicle, eligiblePolicy, legacyPolicy;

@@ -2,18 +2,40 @@
 
 هذه الوثيقة موجهة لفريق تطوير الواجهات الأمامية (Frontend Team) لتوضيح التغييرات والاتفاقيات البرمجية لنقاط النهاية، التحقق، شاشات فتح ومتابعة المطالبات، واتخاذ القرار في نظام **InsurFlow**.
 
+> **ملاحظة هامة بشأن الرسائل (`message` strings):**
+> نصوص الرسائل (`message`) المرجعة في استجابات النجاح أو الخطأ هي نصوص توضيحية خاضعة للتغيير والتحسين، ويجب على الواجهة الأمامية عدم الاعتماد برمجياً على محتواها النصي، بل الاعتماد حصرياً على كود الخطأ (`error.code`) وحالة HTTP (`status code`) لإدارة تدفق العمل وعرض الرسائل المترجمة للمستخدمين.
+
 ---
 
-## 1. التغييرات المؤثرة على العملاء والواجهات الحالية (Changes Affecting Existing Clients)
+## 1. التغييرات المؤثرة على العملاء والواجهات (Client-Facing Changes)
 
-1. **`incidentDate` إجباري (Required):** أصبح حقل تاريخ وقوع الحادث إجبارياً في التحقق وإنشاء المطالبة بصيغة `YYYY-MM-DD`.
-2. **`description` اختياري (Optional):** حقل وصف الحادث اختياري بحد أقصى 1000 حرف.
-3. **إحداثيات مسطحة (Flat Latitude & Longitude):** يتم إرسال الإحداثيات مباشرة كحقول رقمية مسطحة `latitude` و `longitude` بدلاً من كائنات متداخلة.
-4. **تحديث سلوك التحقق من الوثيقة (Policy Verification):** لم تعد نقطة النهاية تُرجع الأكواد الملغاة `POLICY_EXPIRED` أو `POLICY_NOT_ACTIVE_ON_DATE`. كل وثيقة غير ملغاة تُرجع حالة نجاح `200 OK` مع `isEligible: true`، وتظهر الفروقات الزمنية أو عدم تغطية الحادث عبر كود التوجيه `eligibilityHint`. فقط الوثيقة الملغاة تُرجع `422 POLICY_CANCELLED`.
-5. **هيكل جديد لاستجابة التتبع العام (New Public Tracking Response Shape):** تم تبسيط الاستجابة العامة للعملاء لتشمل فقط: `claimNumber`، `status`، `statusDescription`، `vehicle` (مع قناع للوحة)، و `timeline` (خط زمني تصاعدي باتجاه واحد forward-only).
-6. **إخفاء وتشفير أرقام اللوحات للجمهور (Plate Masking):** يُعرض رقم اللوحة في التتبع العام بصيغة محجوبة لحماية الخصوصية (مثال: `ABC-xxx4`).
-7. **تقييد صلاحية الوصول إلى رمز التتبع (trackingToken Restricted by Role):** يظهر `trackingToken` و `trackingUrl` فقط للمسؤولين (`ADMIN`) وموظفي المطالبات (`CLAIMS_OFFICER`). يُحجب الحقلان تماماً عن المعاين الميداني (`FIELD_ADJUSTER`).
-8. **تقييم الأضرار إلزامي للموافقة (lossAssessment Mandatory for Approvals):** أصبح حقل `lossAssessment` إلزامياً عند اتخاذ قرار الموافقة `APPROVED`، بينما يُحظر إرسال كائن فيه عند الرفض `REJECTED` (يُقبل غيابه أو القيمة `null` فقط).
+1. **`incidentDate` إجباري في إنشاء المطالبة واختياري في التحقق:**
+   * في نقطة إنشاء المطالبة (`POST /claims`): الحقل **إجباري** بصيغة `YYYY-MM-DD`.
+   * في نقطة التحقق من الوثيقة (`POST /policies/verify`): الحقل **اختياري** (يُعتمد تاريخ اليوم تلقائياً عند غيابه).
+2. **`plateNumber` اختياري في إنشاء المطالبة:**
+   * حقل `plateNumber` اختياري إذا كانت الوثيقة مرتبطة بمركبة واحدة فقط، حيث يتم جلب بيانات المركبة تلقائياً من الوثيقة.
+3. **قائمة أنواع الحوادث (`incidentType` Enum):**
+   * عند إنشاء المطالبة أو تحديث الحادث: يقبل النظام 8 أنواع (`COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
+   * عند التحقق من الوثيقة (`POST /policies/verify`): يقبل النظام 4 أخطار تأمينية (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
+4. **صيغة رقم المطالبة (`claimNumber`):**
+   * يتم توليد أرقام المطالبات بالصيغة القياسية: `CLM-YYYYMMDD-XXXX` (مثل: `CLM-20261001-0001`).
+5. **`description` اختياري (Optional):**
+   * حقل وصف الحادث اختياري بحد أقصى 1000 حرف ويُخزن كـ `incidentDescription`.
+6. **إحداثيات مسطحة (Flat Latitude & Longitude):**
+   * يتم إرسال الإحداثيات كحقول رقمية مسطحة `latitude` (-90 إلى 90) و `longitude` (-180 إلى 180).
+7. **سلوك التحقق من الوثيقة (Policy Verification):**
+   * كل وثيقة غير ملغاة تُرجع حالة نجاح `200 OK` مع `isEligible: true`.
+   * الفروقات الزمنية أو عدم تغطية الخطر تظهر عبر كود التوجيه `eligibilityHint`.
+   * فقط الوثيقة الملغاة تُرجع خطأ `422 POLICY_CANCELLED`.
+8. **هيكل استجابة التتبع العام (Public Tracking Response):**
+   * يقتصر على: `claimNumber`, `status`, `statusDescription`, `vehicle` (مع قناع للوحة), و `timeline` تصاعدي.
+9. **حجب أرقام اللوحات للجمهور (Plate Masking):**
+   * يُعرض رقم اللوحة في التتبع العام بصيغة محجوبة لحماية الخصوصية (مثال: `CAP-xxx1` أو `ABC-xxx4`).
+10. **تقييد صلاحية الوصول إلى رمز التتبع (trackingToken Restriction):**
+    * يظهر `trackingToken` و `trackingUrl` فقط للمسؤولين (`ADMIN`) وموظفي المطالبات (`CLAIMS_OFFICER`). يُحجب الحقلان تماماً عن المعاين الميداني (`FIELD_ADJUSTER`).
+11. **تقييم الأضرار إلزامي للموافقة (lossAssessment Mandatory for Approvals):**
+    * حقل `lossAssessment` إلزامي عند اتخاذ قرار الموافقة `APPROVED`.
+    * يُحظر إرسال كائن فيه عند الرفض `REJECTED` (يُقبل غيابه أو القيمة `null` فقط).
 
 ---
 
@@ -22,14 +44,13 @@
 ### 2.1 شاشة التحقق من الوثيقة (Policy Verification Screen)
 
 * **المسار (Endpoint):** `POST /api/v1/policies/verify`
-* **المصادقة (Auth):** مطلوبة (Bearer Token — للموظف أو المسؤول).
+* **المصادقة (Auth):** مطلوبة (Bearer Token — موظف مطالبات أو مسؤول).
 * **حقول الطلب (Request Fields):**
   * `policyNumber` (String, اختياري إذا أُرسل plateNumber): رقم الوثيقة.
   * `plateNumber` (String, اختياري إذا أُرسل policyNumber): رقم لوحة المركبة للمطابقة.
-  * `incidentDate` (String, إجباري, صيغة `YYYY-MM-DD`): تاريخ وقوع الحادث (لا يمكن أن يكون في المستقبل).
-  * `incidentType` (String, إجباري): نوع الحادث (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
-* **قواعد التحقق (Validation Rules):** يجب تقديم `policyNumber` أو `plateNumber` على الأقل. التاريخ بصيغة ISO تاريخية غير مستقبلية.
-* **استجابة حقيقية (Real Response — 200 OK):**
+  * `incidentDate` (String, اختياري, صيغة `YYYY-MM-DD`): تاريخ الحادث (يُفترض اليوم في حال عدم الإرسال).
+  * `incidentType` (String, إجباري): أحد الأخطار المغطاة (`COLLISION`, `THEFT`, `FIRE`, `NATURAL_DISASTER`).
+* **استجابة حقيقية لوثيقة مؤهلة (Real Response — Eligible Policy — 200 OK):**
 ```json
 {
   "success": true,
@@ -39,7 +60,7 @@
     "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
     "policy": {
       "id": "<POLICY_ID>",
-      "policyNumber": "POL-ELIGIBLE-001",
+      "policyNumber": "POL-CAP-001",
       "status": "ACTIVE",
       "startDate": "2025-01-01",
       "expiryDate": "2027-12-31",
@@ -78,23 +99,120 @@
     },
     "vehicle": {
       "id": "<VEHICLE_ID>",
-      "plateNumber": "1234-A",
+      "plateNumber": "CAP-111",
       "make": "Toyota",
-      "model": "Corolla",
+      "model": "Camry",
       "year": 2022,
       "color": "White"
     },
     "customer": {
       "id": "<CUSTOMER_ID>",
-      "fullName": "Ahmad Contract",
-      "phone": "0599112233"
+      "fullName": "Capture User",
+      "phone": "<PHONE>"
     }
   }
 }
 ```
-* **قواعد الواجهة (UI Rules):**
-  * عرض شارة `eligibilityHint` بناءً على جدول التسميات أدناه.
-  * في حال الوثائق القديمة (Legacy)، تكون قيمة `coverage` مساوية لـ `null`.
+
+* **استجابة حقيقية لوثيقة قديمة بدون بيانات تفصيلية (Real Response — Legacy Policy — 200 OK):**
+```json
+{
+  "success": true,
+  "message": "Policy verified successfully",
+  "data": {
+    "isEligible": true,
+    "eligibilityHint": "COVERAGE_UNKNOWN",
+    "policy": {
+      "id": "<POLICY_ID>",
+      "policyNumber": "POL-CAP-LEG",
+      "status": "ACTIVE",
+      "startDate": "2025-01-01",
+      "expiryDate": "2027-12-31",
+      "policyType": null,
+      "coveredPerils": [],
+      "deductibleAmount": null
+    },
+    "coverage": null,
+    "vehicle": {
+      "id": "<VEHICLE_ID>",
+      "plateNumber": "CAP-222",
+      "make": "Honda",
+      "model": "Civic",
+      "year": 2021,
+      "color": "Silver"
+    },
+    "customer": {
+      "id": "<CUSTOMER_ID>",
+      "fullName": "Capture User",
+      "phone": "<PHONE>"
+    }
+  }
+}
+```
+
+* **استجابة حقيقية لحادث خارج فترة السريان (Real Response — Incident Outside Period — 200 OK):**
+```json
+{
+  "success": true,
+  "message": "Policy verified successfully",
+  "data": {
+    "isEligible": true,
+    "eligibilityHint": "INCIDENT_OUTSIDE_POLICY_PERIOD",
+    "policy": {
+      "id": "<POLICY_ID>",
+      "policyNumber": "POL-CAP-001",
+      "status": "ACTIVE",
+      "startDate": "2025-01-01",
+      "expiryDate": "2027-12-31",
+      "policyType": "COMPREHENSIVE",
+      "coveredPerils": [
+        "COLLISION",
+        "THEFT",
+        "FIRE",
+        "NATURAL_DISASTER"
+      ],
+      "deductibleAmount": 500
+    },
+    "coverage": {
+      "policyType": "COMPREHENSIVE",
+      "effectiveFrom": "2025-01-01",
+      "effectiveTo": "2027-12-31",
+      "deductible": 500,
+      "incidents": [
+        {
+          "code": "COLLISION",
+          "covered": true
+        },
+        {
+          "code": "THEFT",
+          "covered": true
+        },
+        {
+          "code": "FIRE",
+          "covered": true
+        },
+        {
+          "code": "NATURAL_DISASTER",
+          "covered": true
+        }
+      ]
+    },
+    "vehicle": {
+      "id": "<VEHICLE_ID>",
+      "plateNumber": "CAP-111",
+      "make": "Toyota",
+      "model": "Camry",
+      "year": 2022,
+      "color": "White"
+    },
+    "customer": {
+      "id": "<CUSTOMER_ID>",
+      "fullName": "Capture User",
+      "phone": "<PHONE>"
+    }
+  }
+}
+```
 
 ---
 
@@ -104,8 +222,9 @@
 * **المصادقة (Auth):** مطلوبة (`CLAIMS_OFFICER` أو `ADMIN`).
 * **حقول الطلب (Request Fields):**
   * `policyId` (String, إجباري): معرف الوثيقة بصيغة MongoDB ObjectId.
-  * `plateNumber` (String, اختياري): رقم لوحة المركبة (مطلوب إذا كانت الوثيقة تحتوي أكثر من مركبة).
-  * `incidentType` (String, إجباري): أحد القيم (`COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`).
+  * `plateNumber` (String, اختياري): رقم لوحة المركبة (مطلوب فقط إذا كانت الوثيقة تضم أكثر من مركبة واحدة).
+  * `incidentType` (String, إجباري): أحد الأنواع الثمانية:
+    `COLLISION`, `REAR_END_COLLISION`, `SIDE_IMPACT`, `PARKING_DAMAGE`, `OTHER`, `THEFT`, `FIRE`, `NATURAL_DISASTER`.
   * `incidentLocation` (String, إجباري): موقع الحادث نصياً.
   * `incidentDate` (String, إجباري, صيغة `YYYY-MM-DD`): تاريخ وقوع الحادث.
   * `description` (String, اختياري): تفاصيل إضافية عن الحادث (حد أقصى 1000 حرف).
@@ -132,15 +251,12 @@
         "NATURAL_DISASTER"
       ],
       "deductibleAmount": 500,
-      "capturedAt": "2026-10-01T12:53:10.000Z"
+      "capturedAt": "<TIMESTAMP>"
     },
-    "createdAt": "2026-10-01T12:53:10.000Z"
+    "createdAt": "<TIMESTAMP>"
   }
 }
 ```
-* **قواعد الواجهة (UI Rules):**
-  * عرض رابط التتبع فور الإنشاء وإتاحة زر "نسخ الرابط" لمشاركته مع العميل.
-  * يتم التقاط لقطة التغطية (`coverageSnapshot`) ثابتاً في لحظة الإنشاء ولا تتأثر بتعديل الوثيقة لاحقاً.
 
 ---
 
@@ -148,8 +264,7 @@
 
 * **المسار (Endpoint):** `GET /api/v1/claims/:claimId`
 * **المصادقة (Auth):** مطلوبة (حسب الدور).
-* **استجابة موظف المطالبات والمسؤول (`CLAIMS_OFFICER` / `ADMIN`):**
-  تحتوي على كافة الأقسام بما فيها `trackingToken` و `trackingUrl`:
+* **استجابة موظف المطالبات والمسؤول (`CLAIMS_OFFICER` / `ADMIN`) مع الخط الزمني للمطالبة الجديدة:**
 ```json
 {
   "success": true,
@@ -161,31 +276,27 @@
     "trackingToken": "<TRACKING_TOKEN_64_HEX>",
     "trackingUrl": "http://localhost:5173/track/<TRACKING_TOKEN_64_HEX>",
     "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
-    "incidentDate": "2026-06-01",
-    "incidentDescription": "Front bumper damage",
+    "incidentDate": "2026-06-15",
+    "incidentDescription": null,
     "incidentType": "COLLISION",
-    "incidentLocation": "Ramallah Main St",
-    "incidentCoordinates": {
-      "latitude": 31.9038,
-      "longitude": 35.2034,
-      "capturedAt": "2026-10-01T12:53:10.000Z"
-    },
-    "createdAt": "2026-10-01T12:53:10.000Z",
-    "updatedAt": "2026-10-01T12:53:10.000Z",
+    "incidentLocation": "Main Road",
+    "incidentCoordinates": null,
+    "createdAt": "<TIMESTAMP>",
+    "updatedAt": "<TIMESTAMP>",
     "customer": {
-      "name": "Ahmad Contract",
-      "phone": "0599112233"
+      "name": "Capture User",
+      "phone": "<PHONE>"
     },
     "vehicle": {
-      "plateNumber": "1234-A",
+      "plateNumber": "CAP-111",
       "make": "Toyota",
-      "model": "Corolla",
+      "model": "Camry",
       "year": 2022,
       "color": "White"
     },
     "policy": {
       "id": "<POLICY_ID>",
-      "policyNumber": "POL-ELIGIBLE-001",
+      "policyNumber": "POL-CAP-001",
       "status": "ACTIVE",
       "startDate": "2025-01-01",
       "expiryDate": "2027-12-31"
@@ -213,18 +324,18 @@
         "notes": null,
         "performedBy": {
           "id": "<USER_ID>",
-          "name": "Contract Officer",
-          "employeeCode": "CT-OF-01",
+          "name": "Officer User",
+          "employeeCode": "OF-CAP-01",
           "role": "CLAIMS_OFFICER"
         },
         "role": "CLAIMS_OFFICER",
-        "timestamp": "2026-10-01T12:53:10.000Z"
+        "timestamp": "<TIMESTAMP>"
       }
     ],
     "createdBy": {
       "id": "<USER_ID>",
-      "name": "Contract Officer",
-      "employeeCode": "CT-OF-01"
+      "name": "Officer User",
+      "employeeCode": "OF-CAP-01"
     },
     "coverageSnapshot": {
       "policyType": "COMPREHENSIVE",
@@ -235,14 +346,14 @@
         "NATURAL_DISASTER"
       ],
       "deductibleAmount": 500,
-      "capturedAt": "2026-10-01T12:53:10.000Z"
+      "capturedAt": "<TIMESTAMP>"
     },
     "lossAssessment": null
   }
 }
 ```
 * **استجابة المعاين الميداني (`FIELD_ADJUSTER`):**
-  تتطابق تماماً مع ما سبق باستثناء غياب حقول التتبع `trackingToken` و `trackingUrl` لحماية خصوصية العميل.
+  تتطابق تماماً مع ما سبق، مع حجب كامل لحقلي `trackingToken` و `trackingUrl`.
 
 ---
 
@@ -250,67 +361,68 @@
 
 * **المسار (Endpoint):** `POST /api/v1/claims/:claimId/decision`
 * **المصادقة (Auth):** مطلوبة (`CLAIMS_OFFICER` أو `ADMIN`).
-* **حالة الرفض (REJECTED):**
-  * حقول الطلب:
-    * `decision`: `"REJECTED"`
-    * `notes` (String, اختياري): ملاحظات وسبب الرفض.
-    * `lossAssessment`: يُترك فارغاً (absent) أو تُرسل القيمة `null`. إرسال أي كائن يؤدي إلى `400 VALIDATION_ERROR`.
-  * **استجابة الرفض (Real Response — 200 OK):**
-    ```json
-    {
-      "success": true,
-      "message": "Decision recorded successfully",
-      "data": {
-        "id": "<CLAIM_ID>",
-        "claimNumber": "CLM-20261001-0002",
-        "status": "REJECTED",
-        "decisionNotes": "Not covered under policy conditions"
-      }
-    }
-    ```
-* **حالة الموافقة (APPROVED):**
+* **حالة الموافقة (APPROVED) مع تعديل التحمل (Override):**
   * حقول الطلب:
     * `decision`: `"APPROVED"`
     * `notes` (String, اختياري): ملاحظات القرار.
-    * `lossAssessment` (Object, إجباري — إرسال null أو تركه فارغاً يُرجع خطأ 400):
+    * `lossAssessment` (Object, إجباري):
       * `estimatedPartsCost` (Number, إجباري, >= 0)
       * `laborCost` (Number, إجباري, >= 0)
-      * `deductibleApplied` (Number, اختياري, >= 0): إذا اختلف عن تحمل الوثيقة يعتبر تجاوزاً (Override).
-      * `deductibleOverrideReason` (String, اختياري): إجباري (10 إلى 300 حرف) في حال تم تعديل مبلغ التحمل، ومحظور إذا تطابق مع تحمل الوثيقة.
-  * **استجابة الموافقة (Real Response — 200 OK):**
-    ```json
-    {
-      "success": true,
-      "message": "Decision recorded successfully",
-      "data": {
-        "id": "<CLAIM_ID>",
-        "claimNumber": "CLM-20261001-0003",
-        "status": "APPROVED",
-        "decisionNotes": "Claim verified and approved",
-        "lossAssessment": {
-          "estimatedPartsCost": 2000,
-          "laborCost": 1000,
-          "totalDamage": 3000,
-          "policyDeductible": 500,
-          "deductibleApplied": 500,
-          "deductibleOverridden": false,
-          "deductibleOverrideReason": null,
-          "netApprovedPayout": 2500,
-          "currency": "ILS",
-          "assessedAt": "2026-10-01T12:53:11.000Z",
-          "assessedBy": "<USER_ID>"
-        }
-      }
+      * `deductibleApplied` (Number, اختياري, >= 0)
+      * `deductibleOverrideReason` (String, إجباري في حال تعديل التحمل من 10 إلى 300 حرف، ومحظور إذا تطابق مع تحمل الوثيقة)
+  * **استجابة حقيقية للموافقة مع Override (Real Response — 200 OK):**
+```json
+{
+  "success": true,
+  "message": "Decision recorded successfully",
+  "data": {
+    "id": "<CLAIM_ID>",
+    "claimNumber": "CLM-20261001-0001",
+    "status": "APPROVED",
+    "decisionNotes": "Approved with management override",
+    "lossAssessment": {
+      "estimatedPartsCost": 1500,
+      "laborCost": 800,
+      "totalDamage": 2300,
+      "policyDeductible": 500,
+      "deductibleApplied": 300,
+      "deductibleOverridden": true,
+      "deductibleOverrideReason": "Commercial gesture approved by director",
+      "netApprovedPayout": 2000,
+      "currency": "ILS",
+      "assessedAt": "<TIMESTAMP>",
+      "assessedBy": "<USER_ID>"
     }
-    ```
+  }
+}
+```
+
+* **حالة الرفض (REJECTED):**
+  * حقول الطلب:
+    * `decision`: `"REJECTED"`
+    * `notes` (String, اختياري): سبب الرفض.
+    * `lossAssessment`: يُترك فارغاً أو يُرسل `null` (إرسال كائن يُرجع `400 VALIDATION_ERROR`).
+  * **استجابة حقيقية للرفض (Real Response — 200 OK):**
+```json
+{
+  "success": true,
+  "message": "Decision recorded successfully",
+  "data": {
+    "id": "<CLAIM_ID>",
+    "claimNumber": "CLM-20261001-0001",
+    "status": "REJECTED",
+    "decisionNotes": "Damage not covered under policy terms"
+  }
+}
+```
 
 ---
 
 ### 2.5 صفحة التتبع العام للجمهور (Public Tracking Screen)
 
 * **المسار (Endpoint):** `GET /api/v1/public/claims/track/:trackingToken`
-* **المصادقة (Auth):** بدون مصادقة (Public — الرمز هو المفتاح الوحيد).
-* **استجابة حقيقية (Real Response — 200 OK):**
+* **المصادقة (Auth):** بدون مصادقة (Public).
+* **استجابة حقيقية لمطالبة جديدة (Real Response — New Claim — 200 OK):**
 ```json
 {
   "success": true,
@@ -320,9 +432,9 @@
     "status": "RECEIVED",
     "statusDescription": "تم استلام بلاغك وهو قيد المعالجة",
     "vehicle": {
-      "plateNumber": "ABC-xxx4",
+      "plateNumber": "CAP-xxx1",
       "make": "Toyota",
-      "model": "Corolla",
+      "model": "Camry",
       "year": 2022
     },
     "timeline": [
@@ -330,9 +442,64 @@
         "status": "RECEIVED",
         "title": "تم استلام البلاغ",
         "description": "تم تسجيل البلاغ بنجاح وفتح ملف المطالبة في النظام",
-        "timestamp": "2026-10-01T12:53:10.000Z"
+        "timestamp": "<TIMESTAMP>"
       }
     ]
+  }
+}
+```
+
+* **استجابة حقيقية لمطالبة معتمدة (Real Response — Approved Claim — 200 OK):**
+```json
+{
+  "success": true,
+  "message": "Claim status retrieved successfully",
+  "data": {
+    "claimNumber": "CLM-20261001-0001",
+    "status": "APPROVED",
+    "statusDescription": "صدر القرار بالموافقة على مطالبتك",
+    "vehicle": {
+      "plateNumber": "CAP-xxx1",
+      "make": "Toyota",
+      "model": "Camry",
+      "year": 2022
+    },
+    "timeline": [
+      {
+        "status": "RECEIVED",
+        "title": "تم استلام البلاغ",
+        "description": "تم تسجيل البلاغ بنجاح وفتح ملف المطالبة في النظام",
+        "timestamp": "<TIMESTAMP>"
+      },
+      {
+        "status": "APPROVED",
+        "title": "صدر القرار: موافقة",
+        "description": "صدر القرار بالموافقة على مطالبتك",
+        "timestamp": "<TIMESTAMP>"
+      }
+    ]
+  }
+}
+```
+
+* **استجابة حقيقية عند عدم وجود المطالبة (Real Response — 404 Not Found):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CLAIM_NOT_FOUND",
+    "message": "Claim not found for this tracking token"
+  }
+}
+```
+
+* **استجابة حقيقية عند تجاوز معدل الطلبات (Real Response — 429 Too Many Requests):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "TOO_MANY_REQUESTS",
+    "message": "Too many requests from this IP, please try again after 15 minutes"
   }
 }
 ```
@@ -375,60 +542,79 @@
 
 ---
 
-## 5. دليل الأخطاء والرسائل المقترحة (Error Catalog)
+## 5. دليل الأخطاء (Error Catalog)
 
-تقوم الواجهة الأمامية بصياغة الرسائل بناءً على كود الخطأ (`code`) المستلم في كائن الخطأ:
+تقوم الواجهة الأمامية بصياغة الرسائل بناءً على كود الخطأ (`error.code`) وحالة HTTP:
 
 | كود الحالة (HTTP) | كود الخطأ (`code`) | سبب الحدوث (Trigger) | الرسالة العربية المقترحة للواجهة |
 | :---: | :--- | :--- | :--- |
-| 422 | `POLICY_CANCELLED` | محاولة التحقق أو فتح مطالبة على وثيقة ملغاة | **الوثيقة ملغاة ولا يمكن فتح مطالبة عليها** |
-| 422 | `DAMAGE_BELOW_DEDUCTIBLE` | إجمالي الضرر المحسوب أصغر أو يساوي مبلغ التحمل المطبق | **إجمالي الضرر يجب أن يكون أكبر من مبلغ التحمل المطبق** |
-| 422 | `OVERRIDE_REASON_REQUIRED` | تعديل التحمل المطبق عن وثيقة التأمين دون تقديم سبب | **سبب تعديل التحمل مطلوب، من 10 إلى 300 حرفاً** |
-| 422 | `OVERRIDE_REASON_NOT_ALLOWED` | تقديم سبب تعديل بينما التحمل يطابق تحمل الوثيقة | **لا يقبل سبب تعديل عندما يطابق التحمل تحمل الوثيقة** |
-| 404 | `CLAIM_NOT_FOUND` | رمز التتبع غير موجود أو معرّف المطالبة خاطئ | **رمز المطالبة غير صحيح، يرجى التأكد من الرابط المرسل إليك** |
-| 429 | `RATE_LIMIT_EXCEEDED` | تجاوز حد الطلبات المسموح به خلال النافذة الزمنية | **محاولات كثيرة، يرجى المحاولة بعد قليل** |
-| 400 | `VALIDATION_ERROR` | فقدان حقول إجبارية مثل `incidentDate` أو صيغة خاطئة | يرجى التأكد من صحة الحقول المدخلة واكتمالها |
+| 400 | `VALIDATION_ERROR` | فقدان حقول إجبارية أو صيغة غير صالحة | يرجى التأكد من صحة الحقول المدخلة واكتمالها |
 | 400 | `INVALID_INCIDENT_DATE` | تاريخ الحادث في المستقبل | لا يمكن أن يكون تاريخ الحادث في المستقبل |
+| 401 | `UNAUTHORIZED` | غياب التوكن أو انتهاء صلاحيته | انتهت صلاحية الجلسة، يرجى إعادة تسجيل الدخول |
+| 403 | `FORBIDDEN` | محاولة الوصول لبيانات خارج صلاحيات الدور | ليس لديك الصلاحية للقيام بهذا الإجراء |
+| 404 | `CLAIM_NOT_FOUND` | رمز التتبع غير موجود أو معرّف المطالبة خاطئ | رمز المطالبة غير صحيح، يرجى التأكد من الرابط المرسل إليك |
 | 404 | `POLICY_NOT_FOUND` | رقم الوثيقة غير مسجل في شركة التأمين | رقم الوثيقة غير موجود في سجلات الشركة |
 | 404 | `VEHICLE_NOT_FOUND` | رقم اللوحة غير مسجل في النظام | لم يتم العثور على مركبة برقم اللوحة المدخل |
+| 404 | `CUSTOMER_NOT_FOUND` | العميل غير موجود في النظام | لم يتم العثور على العميل المطلوب |
+| 404 | `USER_NOT_FOUND` | المستخدم أو الموظف غير موجود | لم يتم العثور على المستخدم المطلوب |
+| 404 | `RESOURCE_NOT_FOUND` | المسار أو المورد المطلوب غير موجود | المورد المطلوب غير موجود |
+| 409 | `INVALID_STATUS_TRANSITION` | محاولة تغيير حالة المطالبة لمسار غير مسموح | لا يمكن تنفيذ هذا الإجراء في حالة المطالبة الحالية |
+| 409 | `CLAIM_ALREADY_EXISTS` | فتح مطالبة مكررة لنفس الحادث أو الوثيقة | توجد مطالبة سابقة مسجلة بالفعل |
+| 422 | `POLICY_CANCELLED` | محاولة التحقق أو فتح مطالبة على وثيقة ملغاة | الوثيقة ملغاة ولا يمكن فتح مطالبة عليها |
+| 422 | `DAMAGE_BELOW_DEDUCTIBLE` | إجمالي الضرر المحسوب أصغر أو يساوي مبلغ التحمل المطبق | إجمالي الضرر يجب أن يكون أكبر من مبلغ التحمل المطبق |
+| 422 | `OVERRIDE_REASON_REQUIRED` | تعديل التحمل المطبق عن وثيقة التأمين دون تقديم سبب | سبب تعديل التحمل مطلوب، من 10 إلى 300 حرفاً |
+| 422 | `OVERRIDE_REASON_NOT_ALLOWED` | تقديم سبب تعديل بينما التحمل يطابق تحمل الوثيقة | لا يقبل سبب تعديل عندما يطابق التحمل تحمل الوثيقة |
 | 422 | `VEHICLE_MISMATCH` | المركبة المدخلة لا تتبع للوثيقة المحددة | رقم لوحة المركبة لا يتطابق مع هذه الوثيقة |
 | 422 | `AMBIGUOUS_VEHICLE_SELECTION`| الوثيقة تضم أكثر من مركبة ولم يُحدد رقم اللوحة | الوثيقة تحتوي أكثر من مركبة، يرجى تحديد رقم اللوحة |
 | 422 | `NO_VEHICLE_ON_POLICY` | لا توجد مركبات مسجلة تحت هذه الوثيقة | لا توجد أي مركبة مسجلة تحت هذه الوثيقة |
-| 401 | `UNAUTHORIZED` | غياب التوكن أو انتهاء صلاحيته | انتهت صلاحية الجلسة، يرجى إعادة تسجيل الدخول |
-| 403 | `FORBIDDEN` | محاولة الوصول لبيانات خارج صلاحيات الدور | ليس لديك الصلاحية للقيام بهذا الإجراء |
+| 429 | `TOO_MANY_REQUESTS` | تجاوز حد الطلبات المسموح به خلال النافذة الزمنية | محاولات كثيرة، يرجى المحاولة بعد 15 دقيقة |
+| 500 | `INTERNAL_SERVER_ERROR` | خطأ غير متوقع في الخادم | حدث خطأ داخلي، يرجى المحاولة لاحقاً |
 
 ---
 
-## 6. قواعد صفحة التتبع العام (Public Tracking Page Rules)
+## 6. قواعد صفحة التتبع العام (Tracking Page Rules)
 
-1. **مسار الصفحة (Route):** يتم بناء المسار في تطبيق الفرونت إند بالشكل: `/track/:trackingToken`.
-2. **وسوم الحماية ومحركات البحث (SEO & Security Tags):**
-   * يجب وضع وسم منع الفهرسة: `<meta name="robots" content="noindex, nofollow" />`.
-   * يجب تفعيل سياسة الإحالة: `<meta name="referrer" content="no-referrer" />`.
-3. **تكرار الاستعلام (Polling Rate):**
-   * يُمنع عمل استعلام دوري (Polling) بمعدل أقل من **30 ثانية** بين كل طلب وآخر لتجنب استهلاك معدل الطلبات.
-4. **التعامل مع الأخطاء (404 و 429):**
-   * عند تلقي `404 CLAIM_NOT_FOUND`: إيقاف الـ Polling فوراً وعرض شاشة تفيد بأن الرابط غير صالح.
-   * عند تلقي `429 RATE_LIMIT_EXCEEDED`: إيقاف الـ Polling مؤقتاً لمدة 60 ثانية وإظهار رسالة تنبيه للمستخدم.
-5. **معالجة غياب عنوان الخادم (Handling null `trackingUrl`):**
-   * عندما يكون المتغير `PUBLIC_FRONTEND_URL` غير معين في الخادم، ستكون قيمة `trackingUrl` العائدة في الاستجابة `null`.
-   * على الفرونت إند بناء الرابط محلياً بالاعتماد على الـ Origin الحالي ورمز المطالبة: `${window.location.origin}/track/${trackingToken}`.
+1. **مسار الصفحة (Route):**
+   * يتم بناء المسار في تطبيق الواجهة الأمامية بالصيغة: `/track/:trackingToken`.
+2. **وسم منع الفهرسة (noindex meta tag):**
+   * يجب وضع الوسم التالي في ترويسة الصفحة لمنع محركات البحث من الفهرسة:
+     `<meta name="robots" content="noindex, nofollow" />`
+3. **سياسة الإحالة (Referrer Policy):**
+   * يجب تفعيل سياسة منع نقل الإحالة لحماية خصوصية العميل:
+     `<meta name="referrer" content="no-referrer" />`
+4. **تكرار الاستعلام الدوري (Polling Interval):**
+   * يُمنع تنفيذ الاستعلام الدوري (Polling) بمعدل أسرع من **مرة كل 30 ثانية** (Polling no faster than every 30 seconds).
+5. **التعامل مع الأخطاء (404 و 429):**
+   * عند استقبال خطأ `404 CLAIM_NOT_FOUND`: إيقاف الاستعلام الدوري فوراً وعرض شاشة واضحة للمستخدم تفيد بأن الرابط غير صالح أو انتهت صلاحيته.
+   * عند استقبال خطأ `429 TOO_MANY_REQUESTS`: إيقاف الاستعلام الدوري مؤقتاً وعرض رسالة تنبيه للمستخدم بالانتظار قبل إعادة المحاولة.
+6. **معالجة القيمة الفارغة لـ `trackingUrl` (Null Tracking URL Handling):**
+   * عندما يكون متغير البيئة `PUBLIC_FRONTEND_URL` غير معين في الخادم، تُرجع نقطة النهاية `trackingUrl: null`.
+   * على تطبيق الواجهة الأمامية بناء الرابط محلياً بالاعتماد على النطاق الحالي للعميل:
+     `${window.location.origin}/track/${trackingToken}`
 
 ---
 
 ## 7. قواعد نافذة اتخاذ القرار (Approval Modal Rules)
 
 1. **نطاق القيم وصيغتها (Value Ranges & Decimals):**
-   * جميع المبالغ المالية (`estimatedPartsCost`, `laborCost`, `deductibleApplied`) يجب أن تكون أرقاماً موجبة (>= 0) بحد أقصى خانتين عشريتين (Two Decimals).
-2. **قواعد تعديل التحمل (Override Logic):**
+   * جميع المبالغ المالية (`estimatedPartsCost`, `laborCost`, `deductibleApplied`) يجب أن تكون أرقاماً غير سالبة (>= 0).
+   * يُسمح بحد أقصى خانتين عشريتين فقط (Two Decimals).
+2. **قواعد تعديل التحمل (Override Rule):**
    * حقل `deductibleApplied` اختياري، وقيمته الافتراضية تساوي تحمل الوثيقة (`policyDeductible`).
-   * إذا قام المستخدم بتعديل قيمة التحمل إلى قيمة مختلفة، يصبح حقل "سبب التعديل" (`deductibleOverrideReason`) إجبارياً من 10 إلى 300 حرفاً.
-   * إذا تطابقت القيمة مع تحمل الوثيقة، يُمنع إرسال سبب التعديل.
-3. **الحسابات المالية (Server-Computed Financials):**
-   * يمكن للواجهة الأمامية تقديم معاينة فورية للحسابات (`Preview`):
+   * إذا تم إدخال قيمة تختلف عن تحمل الوثيقة (`deductibleApplied !== policyDeductible`)، يُشترط إرسال سبب التعديل `deductibleOverrideReason` بنص يتراوح بين 10 و 300 حرف.
+   * إذا تطابقت القيمة مع تحمل الوثيقة (`deductibleApplied === policyDeductible`)، يُحظر إرسال حقل سبب التعديل (أو إرساله `null`).
+3. **المجاميع المحسوبة من الخادم (Server-Computed Totals):**
+   * يمكن للواجهة الأمامية عرض مجاميع تقديرية استرشادية:
      * $\text{totalDamage} = \text{estimatedPartsCost} + \text{laborCost}$
      * $\text{netApprovedPayout} = \text{totalDamage} - \text{deductibleApplied}$
-   * **القيمة المعتمدة قطيعاً هي القيمة المحسوبة بواسطة السيرفر** في الاستجابة (Server calculation wins).
-   * يُشترط أن يكون $\text{totalDamage} > \text{deductibleApplied}$، وإلا سيرفض السيرفر الطلب برمز `422 DAMAGE_BELOW_DEDUCTIBLE`.
+   * الحسابات النهائية المعتمدة هي المحسوبة حصرياً بواسطة الخادم ومُرجعة في الاستجابة (Server calculation is authoritative).
+   * يشترط أن يكون $\text{totalDamage} > \text{deductibleApplied}$ وإلا يُرفض الطلب بكود `422 DAMAGE_BELOW_DEDUCTIBLE`.
 4. **العملة (Currency):**
-   * يتم استخدام رمز العملة المرتجع في حقل `currency` من الاستجابة (مثل `ILS`)، ولا يتم تثبيت العملة يدوياً في الكود.
+   * يجب استخراج رمز العملة ديناميكياً من حقل `lossAssessment.currency` في الاستجابة (مثل `ILS`)، مع تجنب تثبيت العملة نصياً في الواجهة.
+
+---
+
+## 8. ملاحظة حول مشاركة الموارد عبر الأصول (CORS Note)
+
+* يتم حماية نقاط النهاية ضد طلبات المتصفح غير المصرح بها عبر سياسة CORS.
+* يجب أن يتطابق نطاق تطبيق الواجهة الأمامية (`Origin` الخاص بالمتصفح، مثال: `http://localhost:5173` أو `https://portal.insurflow.com`) مع النطاقات المعرفة ضمن متغير البيئة `CORS_ORIGIN` في خادم الواجهة الخلفية.
