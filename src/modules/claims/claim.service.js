@@ -17,7 +17,8 @@ const buildTrackingUrl = (token) => {
   if (!token || !config.publicFrontendUrl) {
     return null;
   }
-  return `${config.publicFrontendUrl}/track/${token}`;
+  const baseUrl = config.publicFrontendUrl.replace(/\/+$/, '');
+  return `${baseUrl}/track/${token}`;
 };
 
 const createClaim = async (body, authUser) => {

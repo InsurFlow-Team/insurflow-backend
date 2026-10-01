@@ -489,5 +489,31 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         config.publicFrontendUrl = originalUrl;
       }
     });
+
+    it('exports buildTrackingUrl helper directly from claim.service and handles URLs correctly', () => {
+      const claimService = require('../src/modules/claims/claim.service');
+      expect(typeof claimService.buildTrackingUrl).toBe('function');
+
+      const originalUrl = config.publicFrontendUrl;
+      try {
+        config.publicFrontendUrl = 'https://portal.insurflow.com';
+        expect(claimService.buildTrackingUrl('test-token-123')).toBe('https://portal.insurflow.com/track/test-token-123');
+        expect(claimService.buildTrackingUrl(null)).toBeNull();
+        expect(claimService.buildTrackingUrl('')).toBeNull();
+        expect(claimService.buildTrackingUrl(undefined)).toBeNull();
+
+        config.publicFrontendUrl = 'https://portal.insurflow.com///';
+        expect(claimService.buildTrackingUrl('test-token-123')).toBe('https://portal.insurflow.com/track/test-token-123');
+
+        config.publicFrontendUrl = null;
+        expect(claimService.buildTrackingUrl('test-token-123')).toBeNull();
+      } finally {
+        config.publicFrontendUrl = originalUrl;
+      }
+    });
+
+    it('ensures config.publicFrontendUrl exists on env config', () => {
+      expect('publicFrontendUrl' in config).toBe(true);
+    });
   });
 });
