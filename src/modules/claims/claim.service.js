@@ -277,7 +277,11 @@ const getClaimById = async (claimId, authUser) => {
     id: claim._id,
     claimNumber: claim.claimNumber,
     status: claim.status,
-    trackingToken: claim.trackingToken ?? null,
+    // Expose tracking tokens and URLs exclusively to claims officers and administrators
+    ...((role === 'CLAIMS_OFFICER' || role === 'ADMIN') && {
+      trackingToken: claim.trackingToken ?? null,
+      trackingUrl: buildTrackingUrl(claim.trackingToken),
+    }),
     eligibilityHint: claim.eligibilityHint ?? null,
     incidentDate: claim.incidentDate ?? null,
     incidentDescription: claim.incidentDescription ?? null,

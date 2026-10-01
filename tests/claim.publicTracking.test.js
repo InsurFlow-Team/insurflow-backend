@@ -11,6 +11,7 @@ const { buildPolicy } = require('./helpers/policyFactory');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 const { PUBLIC_STATUS_MAP, PUBLIC_TIMELINE_TEXT } = require('../src/modules/claims/claim.public.constants');
+const { buildTrackingUrl } = require('../src/modules/claims/claim.service');
 
 let mongoServer;
 
@@ -704,7 +705,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
   // ─── Authenticated Claim Retrieval: trackingToken visibility ─────────
 
   describe('trackingToken visibility on authenticated endpoints', () => {
-    it('should include trackingToken in single claim retrieval GET /api/v1/claims/:claimId for authorized staff', async () => {
+    it('officer receives both trackingToken and trackingUrl in GET /api/v1/claims/:claimId', async () => {
       const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
       const token = generateToken(officer1);
 
@@ -713,26 +714,116 @@ describe('Public Claim Tracking (Feature 23)', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.data.trackingToken).toBeDefined();
       expect(res.body.data.trackingToken).toBe(claim.trackingToken);
-      expect(res.body.data.trackingToken).toMatch(/^[0-9a-f]{64}$/);
+      expect(res.body.data.trackingUrl).toBe(buildTrackingUrl(claim.trackingToken));
     });
 
-    it('should NOT include trackingToken in claim listing GET /api/v1/claims', async () => {
-      await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
-      const token = generateToken(officer1);
+    it('admin receives both trackingToken and trackingUrl in GET /api/v1/claims/:claimId', async () => {
+      const admin = await User.create({
+        name: 'AdminUser',
+        employeeCode: 'ADM-D1',
+        password: 'password123',
+        role: 'ADMIN',
+        organizationId: org1._id,
+      });
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
+      const token = generateToken(admin);
 
       const res = await request(app)
-        .get('/api/v1/claims')
+        .get(`/api/v1/claims/${claim._id}`)
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      const claims = res.body.data;
-      expect(Array.isArray(claims)).toBe(true);
-      expect(claims.length).toBeGreaterThan(0);
-      claims.forEach((c) => {
-        expect(c.trackingToken).toBeUndefined();
+      expect(res.body.data.trackingToken).toBe(claim.trackingToken);
+      expect(res.body.data.trackingUrl).toBe(buildTrackingUrl(claim.trackingToken));
+    });
+
+    it('FIELD_ADJUSTER receives neither trackingToken nor trackingUrl in GET /api/v1/claims/:claimId', async () => {
+      const adjuster = await User.create({
+        name: 'AdjusterUser',
+        employeeCode: 'ADJ-D1',
+        password: 'password123',
+        role: 'FIELD_ADJUSTER',
+        organizationId: org1._id,
       });
+      const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        assignedTo: adjuster._id,
+      });
+      const token = generateToken(adjuster);
+
+      const res = await request(app)
+        .get(`/api/v1/claims/${claim._id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.trackingToken).toBeUndefined();
+      expect(res.body.data.trackingUrl).toBeUndefined();
+      expect('trackingToken' in res.body.data).toBe(false);
+      expect('trackingUrl' in res.body.data).toBe(false);
+    });
+
+    it('trackingUrl is null when PUBLIC_FRONTEND_URL is unset', async () => {
+      const origUrl = config.publicFrontendUrl;
+      config.publicFrontendUrl = null;
+
+      try {
+        const claim = await createClaimWithToken(org1._id, testPolicy._id, officer1._id);
+        const token = generateToken(officer1);
+
+        const res = await request(app)
+          .get(`/api/v1/claims/${claim._id}`)
+          .set('Authorization', `Bearer ${token}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.trackingToken).toBe(claim.trackingToken);
+        expect(res.body.data.trackingUrl).toBeNull();
+      } finally {
+        config.publicFrontendUrl = origUrl;
+      }
+    });
+
+    it('GET /claims returns neither trackingToken nor trackingUrl for any role', async () => {
+      const adjuster = await User.create({
+        name: 'AdjusterList',
+        employeeCode: 'ADJ-D2',
+        password: 'password123',
+        role: 'FIELD_ADJUSTER',
+        organizationId: org1._id,
+      });
+      const admin = await User.create({
+        name: 'AdminList',
+        employeeCode: 'ADM-D2',
+        password: 'password123',
+        role: 'ADMIN',
+        organizationId: org1._id,
+      });
+      await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
+        assignedTo: adjuster._id,
+      });
+
+      const roles = [
+        { user: officer1 },
+        { user: admin },
+        { user: adjuster },
+      ];
+
+      for (const { user } of roles) {
+        const token = generateToken(user);
+        const res = await request(app)
+          .get('/api/v1/claims')
+          .set('Authorization', `Bearer ${token}`);
+
+        expect(res.status).toBe(200);
+        const claims = res.body.data;
+        expect(Array.isArray(claims)).toBe(true);
+        expect(claims.length).toBeGreaterThan(0);
+        claims.forEach((c) => {
+          expect(c.trackingToken).toBeUndefined();
+          expect(c.trackingUrl).toBeUndefined();
+          expect('trackingToken' in c).toBe(false);
+          expect('trackingUrl' in c).toBe(false);
+        });
+      }
     });
   });
 });
