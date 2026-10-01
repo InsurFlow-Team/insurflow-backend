@@ -51,6 +51,33 @@ InsurFlow هو نظام إدارة مطالبات التأمين على السي
 
 ---
 
+## ⚙️ إعداد متغيرات البيئة (Environment Variables)
+
+يتم ضبط إعدادات النظام عبر ملف `.env`. الجدول التالي يوضح جميع المتغيرات المقروءة في مجلد `src` مع قيمها الافتراضية والغرض منها:
+
+| المتغير (Variable) | إلزامي؟ | القيمة الافتراضية / المقترحة | الوصف والغرض |
+|---|:---:|---|---|
+| `NODE_ENV` | اختياري | `development` | بيئة تشغيل التطبيق (`development`, `test`, `production`) |
+| `PORT` | اختياري | `3000` | منفذ تشغيل خادم HTTP |
+| `DATABASE_URL` | نعم | `mongodb://localhost:27017/insurflow` | رابط الاتصال بقاعدة بيانات MongoDB |
+| `CORS_ORIGIN` | نعم | `http://localhost:5173,https://admin.insurflow.app` | نطاقات الـ CORS المسموحة مفصولة بفواصل، أو `*` للكل |
+| `JWT_SECRET` | نعم | `your-secure-jwt-secret-key-at-least-32-chars` | المفتاح السري لتشفير وتوقيع رموز JWT |
+| `JWT_EXPIRES_IN` | اختياري | `8h` | مدة صلاحية رمز الدخول JWT |
+| `CLOUDINARY_CLOUD_NAME` | نعم | `your_cloudinary_cloud_name` | اسم الحساب السحابي على Cloudinary |
+| `CLOUDINARY_API_KEY` | نعم | `your_cloudinary_api_key` | مفتاح API لـ Cloudinary |
+| `CLOUDINARY_API_SECRET` | نعم | `your_cloudinary_api_secret` | الرمز السري لـ Cloudinary |
+| `LOGIN_RATE_LIMIT_WINDOW_MS` | اختياري | `900000` (15 دقيقة) | النافذة الزمنية لمحدد معدل تسجيل الدخول بالميلي ثانية |
+| `LOGIN_RATE_LIMIT_MAX` | اختياري | `5` | أقصى عدد لمحاولات تسجيل الدخول الفاشلة قبل الحظر |
+| `API_RATE_LIMIT_WINDOW_MS` | اختياري | `900000` (15 دقيقة) | النافذة الزمنية للمحدد العام للـ API بالميلي ثانية |
+| `API_RATE_LIMIT_MAX` | اختياري | `300` | أقصى عدد لطلبات الـ API العامة لكل عنوان IP |
+| `APP_CURRENCY` | اختياري | `ILS` | رمز العملة التشغيلية المعتمد للمطالبات المالية |
+| `MAX_FINANCIAL_AMOUNT` | اختياري | `1000000` | الحد الأقصى للمبالغ المالية (قطع الغيار، الأجور، التحمل) |
+| `PUBLIC_FRONTEND_URL` | اختياري | `https://insurflow.app` | الرابط الأساسي لواجهة تتبع المطالبات العامة للجمهور |
+| `PUBLIC_TRACKING_RATE_LIMIT_MAX` | اختياري | `60` | أقصى عدد استعلامات لمسار التتبع العام كل 15 دقيقة |
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | اختياري | `./serviceAccountKey.json` | مسار ملف مفتاح حساب خدمة Firebase لإشعارات Push |
+
+---
+
 ## 📁 هيكل الملفات — شرح مفصل
 
 ```
