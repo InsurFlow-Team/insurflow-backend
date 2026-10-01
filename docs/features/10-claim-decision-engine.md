@@ -123,11 +123,7 @@ const makeDecision = async (claimId, organizationId, decision, decisionNotes, ti
         "deductibleOverrideReason": "Waived 50% per promotional campaign",
         "netApprovedPayout": 5200.50,
         "assessedAt": "2026-09-28T14:30:00.000Z",
-        "assessedBy": {
-          "id": "60d0fe4f5311236168a109bb",
-          "name": "Sarah Officer",
-          "employeeCode": "EMP-002"
-        }
+        "assessedBy": "60d0fe4f5311236168a109bb"
       }
     }
   }

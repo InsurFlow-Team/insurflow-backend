@@ -89,8 +89,8 @@ When a policyholder calls to report a motor accident or damage:
       "id": "60d0fe4f5311236168a109cc",
       "claimNumber": "CLM-INS-0001",
       "status": "NEW",
-      "trackingToken": "8f4b1e2a-4c9d-4e8a-bf3d-2b4a5c6d7e8f",
-      "trackingUrl": "https://track.insurflow.ps/track/8f4b1e2a-4c9d-4e8a-bf3d-2b4a5c6d7e8f",
+      "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "trackingUrl": "http://localhost:3000/track/d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "coverageSnapshot": {
         "policyType": "COMPREHENSIVE",

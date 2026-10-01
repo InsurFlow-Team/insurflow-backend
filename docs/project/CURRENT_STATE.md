@@ -114,7 +114,7 @@
 - [x] **Financial Loss Assessment Adjudication & Feature Flag Guard (Feature 22 / Commit 2 Completed):**
   - Integrated `lossAssessment` subdocument schema (`estimatedPartsCost`, `laborCost`, `totalDamage`, `policyDeductible`, `deductibleApplied`, `deductibleOverrideReason`, `netApprovedPayout`, `assessedAt`, `assessedBy`) into `Claim`.
   - Financial adjudication in `POST /claims/:claimId/decision` when `decision === 'APPROVED'`.
-  - Feature flag `REQUIRE_LOSS_ASSESSMENT` in `src/config/env.js`: when false, allows approval without `lossAssessment` and maintains backwards compatibility for all 4 legacy decision test suites; when true, mandates `lossAssessment` input.
+  - (Historical note: Initially introduced behind feature flag `REQUIRE_LOSS_ASSESSMENT`; flag subsequently removed in Stage 4A making `lossAssessment` unconditionally mandatory for approvals).
   - Strict validation: numbers must be JSON numeric primitives (`.strict()`), max 2 decimal places, bounds `[0, 1000000]`, and rejection of unrecognized/computed keys (e.g. `netApprovedPayout`, `totalDamage`).
   - Strict tenant-scoped pre-read helper `handleClaimNotFoundOrStateError` (404 `CLAIM_NOT_FOUND`, 409 `INVALID_STATUS_TRANSITION`) used exclusively in `APPROVED` branch; zero extra queries on `REJECTED`.
   - Deductible hierarchy: snapshot deductible -> fallback to live policy query only when snapshot is null -> 0.
