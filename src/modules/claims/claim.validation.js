@@ -235,8 +235,8 @@ const decisionSchema = Joi.object({
   notes: Joi.string().trim().optional().allow('', null),
   lossAssessment: Joi.when('decision', {
     is: 'REJECTED',
-    then: Joi.forbidden().messages({
-      'any.unknown': 'lossAssessment is not allowed when decision is REJECTED',
+    then: Joi.valid(null).optional().messages({
+      'any.only': 'lossAssessment is not allowed when decision is REJECTED',
     }),
     otherwise: lossAssessmentInputSchema.required().messages({
       'any.required': 'lossAssessment is required when decision is APPROVED',
