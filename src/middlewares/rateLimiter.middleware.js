@@ -79,7 +79,6 @@ const publicTrackingLimiter = rateLimit({
       : config.publicTrackingRateLimitMax || 60),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip,
   skip: (req) => config.nodeEnv === 'test' && !req.headers['x-test-rate-limit'],
   store: publicTrackingRateLimitStore,
   handler: (req, res, next, options) => {

@@ -9,6 +9,7 @@ const errorHandler = require('./middlewares/errorHandler');
 const notFoundHandler = require('./middlewares/notFound');
 const { apiLimiter } = require('./middlewares/rateLimiter.middleware');
 const { successResponse } = require('./utils/apiResponse');
+const redactTrackingToken = require('./utils/redactTrackingToken');
 
 
 const app = express();
@@ -33,7 +34,9 @@ app.use(cors({
 }));
 
 
-// Request Logging
+// Request Logging: sanitize URLs to prevent tracking tokens from leaking into logs
+morgan.token('url', (req) => redactTrackingToken(req.originalUrl || req.url));
+
 if (config.nodeEnv === 'development') {
   app.use(morgan('dev'));
 } else {
