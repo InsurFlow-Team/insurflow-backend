@@ -207,4 +207,284 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
       expect(res.body.data.lossAssessment.netApprovedPayout).toBe(450);
     });
   });
+
+  describe('Deductible override rules & audit notes (D4, D5)', () => {
+    it('zero deductible against zero policy deductible works with deductibleOverridden: false', async () => {
+      const claim = await createUnderReviewClaim(policy0, 0);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 0,
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.lossAssessment.deductibleApplied).toBe(0);
+      expect(res.body.data.lossAssessment.policyDeductible).toBe(0);
+      expect(res.body.data.lossAssessment.deductibleOverridden).toBe(false);
+      expect(res.body.data.lossAssessment.deductibleOverrideReason).toBeNull();
+    });
+
+    it('zero deductible against 500 policy deductible requires reason', async () => {
+      const claim = await createUnderReviewClaim(policy500, 500);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 0,
+          },
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('OVERRIDE_REASON_REQUIRED');
+    });
+
+    it('a 9-character reason on override returns 422 OVERRIDE_REASON_REQUIRED', async () => {
+      const claim = await createUnderReviewClaim(policy500, 500);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 200,
+            deductibleOverrideReason: '123456789',
+          },
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('OVERRIDE_REASON_REQUIRED');
+    });
+
+    it('a 10-character reason passes on override', async () => {
+      const claim = await createUnderReviewClaim(policy500, 500);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 200,
+            deductibleOverrideReason: '1234567890',
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.lossAssessment.deductibleOverridden).toBe(true);
+      expect(res.body.data.lossAssessment.deductibleOverrideReason).toBe('1234567890');
+    });
+
+    it('a 301-character reason on override returns 422 OVERRIDE_REASON_REQUIRED', async () => {
+      const claim = await createUnderReviewClaim(policy500, 500);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 200,
+            deductibleOverrideReason: 'A'.repeat(301),
+          },
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('OVERRIDE_REASON_REQUIRED');
+    });
+
+    it('a reason without override returns 422 OVERRIDE_REASON_NOT_ALLOWED', async () => {
+      const claim = await createUnderReviewClaim(policy500, 500);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+            deductibleOverrideReason: 'Redundant reason sent',
+          },
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('OVERRIDE_REASON_NOT_ALLOWED');
+    });
+
+    it('a whitespace-only reason without override passes as no reason', async () => {
+      const claim = await createUnderReviewClaim(policy500, 500);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+            deductibleOverrideReason: '   ',
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.lossAssessment.deductibleOverridden).toBe(false);
+      expect(res.body.data.lossAssessment.deductibleOverrideReason).toBeNull();
+    });
+
+    it('deductibleOverridden true and false persist and return in decision response and GET /claims/:claimId', async () => {
+      // 1. Overridden: true
+      const claimTrue = await createUnderReviewClaim(policy500, 500);
+      const resTrue = await request(app)
+        .post(`/api/v1/claims/${claimTrue._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 600,
+            laborCost: 400,
+            deductibleApplied: 250,
+            deductibleOverrideReason: 'Special commercial discount waiver',
+          },
+        });
+
+      expect(resTrue.status).toBe(200);
+      expect(resTrue.body.data.lossAssessment.deductibleOverridden).toBe(true);
+
+      const dbClaimTrue = await Claim.findById(claimTrue._id);
+      expect(dbClaimTrue.lossAssessment.deductibleOverridden).toBe(true);
+
+      const getResTrue = await request(app)
+        .get(`/api/v1/claims/${claimTrue._id}`)
+        .set('Authorization', `Bearer ${officerToken}`);
+      expect(getResTrue.status).toBe(200);
+      expect(getResTrue.body.data.lossAssessment.deductibleOverridden).toBe(true);
+
+      // 2. Overridden: false
+      const claimFalse = await createUnderReviewClaim(policy500, 500);
+      const resFalse = await request(app)
+        .post(`/api/v1/claims/${claimFalse._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 600,
+            laborCost: 400,
+            deductibleApplied: 500,
+          },
+        });
+
+      expect(resFalse.status).toBe(200);
+      expect(resFalse.body.data.lossAssessment.deductibleOverridden).toBe(false);
+
+      const dbClaimFalse = await Claim.findById(claimFalse._id);
+      expect(dbClaimFalse.lossAssessment.deductibleOverridden).toBe(false);
+
+      const getResFalse = await request(app)
+        .get(`/api/v1/claims/${claimFalse._id}`)
+        .set('Authorization', `Bearer ${officerToken}`);
+      expect(getResFalse.status).toBe(200);
+      expect(getResFalse.body.data.lossAssessment.deductibleOverridden).toBe(false);
+    });
+
+    it('timeline notes carry the override marker only when overridden', async () => {
+      // Overridden
+      const claimOverridden = await createUnderReviewClaim(policy500, 500);
+      const resOverride = await request(app)
+        .post(`/api/v1/claims/${claimOverridden._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          notes: 'Standard officer check',
+          lossAssessment: {
+            estimatedPartsCost: 700,
+            laborCost: 300,
+            deductibleApplied: 200,
+            deductibleOverrideReason: 'VIP client deductible reduction',
+          },
+        });
+
+      expect(resOverride.status).toBe(200);
+      const dbClaimOverridden = await Claim.findById(claimOverridden._id);
+      const overrideEvent = dbClaimOverridden.timeline.find((t) => t.action === 'Claim Approved');
+      expect(overrideEvent.notes).toContain('[DEDUCTIBLE OVERRIDE] policy deductible 500, applied 200. Reason: VIP client deductible reduction');
+
+      // Not overridden
+      const claimStandard = await createUnderReviewClaim(policy500, 500);
+      const resStandard = await request(app)
+        .post(`/api/v1/claims/${claimStandard._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          notes: 'Standard approval without override',
+          lossAssessment: {
+            estimatedPartsCost: 700,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
+        });
+
+      expect(resStandard.status).toBe(200);
+      const dbClaimStandard = await Claim.findById(claimStandard._id);
+      const standardEvent = dbClaimStandard.timeline.find((t) => t.action === 'Claim Approved');
+      expect(standardEvent.notes).not.toContain('[DEDUCTIBLE OVERRIDE]');
+    });
+
+    it('ADMIN and CLAIMS_OFFICER both override successfully', async () => {
+      // Officer
+      const claimOfficer = await createUnderReviewClaim(policy500, 500);
+      const resOfficer = await request(app)
+        .post(`/api/v1/claims/${claimOfficer._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 600,
+            laborCost: 200,
+            deductibleApplied: 250,
+            deductibleOverrideReason: 'Officer approved reduction',
+          },
+        });
+      expect(resOfficer.status).toBe(200);
+      expect(resOfficer.body.data.lossAssessment.deductibleOverridden).toBe(true);
+
+      // Admin
+      const claimAdmin = await createUnderReviewClaim(policy500, 500);
+      const resAdmin = await request(app)
+        .post(`/api/v1/claims/${claimAdmin._id}/decision`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 600,
+            laborCost: 200,
+            deductibleApplied: 250,
+            deductibleOverrideReason: 'Admin approved reduction',
+          },
+        });
+      expect(resAdmin.status).toBe(200);
+      expect(resAdmin.body.data.lossAssessment.deductibleOverridden).toBe(true);
+    });
+  });
 });
+

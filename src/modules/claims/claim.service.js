@@ -382,6 +382,7 @@ const getClaimById = async (claimId, authUser) => {
           totalDamage: claim.lossAssessment.totalDamage,
           policyDeductible: claim.lossAssessment.policyDeductible,
           deductibleApplied: claim.lossAssessment.deductibleApplied,
+          deductibleOverridden: claim.lossAssessment.deductibleOverridden ?? false,
           deductibleOverrideReason: claim.lossAssessment.deductibleOverrideReason ?? null,
           netApprovedPayout: claim.lossAssessment.netApprovedPayout,
           currency: config.currency,
@@ -1035,17 +1036,33 @@ const decideClaim = async (claimId, body, authUser) => {
     if (lossAssessment.deductibleApplied !== undefined && lossAssessment.deductibleApplied !== null) {
       appliedCents = Math.round(lossAssessment.deductibleApplied * 100);
       deductibleApplied = appliedCents / 100;
-
-      if (appliedCents !== policyDeductibleCents) {
-        const reason = lossAssessment.deductibleOverrideReason ? lossAssessment.deductibleOverrideReason.trim() : '';
-        if (!reason || reason.length < 5 || reason.length > 300) {
-          throw new AppError('deductibleOverrideReason is required (between 5 and 300 characters) when deductible is overridden', 422, 'OVERRIDE_REASON_REQUIRED');
-        }
-        deductibleOverrideReason = reason;
-      }
     } else {
       appliedCents = policyDeductibleCents;
       deductibleApplied = policyDeductible;
+    }
+
+    const overridden = appliedCents !== policyDeductibleCents;
+    const rawReason = lossAssessment.deductibleOverrideReason;
+    const trimmedReason = typeof rawReason === 'string' ? rawReason.trim() : '';
+
+    if (overridden) {
+      if (!trimmedReason || trimmedReason.length < 10 || trimmedReason.length > 300) {
+        throw new AppError(
+          'deductibleOverrideReason is required (between 10 and 300 characters) when deductible is overridden',
+          422,
+          'OVERRIDE_REASON_REQUIRED'
+        );
+      }
+      deductibleOverrideReason = trimmedReason;
+    } else {
+      if (trimmedReason.length > 0) {
+        throw new AppError(
+          'deductibleOverrideReason is not allowed when deductible matches policy',
+          422,
+          'OVERRIDE_REASON_NOT_ALLOWED'
+        );
+      }
+      deductibleOverrideReason = null;
     }
 
     // Pre-condition: total damage must exceed applied deductible
@@ -1062,6 +1079,7 @@ const decideClaim = async (claimId, body, authUser) => {
       totalDamage,
       policyDeductible,
       deductibleApplied,
+      deductibleOverridden: overridden,
       deductibleOverrideReason,
       netApprovedPayout,
       assessedAt: new Date(),
@@ -1069,12 +1087,18 @@ const decideClaim = async (claimId, body, authUser) => {
     };
   }
 
+  let timelineNotes = notes || null;
+  if (lossAssessmentDoc && lossAssessmentDoc.deductibleOverridden) {
+    const overrideNote = `[DEDUCTIBLE OVERRIDE] policy deductible ${lossAssessmentDoc.policyDeductible}, applied ${lossAssessmentDoc.deductibleApplied}. Reason: ${lossAssessmentDoc.deductibleOverrideReason}`;
+    timelineNotes = timelineNotes ? `${timelineNotes} ${overrideNote}` : overrideNote;
+  }
+
   const timelineEvent = {
     // NOTE: 'Claim Approved' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
     action: 'Claim Approved',
     previousStatus: 'UNDER_REVIEW',
     newStatus: 'APPROVED',
-    notes: notes || null,
+    notes: timelineNotes,
     performedBy: userId,
     role,
     timestamp: new Date(),
@@ -1119,6 +1143,7 @@ const decideClaim = async (claimId, body, authUser) => {
           totalDamage: updatedClaim.lossAssessment.totalDamage,
           policyDeductible: updatedClaim.lossAssessment.policyDeductible,
           deductibleApplied: updatedClaim.lossAssessment.deductibleApplied,
+          deductibleOverridden: updatedClaim.lossAssessment.deductibleOverridden ?? false,
           deductibleOverrideReason: updatedClaim.lossAssessment.deductibleOverrideReason ?? null,
           netApprovedPayout: updatedClaim.lossAssessment.netApprovedPayout,
           currency: config.currency,
