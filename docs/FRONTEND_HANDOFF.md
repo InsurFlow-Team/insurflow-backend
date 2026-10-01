@@ -11,7 +11,7 @@
 3. **إحداثيات مسطحة (Flat Latitude & Longitude):** يتم إرسال الإحداثيات مباشرة كحقول رقمية مسطحة `latitude` و `longitude` بدلاً من كائنات متداخلة.
 4. **تحديث سلوك التحقق من الوثيقة (Policy Verification):** لم تعد نقطة النهاية تُرجع الأكواد الملغاة `POLICY_EXPIRED` أو `POLICY_NOT_ACTIVE_ON_DATE`. كل وثيقة غير ملغاة تُرجع حالة نجاح `200 OK` مع `isEligible: true`، وتظهر الفروقات الزمنية أو عدم تغطية الحادث عبر كود التوجيه `eligibilityHint`. فقط الوثيقة الملغاة تُرجع `422 POLICY_CANCELLED`.
 5. **هيكل جديد لاستجابة التتبع العام (New Public Tracking Response Shape):** تم تبسيط الاستجابة العامة للعملاء لتشمل فقط: `claimNumber`، `status`، `statusDescription`، `vehicle` (مع قناع للوحة)، و `timeline` (خط زمني تصاعدي باتجاه واحد forward-only).
-6. **إخفاء وتشفير أرقام اللوحات للجمهور (Plate Masking):** يُعرض رقم اللوحة في التتبع العام بصيغة محجوبة لحماية الخصوصية (مثال: `***-1234`).
+6. **إخفاء وتشفير أرقام اللوحات للجمهور (Plate Masking):** يُعرض رقم اللوحة في التتبع العام بصيغة محجوبة لحماية الخصوصية (مثال: `ABC-xxx4`).
 7. **تقييد صلاحية الوصول إلى رمز التتبع (trackingToken Restricted by Role):** يظهر `trackingToken` و `trackingUrl` فقط للمسؤولين (`ADMIN`) وموظفي المطالبات (`CLAIMS_OFFICER`). يُحجب الحقلان تماماً عن المعاين الميداني (`FIELD_ADJUSTER`).
 8. **تقييم الأضرار إلزامي للموافقة (lossAssessment Mandatory for Approvals):** أصبح حقل `lossAssessment` إلزامياً عند اتخاذ قرار الموافقة `APPROVED`، بينما يُحظر إرسال كائن فيه عند الرفض `REJECTED` (يُقبل غيابه أو القيمة `null` فقط).
 
@@ -320,7 +320,7 @@
     "status": "RECEIVED",
     "statusDescription": "تم استلام بلاغك وهو قيد المعالجة",
     "vehicle": {
-      "plateNumber": "***-1234",
+      "plateNumber": "ABC-xxx4",
       "make": "Toyota",
       "model": "Corolla",
       "year": 2022
