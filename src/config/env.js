@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const parseCorsOrigins = require('../utils/parseCorsOrigins');
 
 // Load environment variables from .env file if it exists
 dotenv.config();
@@ -14,7 +15,7 @@ if (missing.length > 0 && process.env.NODE_ENV !== 'test') {
 const config = {
   port: process.env.PORT || 3000,
   databaseUrl: process.env.DATABASE_URL || 'mongodb://localhost:27017/insurflow',
-  corsOrigin: process.env.CORS_ORIGIN || '*',
+  corsOrigin: parseCorsOrigins(process.env.CORS_ORIGIN),
   jwtSecret: process.env.JWT_SECRET || 'test-secret-do-not-use-in-prod',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
   nodeEnv: process.env.NODE_ENV || 'development',

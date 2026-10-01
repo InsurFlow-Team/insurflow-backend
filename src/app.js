@@ -19,7 +19,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));//! this is for sending requests with files and images
 app.use(cookieParser());
 app.use(cors({
-  origin: config.corsOrigin,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const allowed = config.corsOrigin;
+    if (!allowed || allowed === '*' || (Array.isArray(allowed) && allowed.includes('*'))) {
+      return callback(null, true);
+    }
+    if (Array.isArray(allowed)) {
+      return callback(null, allowed.includes(origin));
+    }
+    return callback(null, allowed === origin);
+  },
   optionsSuccessStatus: 200,
   credentials: true,
   exposedHeaders: [
