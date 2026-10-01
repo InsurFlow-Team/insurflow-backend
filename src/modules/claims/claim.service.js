@@ -1065,9 +1065,14 @@ const decideClaim = async (claimId, body, authUser) => {
       deductibleOverrideReason = null;
     }
 
+    // Pre-condition: total damage must be strictly positive
+    if (totalDamageCents <= 0) {
+      throw new AppError('totalDamage must be greater than zero', 400, 'VALIDATION_ERROR');
+    }
+
     // Pre-condition: total damage must exceed applied deductible
     if (totalDamageCents <= appliedCents) {
-      throw new AppError('Total damage cannot be less than or equal to deductible', 422, 'DAMAGE_BELOW_DEDUCTIBLE');
+      throw new AppError('Total damage must be greater than the applied deductible', 422, 'DAMAGE_BELOW_DEDUCTIBLE');
     }
 
     const netPayoutCents = totalDamageCents - appliedCents;

@@ -206,6 +206,27 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
       expect(res.body.data.lossAssessment.totalDamage).toBe(450);
       expect(res.body.data.lossAssessment.netApprovedPayout).toBe(450);
     });
+
+    it('returns 400 VALIDATION_ERROR when all three amounts are zero', async () => {
+      const claim = await createUnderReviewClaim(policy0, 0);
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 0,
+            laborCost: 0,
+            deductibleApplied: 0,
+          },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      expect(res.body.errors[0].details).toBe('totalDamage must be greater than zero');
+    });
   });
 
   describe('Deductible override rules & audit notes (D4, D5)', () => {
