@@ -99,8 +99,8 @@ const makeDecision = async (claimId, organizationId, decision, decisionNotes, ti
   * If `totalDamage <= deductibleApplied`, throws 422 `DAMAGE_BELOW_DEDUCTIBLE` with `"Total damage must be greater than the applied deductible"`.
   * Policy deductible is retrieved from `claim.coverageSnapshot.deductibleAmount` (falling back to live policy lookup for legacy claims created before snapshot existed).
   * `overridden = appliedCents !== policyDeductibleCents`:
-    * If overridden: trimmed reason must be between 10 and 300 characters, else 422 `OVERRIDE_REASON_REQUIRED` (`"Deductible override reason is required and must be between 10 and 300 characters when deductible is overridden"`).
-    * If not overridden: supplying a non-empty reason throws 422 `OVERRIDE_REASON_NOT_ALLOWED` (`"Deductible override reason is not allowed when deductible matches policy deductible"`).
+    * If overridden: trimmed reason must be between 10 and 300 characters, else 422 `OVERRIDE_REASON_REQUIRED` (`"deductibleOverrideReason is required (between 10 and 300 characters) when deductible is overridden"`).
+    * If not overridden: supplying a non-empty reason throws 422 `OVERRIDE_REASON_NOT_ALLOWED` (`"deductibleOverrideReason is not allowed when deductible matches policy"`).
     * `deductibleOverridden` boolean is persisted in `lossAssessment`.
     * Trimmed reason is stored only when overridden, otherwise `null`.
 * **Success Response (200 OK):**
