@@ -598,6 +598,8 @@ Valid status transitions (enforced by the Backend):
           "longitude": 35.2034,
           "updatedAt": "2026-09-14T07:25:00.000Z"
         },
+        "latitude": 31.9038,
+        "longitude": 35.2034,
         "distanceKm": 0.15
       }
     ]

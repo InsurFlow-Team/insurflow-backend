@@ -48,6 +48,8 @@ const getAdjusters = async (organizationId, options = {}) => {
     }
     return {
       ...adj,
+      latitude: adj.location && typeof adj.location.latitude === 'number' ? adj.location.latitude : null,
+      longitude: adj.location && typeof adj.location.longitude === 'number' ? adj.location.longitude : null,
       distanceKm,
     };
   });
