@@ -45,7 +45,7 @@
 ---
 
 ### Rule 7: Add Tests for New Behavior
-- **Directive:** Every bug fix, concurrency safeguard, new validation rule, or new endpoint must be accompanied by corresponding integration test coverage.
+- **Directive:** Add the tests the prompt lists. Do not add other tests.
 - **Focus Areas:**
   - Tenant boundary isolation (cross-organization rejections).
   - RBAC authorization (rejection of unauthorized roles).
@@ -72,7 +72,7 @@
 
 ### Rule 10: Do Not Introduce New Libraries Without Approval
 - **Directive:** Maximize the use of the existing, vetted dependency tree.
-- **Approved Dependencies:** `express`, `mongoose`, `joi`, `bcrypt`, `jsonwebtoken`, `helmet`, `cors`, `cookie-parser`, `morgan`, `dotenv`, `jest`, `supertest`, `mongodb-memory-server`.
+- **Approved Dependencies:** Every package listed in package.json.
 - **Prohibition:** Do not install alternative validation libraries (e.g., Zod), utility packages (e.g., Lodash), or ORMs without explicit user request.
 
 ---
@@ -89,12 +89,6 @@
 
 ---
 
-### Rule 13: Continuous Documentation Synchronization (Update .md Files Directly)
-- **Directive:** Whenever any change, feature, bug fix, refactoring, or API modification is made in the project, the corresponding Markdown files (`docs/`, `README.md`) MUST be updated immediately as an atomic part of that same task.
-- **Scope of Updates:**
-  - `docs/project/CURRENT_STATE.md`: Update task status, completed milestones, test counts, and immediate priorities.
-  - `docs/features/`: Create or update feature specs for any endpoint or workflow change.
-  - `docs/project/ARCHITECTURE.md` & `docs/project/BUSINESS_RULES.md`: Update if architecture, domain rules, or entity models are affected.
-  - `docs/API_CONTRACT.md` & `docs/ADMIN_API_FOR_FRONTEND.md`: Update request/response schemas or endpoint documentation.
-  - `README.md`: Update overview, setup, or project status if affected.
-- **Prohibition:** Never leave documentation updates as an afterthought or separate manual step. A task is not complete until its documentation is synchronized.
+### Rule 13: Prompt-Scoped Documentation Updates
+- **Directive:** Update only the documentation files the prompt lists.
+- **Prohibition:** Do not fix other documentation gaps. Report them in the final report.
