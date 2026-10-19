@@ -44,7 +44,7 @@
 
 ---
 
-### Rule 7: Add Tests for New Behavior
+### Rule 7: Add Only the Tests the Prompt Lists
 - **Directive:** Add the tests the prompt lists. Do not add other tests.
 - **Focus Areas:**
   - Tenant boundary isolation (cross-organization rejections).

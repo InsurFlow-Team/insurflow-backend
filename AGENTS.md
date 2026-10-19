@@ -24,4 +24,5 @@ Full text: docs/project/DEVELOPMENT_RULES.md.
 - Update only the docs files the prompt lists. Report other gaps. Do not fix them.
 
 ## Language
-- Reply in Arabic. Put English terms and code on separate lines.
+- Plans and reports in English. Code and comments in English.
+- End every reply with one Arabic line for Mohammed.
