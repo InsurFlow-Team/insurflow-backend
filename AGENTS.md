@@ -3,7 +3,9 @@ Sawn was InsurFlow. Stack: Node.js, Express 5, Mongoose, MongoDB.
 Read this file, then the prompt. Open only the docs/features file the prompt names.
 
 ## Hard stops
-- Never run git add, commit, push, checkout, stash or reset. Mohammed runs git.
+- Git: run git writes only through /sawn-start and /sawn-ship, with the inputs the prompt or Claude's approval gives.
+- Never run git add . or git add -A. Never commit or push to main. Never merge, rebase, force push, reset, stash, restore, cherry-pick or delete a branch.
+- Read-only git commands are always allowed: status, diff, log, show, branch --show-current, rev-parse.
 - Never add files, tests or libraries outside the prompt.
 - Stop and ask when a requirement is ambiguous. Never invent a business rule.
 - Never change an API contract, field name or error code without approval in the prompt.
