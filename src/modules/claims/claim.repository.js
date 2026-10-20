@@ -121,9 +121,12 @@ const startInspection = async (claimId, organizationId, assignedTo, timelineEven
   ).lean();
 };
 
-const updateVehicle = async (claimId, organizationId, assignedTo, vehicleData, timelineEvent) => {
+const updateVehicle = async (claimId, organizationId, assignedTo, policyId, vehicleData, timelineEvent) => {
+  if (!policyId) {
+    throw new Error('updateVehicle requires the claim policyId');
+  }
   return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo },
+    { _id: claimId, organizationId, status: 'IN_PROGRESS', assignedTo, policyId },
     { $set: { vehicle: vehicleData }, $push: { timeline: timelineEvent } },
     { returnDocument: 'after' }
   ).lean();

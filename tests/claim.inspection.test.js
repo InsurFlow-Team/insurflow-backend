@@ -62,7 +62,7 @@ describe('Inspection Endpoints', () => {
 
     claimAssigned = await Claim.create({
       organizationId: org1._id,
-      policyId: global.__testPol._id,
+      policyId: policy._id,
       createdBy: officer._id,
       status: 'IN_PROGRESS',
       assignedTo: adjuster1._id,
@@ -74,7 +74,7 @@ describe('Inspection Endpoints', () => {
 
     claimNew = await Claim.create({
       organizationId: org1._id,
-      policyId: global.__testPol._id,
+      policyId: policy._id,
       createdBy: officer._id,
       status: 'NEW',
       customer: { name: 'C', phone: '1' },
@@ -85,7 +85,7 @@ describe('Inspection Endpoints', () => {
 
     claimSubmitted = await Claim.create({
       organizationId: org1._id,
-      policyId: global.__testPol._id,
+      policyId: policy._id,
       createdBy: officer._id,
       status: 'SUBMITTED',
       assignedTo: adjuster1._id,
@@ -305,6 +305,195 @@ describe('Inspection Endpoints', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('FIX-01 policy integrity', () => {
+    it('FIX-01 rejects with 422 POLICY_MISMATCH when policyId differs from the claim policy', async () => {
+      const otherPolicy = await buildPolicy({
+        organizationId: org1._id,
+        policyNumber: 'P-OTHER',
+        status: 'ACTIVE',
+        customerId: customer._id,
+        startDate: new Date(),
+        expiryDate: new Date(Date.now() + 31536000000),
+      });
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: otherPolicy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('POLICY_MISMATCH');
+    });
+
+    it('FIX-01 rejects with 422 VEHICLE_NOT_ON_CLAIM_POLICY when the vehicle belongs to another policy', async () => {
+      const otherPolicy = await buildPolicy({
+        organizationId: org1._id,
+        policyNumber: 'P-OTHER-2',
+        status: 'ACTIVE',
+        customerId: customer._id,
+        startDate: new Date(),
+        expiryDate: new Date(Date.now() + 31536000000),
+      });
+      const otherVehicle = await Vehicle.create({
+        organizationId: org1._id,
+        plateNumber: 'OTHER-PLATE',
+        make: 'Honda',
+        model: 'Civic',
+        customerId: customer._id,
+        policyId: otherPolicy._id,
+      });
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: otherVehicle._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'OTHER-PLATE',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('VEHICLE_NOT_ON_CLAIM_POLICY');
+    });
+
+    it('FIX-01 rejects with 422 VEHICLE_NOT_ON_CLAIM_POLICY when the vehicle has no policy', async () => {
+      const vehicleNoPolicy = await Vehicle.create({
+        organizationId: org1._id,
+        plateNumber: 'NO-POL-PLATE',
+        make: 'Nissan',
+        model: 'Sunny',
+        customerId: customer._id,
+      });
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicleNoPolicy._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'NO-POL-PLATE',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('VEHICLE_NOT_ON_CLAIM_POLICY');
+    });
+
+    it('FIX-01 rejects with 422 CUSTOMER_NOT_ON_VEHICLE when the customer is not the vehicle owner', async () => {
+      const otherCustomer = await Customer.create({
+        organizationId: org1._id,
+        fullName: 'Other Customer',
+        phone: '999999',
+      });
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: otherCustomer._id.toString(),
+          plateNumber: 'REAL-PLATE',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('CUSTOMER_NOT_ON_VEHICLE');
+    });
+
+    it('FIX-01 does not write vehicle data or a timeline entry when rejected', async () => {
+      const otherPolicy = await buildPolicy({
+        organizationId: org1._id,
+        policyNumber: 'P-OTHER-REJECT',
+        status: 'ACTIVE',
+        customerId: customer._id,
+        startDate: new Date(),
+        expiryDate: new Date(Date.now() + 31536000000),
+      });
+      const claimBefore = await Claim.findById(claimAssigned._id).lean();
+
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: otherPolicy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('POLICY_MISMATCH');
+
+      const claimAfter = await Claim.findById(claimAssigned._id).lean();
+      expect(claimAfter.vehicle).toEqual(claimBefore.vehicle);
+      expect(claimAfter.timeline.length).toBe(claimBefore.timeline.length);
+    });
+
+    it('FIX-01 keeps claim.policyId and sets vehicle.policyId to it on success', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE',
+        });
+
+      expect(res.status).toBe(200);
+      const updatedClaim = await Claim.findById(claimAssigned._id).lean();
+      const claimPolicyId = updatedClaim.policyId?._id || updatedClaim.policyId;
+      expect(claimPolicyId.toString()).toBe(policy._id.toString());
+      expect(updatedClaim.vehicle.policyId.toString()).toBe(policy._id.toString());
+    });
+
+    it('FIX-01 accepts the claim policy id in uppercase hex', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: policy._id.toString().toUpperCase(),
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('FIX-01 returns 404 for a vehicle from another organization', async () => {
+      const vehicleOrg2 = await Vehicle.create({
+        organizationId: org2._id,
+        plateNumber: 'ORG2-PLATE',
+        make: 'Ford',
+        model: 'Focus',
+      });
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicleOrg2._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'ORG2-PLATE',
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.errors[0].code).toBe('VEHICLE_NOT_FOUND');
     });
   });
 

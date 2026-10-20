@@ -863,6 +863,13 @@ Valid status transitions (enforced by the Backend):
   }
   ```
 - **Business Rules:** Verify claim belongs to the user's org, is assigned to the authenticated Field Adjuster, and is currently in `IN_PROGRESS` status. Rejects malformed `vehicleId`, `policyId`, or `customerId` with 400 `VALIDATION_ERROR` (must be valid 24-character hexadecimal MongoDB ObjectIds). No arbitrary changes to ownership allowed.
+- **Integrity Validation & Error Codes:**
+  - `404 VEHICLE_NOT_FOUND`: Vehicle not found in tenant.
+  - `404 POLICY_NOT_FOUND`: Policy not found in tenant.
+  - `404 CUSTOMER_NOT_FOUND`: Customer not found in tenant.
+  - `422 POLICY_MISMATCH`: Policy does not match the claim policy (`policy._id !== claim.policyId`).
+  - `422 VEHICLE_NOT_ON_CLAIM_POLICY`: Vehicle is not registered under the claim policy (`vehicle.policyId !== claim.policyId`).
+  - `422 CUSTOMER_NOT_ON_VEHICLE`: Customer is not the registered owner of this vehicle (`vehicle.customerId !== customer._id`).
 
 ### `PUT /claims/:claimId/accident`
 - **Purpose:** Update accident details on the Claim.
