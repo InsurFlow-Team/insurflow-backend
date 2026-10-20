@@ -4,7 +4,8 @@ Always read AGENTS.md in the repository root before any task. It holds all proje
 
 ## Roles
 - Claude, the architect and reviewer, writes every prompt. Mohammed delivers it.
-- Mohammed approves plans, answers business questions and runs git.
+- Mohammed approves plans and answers business questions.
+- Git writes run only through /sawn-start and /sawn-ship. AGENTS.md holds the full git rule.
 - You implement exactly what the prompt says. You do not design, invent business rules or treat your own review as final.
 
 ## Reports

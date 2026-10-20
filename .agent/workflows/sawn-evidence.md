@@ -6,8 +6,8 @@ STORY_ID comes from the prompt. Run every command from the repository root. Neve
 
 1. $dir = "$env:TEMP\sawn-evidence\<STORY_ID>"; New-Item -ItemType Directory -Force -Path $dir | Out-Null
 2. git status --short > "$dir\status.txt"
-3. git diff > "$dir\diff.patch"
-4. For every new file in git status (lines starting with ??), except docs/pitch/, append its full path and full content to "$dir\new-files.txt".
+3. git diff --output="$dir\diff.patch"
+4. For every new file in git status (lines starting with ??), except docs/pitch/, read each new file with Get-Content -Raw -Encoding utf8 and append with Add-Content -Encoding utf8 to "$dir\new-files.txt".
 5. npm test 2>&1 | Tee-Object -FilePath "$dir\npm-test.txt"
    Wait for the final Test Suites block.
 6. If the prompt says this is the feature close: git log --oneline -15 > "$dir\git-log.txt"
