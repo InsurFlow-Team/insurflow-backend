@@ -322,8 +322,8 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
 
       // Create mock vehicle, policy, customer for the adjuster to submit
       const policy = await buildPolicy({ policyNumber: 'P1', status: 'ACTIVE', startDate: new Date('2025-01-01'), expiryDate: new Date('2027-01-01'), organizationId: org1._id });
-      const vehicle = await Vehicle.create({ plateNumber: 'XYZ-123', make: 'M', model: 'M', year: 2022, color: 'W', organizationId: org1._id, policyId: policy._id });
       const customer = await Customer.create({ fullName: 'C', phone: '1', organizationId: org1._id });
+      const vehicle = await Vehicle.create({ plateNumber: 'XYZ-123', make: 'M', model: 'M', year: 2022, color: 'W', organizationId: org1._id, policyId: policy._id, customerId: customer._id });
 
       // 1. Create -> NEW
       const createRes = await request(app)

@@ -129,7 +129,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
 
     inProgressClaim = await Claim.create({
       organizationId: org1._id,
-      policyId: global.__testPol._id,
+      policyId: policy._id,
       createdBy: officer._id,
       assignedTo: adjuster1._id,
       assignedBy: officer._id,
@@ -143,7 +143,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
 
     assignedClaim = await Claim.create({
       organizationId: org1._id,
-      policyId: global.__testPol._id,
+      policyId: policy._id,
       createdBy: officer._id,
       assignedTo: adjuster1._id,
       assignedBy: officer._id,

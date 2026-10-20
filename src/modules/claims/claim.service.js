@@ -681,7 +681,7 @@ const getOwnedAssignedClaim = async (claimId, authUser) => {
 };
 
 const updateVehicle = async (claimId, body, authUser) => {
-  await getOwnedAssignedClaim(claimId, authUser);
+  const claim = await getOwnedAssignedClaim(claimId, authUser);
 
   const vehicle = await vehicleRepository.findByIdAndOrganization(body.vehicleId, authUser.organizationId);
   if (!vehicle) throw new AppError('Vehicle not found', 404, 'VEHICLE_NOT_FOUND');
@@ -692,22 +692,43 @@ const updateVehicle = async (claimId, body, authUser) => {
   const customer = await customerRepository.findByIdAndOrganization(body.customerId, authUser.organizationId);
   if (!customer) throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
+  const claimPolicyId = claim.policyId?._id ?? claim.policyId;
+
+  if (!claimPolicyId || !claimPolicyId.equals(policy._id)) {
+    throw new AppError('Policy does not match the claim policy', 422, 'POLICY_MISMATCH');
+  }
+
+  if (!vehicle.policyId || !claimPolicyId.equals(vehicle.policyId)) {
+    throw new AppError('Vehicle is not registered under the claim policy', 422, 'VEHICLE_NOT_ON_CLAIM_POLICY');
+  }
+
+  if (!vehicle.customerId || !customer._id.equals(vehicle.customerId)) {
+    throw new AppError('Customer is not the registered owner of this vehicle', 422, 'CUSTOMER_NOT_ON_VEHICLE');
+  }
+
   const vehicleData = {
     plateNumber: vehicle.plateNumber,
     vehicleId: vehicle._id,
-    policyId: policy._id,
+    policyId: claimPolicyId,
     customerId: customer._id,
   };
 
-  const updatedClaim = await claimRepository.updateVehicle(claimId, authUser.organizationId, authUser.userId, vehicleData, {
-    action: 'Vehicle Confirmed',
-    previousStatus: null,
-    newStatus: null,
-    notes: null,
-    performedBy: authUser.userId,
-    role: authUser.role,
-    timestamp: new Date(),
-  });
+  const updatedClaim = await claimRepository.updateVehicle(
+    claimId,
+    authUser.organizationId,
+    authUser.userId,
+    claimPolicyId,
+    vehicleData,
+    {
+      action: 'Vehicle Confirmed',
+      previousStatus: null,
+      newStatus: null,
+      notes: null,
+      performedBy: authUser.userId,
+      role: authUser.role,
+      timestamp: new Date(),
+    }
+  );
 
   if (!updatedClaim) {
     throw new AppError('Claim is not in IN_PROGRESS status or not assigned to you', 409, 'INVALID_STATUS_TRANSITION');
