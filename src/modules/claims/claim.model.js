@@ -46,6 +46,20 @@ const claimSchema = new mongoose.Schema(
     claimNumber: {
       type: String,
     },
+    incidentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Incident',
+      default: null,
+    },
+    incidentNumber: {
+      type: String,
+      default: null,
+    },
+    claimType: {
+      type: String,
+      enum: ['OWN_DAMAGE', 'THIRD_PARTY_PD'],
+      default: 'OWN_DAMAGE',
+    },
     trackingToken: {
       type: String,
     },
@@ -363,6 +377,7 @@ claimSchema.index({ organizationId: 1, createdAt: -1, status: 1 });
 claimSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
 claimSchema.index({ organizationId: 1, policyId: 1 });
 claimSchema.index({ trackingToken: 1 }, { unique: true, sparse: true });
+claimSchema.index({ organizationId: 1, incidentId: 1 });
 
 
 // ─── Tenant-Scoped Claim Number Generation ───────────────────────────────────

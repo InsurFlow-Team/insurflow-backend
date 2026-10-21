@@ -244,6 +244,9 @@ Valid status transitions (enforced by the Backend):
     "data": {
       "id": "60d0fe4f5311236168a109cc",
       "claimNumber": "CLM-INS-0001",
+      "incidentId": "60d0fe4f5311236168a109bb",
+      "incidentNumber": "INC-INS-0001",
+      "claimType": "OWN_DAMAGE",
       "status": "NEW",
       "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "trackingUrl": "http://localhost:3000/track/d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
@@ -323,6 +326,9 @@ Valid status transitions (enforced by the Backend):
     "data": {
       "id": "claim-uuid",
       "claimNumber": "CLM-DEMO-0001",
+      "incidentId": "incident-uuid",
+      "incidentNumber": "INC-DEMO-0001",
+      "claimType": "OWN_DAMAGE",
       "status": "ASSIGNED",
       "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
