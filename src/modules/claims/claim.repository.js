@@ -72,6 +72,13 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
     .lean();
 };
 
+const findByIncidentId = async (organizationId, incidentId) => {
+  return await Claim.find({ organizationId, incidentId })
+    .select('claimNumber claimType status vehicle.plateNumber createdAt')
+    .sort({ createdAt: 1 })
+    .lean();
+};
+
 const findForReport = async (claimId, organizationId) => {
   return await Claim.findOne({ _id: claimId, organizationId })
     .populate('createdBy', 'name employeeCode role')
@@ -342,4 +349,5 @@ module.exports = {
   getClaimStats,
   findForReport,
   findByTrackingToken,
+  findByIncidentId,
 };

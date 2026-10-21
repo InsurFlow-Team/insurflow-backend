@@ -212,7 +212,7 @@ Valid status transitions (enforced by the Backend):
     "plateNumber": "ABC-1234",
     "incidentDate": "2026-06-15",
     "incidentType": "COLLISION",
-    "incidentLocation": "Main St, Riyadh",
+    "incidentLocation": "Al-Irsal St, Ramallah",
     "description": "Front collision with another vehicle",
     "latitude": 31.9050,
     "longitude": 35.2040
@@ -502,6 +502,7 @@ Valid status transitions (enforced by the Backend):
       "data": {
         "scope": "ORGANIZATION",
         "totalClaims": 13,
+        "totalIncidents": 5,
         "byStatus": {
           "NEW": 2,
           "PENDING_ACCEPTANCE": 0,
@@ -569,6 +570,166 @@ Valid status transitions (enforced by the Backend):
   - `401 Unauthorized`: Missing or invalid JWT token.
   - `403 Forbidden`: Authenticated user role is not authorized.
   - `500 Internal Server Error`: Generic internal server error (`INTERNAL_ERROR`).
+
+## 8.5 Incident APIs (Feature PB-01b)
+
+### `POST /incidents`
+- **Purpose:** Claims Officer or Admin opens a new Incident before attaching sub-claims.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Authentication:** Required (JWT).
+- **Request Body:**
+  ```json
+  {
+    "incidentDate": "2026-06-15",
+    "incidentType": "COLLISION",
+    "incidentLocation": "Al-Irsal St, Ramallah",
+    "description": "Front collision with barrier",
+    "latitude": 31.9050,
+    "longitude": 35.2040
+  }
+  ```
+- **Validation Rules & Error Codes:**
+  - `400 VALIDATION_ERROR`: Missing required fields (`incidentDate`, `incidentType`, `incidentLocation`).
+  - `400 INVALID_INCIDENT_DATE`: Incident date cannot be in the future.
+- **Success Response (201 Created):**
+  ```json
+  {
+    "success": true,
+    "message": "Incident created successfully",
+    "data": {
+      "id": "60d0fe4f5311236168a109bb",
+      "incidentNumber": "INC-INS-0001",
+      "incidentDate": "2026-06-15",
+      "incidentType": "COLLISION",
+      "incidentLocation": "Al-Irsal St, Ramallah",
+      "incidentDescription": "Front collision with barrier",
+      "incidentCoordinates": {
+        "latitude": 31.9050,
+        "longitude": 35.2040,
+        "capturedAt": "2026-06-15T10:00:00.000Z"
+      },
+      "createdAt": "2026-06-15T10:00:00.000Z"
+    }
+  }
+  ```
+
+### `GET /incidents`
+- **Purpose:** Retrieve a paginated list of incidents in caller's organization.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Authentication:** Required (JWT).
+- **Request Parameters (Query):**
+  - `page`: Optional integer $\ge 1$ (default: `1`).
+  - `limit`: Optional integer between $1$ and $100$ (default: `50`).
+  - `incidentNumber`: Optional string to filter by exact incident number.
+  - `from`: Optional string in `YYYY-MM-DD` format filtering `incidentDate` $\ge$ `from`.
+  - `to`: Optional string in `YYYY-MM-DD` format filtering `incidentDate` $\le$ `to`.
+- **Pagination Headers (Response):**
+  - `X-Total-Count`: Total number of matching incidents in organization.
+  - `X-Page`: Current page number.
+  - `X-Limit`: Items per page.
+  - `X-Total-Pages`: Total page count.
+- **Sorting:** Newest first by `createdAt` descending.
+- **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Incidents retrieved successfully",
+    "data": [
+      {
+        "id": "60d0fe4f5311236168a109bb",
+        "incidentNumber": "INC-INS-0001",
+        "incidentDate": "2026-06-15",
+        "incidentType": "COLLISION",
+        "incidentLocation": "Al-Irsal St, Ramallah",
+        "createdAt": "2026-06-15T10:00:00.000Z"
+      }
+    ]
+  }
+  ```
+
+### `GET /incidents/:incidentId`
+- **Purpose:** Retrieve full incident details including its attached sub-claims.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Authentication:** Required (JWT).
+- **Error Codes:**
+  - `404 INCIDENT_NOT_FOUND`: Incident does not exist or belongs to another organization.
+- **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Incident retrieved successfully",
+    "data": {
+      "id": "60d0fe4f5311236168a109bb",
+      "incidentNumber": "INC-INS-0001",
+      "incidentDate": "2026-06-15",
+      "incidentType": "COLLISION",
+      "incidentLocation": "Al-Irsal St, Ramallah",
+      "incidentDescription": "Front collision with barrier",
+      "incidentCoordinates": {
+        "latitude": 31.9050,
+        "longitude": 35.2040,
+        "capturedAt": "2026-06-15T10:00:00.000Z"
+      },
+      "createdAt": "2026-06-15T10:00:00.000Z",
+      "claims": [
+        {
+          "id": "60d0fe4f5311236168a109cc",
+          "claimNumber": "CLM-INS-0001",
+          "claimType": "OWN_DAMAGE",
+          "status": "NEW",
+          "plateNumber": "ABC-1234"
+        }
+      ]
+    }
+  }
+  ```
+
+### `POST /incidents/:incidentId/claims`
+- **Purpose:** Attach a sub-claim to an existing Incident.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Authentication:** Required (JWT).
+- **Request Body:**
+  ```json
+  {
+    "claimType": "OWN_DAMAGE",
+    "policyId": "651a2b3c4d5e6f7a8b9c0d1e",
+    "plateNumber": "ABC-1234"
+  }
+  ```
+- **Check Order & Error Codes:**
+  1. `404 INCIDENT_NOT_FOUND`: Incident not found in caller's organization.
+  2. `422 CLAIM_TYPE_NOT_SUPPORTED`: `claimType` is `THIRD_PARTY_PD`.
+  3. `404 POLICY_NOT_FOUND`: Policy not found in caller's organization.
+  4. `422 POLICY_CANCELLED`: Policy is cancelled.
+  5. `422 NO_VEHICLE_ON_POLICY`: No vehicle registered under policy.
+  6. `422 VEHICLE_MISMATCH`: Specified plate number does not match policy.
+  7. `422 AMBIGUOUS_VEHICLE_SELECTION`: Multiple vehicles on policy and caller omitted plateNumber.
+  8. `409 DUPLICATE_SUB_CLAIM`: An OWN_DAMAGE claim already exists for this vehicle in this incident.
+- **Success Response (201 Created):**
+  ```json
+  {
+    "success": true,
+    "message": "Claim created successfully",
+    "data": {
+      "id": "60d0fe4f5311236168a109cc",
+      "claimNumber": "CLM-INS-0001",
+      "incidentId": "60d0fe4f5311236168a109bb",
+      "incidentNumber": "INC-INS-0001",
+      "claimType": "OWN_DAMAGE",
+      "status": "NEW",
+      "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "trackingUrl": "http://localhost:3000/track/d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
+      "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
+      "coverageSnapshot": {
+        "policyType": "COMPREHENSIVE",
+        "coveredPerils": ["COLLISION", "THEFT", "FIRE", "NATURAL_DISASTER"],
+        "deductibleAmount": 500,
+        "capturedAt": "2026-08-26T15:00:00.000Z"
+      },
+      "createdAt": "2026-08-26T15:00:00.000Z"
+    }
+  }
+  ```
 
 ## 9. Field Adjuster APIs
 

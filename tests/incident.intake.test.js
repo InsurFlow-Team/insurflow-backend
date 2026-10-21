@@ -12,29 +12,7 @@ const claimRepository = require('../src/modules/claims/claim.repository');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
-let Incident;
-try {
-  Incident = require('../src/modules/incidents/incident.model');
-} catch (e) {
-  // Incident model does not exist yet before Stage C
-}
-
-const getIncidentModel = () => {
-  if (!Incident) {
-    return require('../src/modules/incidents/incident.model');
-  }
-  return Incident;
-};
-
-const getIncidentCount = async () => {
-  if (Incident) {
-    return await Incident.countDocuments();
-  }
-  if (mongoose.connection.collections['incidents']) {
-    return await mongoose.connection.collections['incidents'].countDocuments();
-  }
-  return 0;
-};
+const Incident = require('../src/modules/incidents/incident.model');
 
 let mongoServer;
 
@@ -120,7 +98,7 @@ describe('PB-01a Incident Intake', () => {
       .set('Authorization', `Bearer ${token}`)
       .send(claimBody());
 
-    const IncidentModel = getIncidentModel();
+    const IncidentModel = Incident;
     const incidents = await IncidentModel.find({ organizationId: org._id }).lean();
     expect(incidents).toHaveLength(1);
     expect(incidents[0].incidentNumber).toBe('INC-TST-0001');
@@ -155,7 +133,7 @@ describe('PB-01a Incident Intake', () => {
 
     expect(res.status).toBe(201);
     const claim = await Claim.findById(res.body.data.id).lean();
-    const IncidentModel = getIncidentModel();
+    const IncidentModel = Incident;
     const incident = await IncidentModel.findById(claim.incidentId).lean();
 
     expect(incident.incidentDate).toBe(claim.incidentDate);
@@ -219,7 +197,7 @@ describe('PB-01a Incident Intake', () => {
       });
 
     expect(res2.status).toBe(201);
-    const IncidentModel = getIncidentModel();
+    const IncidentModel = Incident;
     const incident2 = await IncidentModel.findOne({ organizationId: org2._id }).lean();
     expect(incident2.incidentNumber).toBe('INC-ORG2-0001');
   });
@@ -236,7 +214,7 @@ describe('PB-01a Incident Intake', () => {
 
     results.forEach((res) => expect(res.status).toBe(201));
 
-    const IncidentModel = getIncidentModel();
+    const IncidentModel = Incident;
     const incidents = await IncidentModel.find({ organizationId: org._id }).lean();
     const numbers = incidents.map((i) => i.incidentNumber).sort();
     expect(numbers).toEqual([
@@ -265,7 +243,7 @@ describe('PB-01a Incident Intake', () => {
     expect(res.status).toBe(500);
     expect(res.body.errors[0].code).toBe('INTERNAL_ERROR');
 
-    const IncidentModel = getIncidentModel();
+    const IncidentModel = Incident;
     const incidentCount = await IncidentModel.countDocuments();
     expect(incidentCount).toBe(0);
 
@@ -306,7 +284,7 @@ describe('PB-01a Incident Intake', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.errors[0].code).toBe('POLICY_NOT_FOUND');
-      const incidentCount = await getIncidentCount();
+      const incidentCount = await Incident.countDocuments();
       expect(incidentCount).toBe(0);
     });
 
@@ -339,7 +317,7 @@ describe('PB-01a Incident Intake', () => {
 
       expect(res.status).toBe(422);
       expect(res.body.errors[0].code).toBe('POLICY_CANCELLED');
-      const incidentCount = await getIncidentCount();
+      const incidentCount = await Incident.countDocuments();
       expect(incidentCount).toBe(0);
     });
 
@@ -352,7 +330,7 @@ describe('PB-01a Incident Intake', () => {
 
       expect(res.status).toBe(422);
       expect(res.body.errors[0].code).toBe('VEHICLE_MISMATCH');
-      const incidentCount = await getIncidentCount();
+      const incidentCount = await Incident.countDocuments();
       expect(incidentCount).toBe(0);
     });
 
@@ -365,7 +343,7 @@ describe('PB-01a Incident Intake', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.errors[0].code).toBe('INVALID_INCIDENT_DATE');
-      const incidentCount = await getIncidentCount();
+      const incidentCount = await Incident.countDocuments();
       expect(incidentCount).toBe(0);
     });
   });
