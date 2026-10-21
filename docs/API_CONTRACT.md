@@ -571,26 +571,98 @@ Valid status transitions (enforced by the Backend):
   - `403 Forbidden`: Authenticated user role is not authorized.
   - `500 Internal Server Error`: Generic internal server error (`INTERNAL_ERROR`).
 
-## 8.5 Incident APIs (Feature PB-01b)
+## 8.5 Incident APIs (Feature PB-01b & PB-02a)
+
+> **Breaking Change Notice (PB-02a):** `incidentDate` and `reportedAt` are no longer accepted in the `POST /incidents` request body (sending either returns `400 VALIDATION_ERROR`). `incidentAt` (ISO 8601 string with a timezone offset) is now required, and the server automatically derives `incidentDate` (`YYYY-MM-DD`) in `Asia/Hebron`. Furthermore, every new incident requires at least one vehicle in `vehicles` (1-10) and at least one party in `parties` (1-30).
 
 ### `POST /incidents`
-- **Purpose:** Claims Officer or Admin opens a new Incident before attaching sub-claims.
-- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Purpose:** Claims Officer or Admin opens a new Incident with its participating vehicles, involved parties, damaged items, and report source metadata before attaching sub-claims.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
 - **Authentication:** Required (JWT).
 - **Request Body:**
   ```json
   {
-    "incidentDate": "2026-06-15",
     "incidentType": "COLLISION",
-    "incidentLocation": "Al-Irsal St, Ramallah",
-    "description": "Front collision with barrier",
-    "latitude": 31.9050,
-    "longitude": 35.2040
+    "incidentLocation": "Faisal St, Nablus",
+    "incidentAt": "2026-06-15T10:00:00+03:00",
+    "governorate": "NABLUS",
+    "reportSource": "PALESTINIAN_POLICE_EKROKA",
+    "eKrokaReference": "EK-2026-00441",
+    "policeReportNumber": null,
+    "injuriesReported": false,
+    "description": "Side collision at intersection",
+    "latitude": 32.2211,
+    "longitude": 35.2544,
+    "vehicles": [
+      {
+        "vehicleRole": "INSURED",
+        "plateRegion": "PALESTINIAN",
+        "plateNumber": "6-1234-90",
+        "vehicleId": "60d0fe4f5311236168a109cb",
+        "make": "Toyota",
+        "model": "Corolla",
+        "year": 2022,
+        "insurerName": "InsurCo",
+        "vehicleUse": "PRIVATE",
+        "lienholderBank": null
+      },
+      {
+        "vehicleRole": "THIRD_PARTY",
+        "plateRegion": "PALESTINIAN",
+        "plateNumber": "7-5678-91",
+        "vehicleId": null,
+        "make": "Hyundai",
+        "model": "Elantra",
+        "year": 2021,
+        "insurerName": "Other Insurance",
+        "vehicleUse": "COMMERCIAL",
+        "lienholderBank": null
+      }
+    ],
+    "parties": [
+      {
+        "role": "INSURED_DRIVER",
+        "fullName": "Ahmad Fake",
+        "nationalId": "000123456",
+        "phone": "+970001234567",
+        "licenseClass": "B",
+        "licenseExpiry": "2028-12-31",
+        "vehicleIndex": 0
+      },
+      {
+        "role": "THIRD_PARTY_DRIVER",
+        "fullName": "Khaled Fake",
+        "nationalId": "000987654",
+        "phone": "+970007654321",
+        "licenseClass": "B",
+        "licenseExpiry": "2027-05-15",
+        "vehicleIndex": 1
+      }
+    ],
+    "damagedItems": [
+      {
+        "itemType": "OTHER",
+        "description": "Damaged street sign at intersection"
+      }
+    ]
   }
   ```
 - **Validation Rules & Error Codes:**
-  - `400 VALIDATION_ERROR`: Missing required fields (`incidentDate`, `incidentType`, `incidentLocation`).
-  - `400 INVALID_INCIDENT_DATE`: Incident date cannot be in the future.
+  - `400 VALIDATION_ERROR`:
+    - Missing required fields (`incidentType`, `incidentLocation`, `incidentAt`, `governorate`, `reportSource`, `injuriesReported`, `vehicles`, `parties`).
+    - Sending `incidentDate` or `reportedAt` in the request body.
+    - `incidentAt` lacking a timezone offset (`Z` or `±hh:mm`), or matching the pattern but not representing a real calendar instant (e.g., `2026-10-21T25:61:00Z`).
+    - `eKrokaReference` sent when `reportSource` is not `PALESTINIAN_POLICE_EKROKA`.
+    - `policeReportNumber` sent when `reportSource` is not `PALESTINIAN_POLICE_PAPER` or `ISRAELI_POLICE`.
+    - `plateNumber` missing when `plateRegion` is not `UNKNOWN`, or present when `plateRegion` is `UNKNOWN`.
+    - `vehicleId` sent on a non-`INSURED` vehicle.
+    - `licenseClass` or `licenseExpiry` sent for a non-driver role.
+    - Missing vehicle link for driver, owner, or passenger roles; or vehicle link provided for pedestrian or witness.
+    - `nationalId` format not exactly 9 digits.
+  - `400 INVALID_INCIDENT_DATE`: `incidentAt` is more than 5 minutes in the future relative to server time.
+  - `403 FORBIDDEN`: Authenticated user is not `CLAIMS_OFFICER` or `ADMIN`.
+  - `404 VEHICLE_NOT_FOUND`: Specified `vehicleId` does not exist in caller's organization.
+  - `422 INVALID_VEHICLE_REF`: `vehicleIndex` outside the bounds of the `vehicles` array.
 - **Success Response (201 Created):**
   ```json
   {
@@ -600,22 +672,86 @@ Valid status transitions (enforced by the Backend):
       "id": "60d0fe4f5311236168a109bb",
       "incidentNumber": "INC-INS-0001",
       "incidentDate": "2026-06-15",
+      "incidentAt": "2026-06-15T07:00:00.000Z",
+      "reportedAt": "2026-06-15T07:05:00.000Z",
       "incidentType": "COLLISION",
-      "incidentLocation": "Al-Irsal St, Ramallah",
-      "incidentDescription": "Front collision with barrier",
+      "incidentLocation": "Faisal St, Nablus",
+      "incidentDescription": "Side collision at intersection",
       "incidentCoordinates": {
-        "latitude": 31.9050,
-        "longitude": 35.2040,
-        "capturedAt": "2026-06-15T10:00:00.000Z"
+        "latitude": 32.2211,
+        "longitude": 35.2544,
+        "capturedAt": "2026-06-15T07:05:00.000Z"
       },
-      "createdAt": "2026-06-15T10:00:00.000Z"
+      "governorate": "NABLUS",
+      "reportSource": "PALESTINIAN_POLICE_EKROKA",
+      "eKrokaReference": "EK-2026-00441",
+      "policeReportNumber": null,
+      "injuriesReported": false,
+      "vehicles": [
+        {
+          "id": "60d0fe4f5311236168a109c1",
+          "vehicleRole": "INSURED",
+          "plateRegion": "PALESTINIAN",
+          "plateNumber": "6-1234-90",
+          "vehicleId": "60d0fe4f5311236168a109cb",
+          "make": "Toyota",
+          "model": "Corolla",
+          "year": 2022,
+          "insurerName": "InsurCo",
+          "vehicleUse": "PRIVATE",
+          "lienholderBank": null
+        },
+        {
+          "id": "60d0fe4f5311236168a109c2",
+          "vehicleRole": "THIRD_PARTY",
+          "plateRegion": "PALESTINIAN",
+          "plateNumber": "7-5678-91",
+          "vehicleId": null,
+          "make": "Hyundai",
+          "model": "Elantra",
+          "year": 2021,
+          "insurerName": "Other Insurance",
+          "vehicleUse": "COMMERCIAL",
+          "lienholderBank": null
+        }
+      ],
+      "parties": [
+        {
+          "id": "60d0fe4f5311236168a109d1",
+          "role": "INSURED_DRIVER",
+          "fullName": "Ahmad Fake",
+          "nationalId": "000123456",
+          "phone": "+970001234567",
+          "licenseClass": "B",
+          "licenseExpiry": "2028-12-31",
+          "vehicleRef": "60d0fe4f5311236168a109c1"
+        },
+        {
+          "id": "60d0fe4f5311236168a109d2",
+          "role": "THIRD_PARTY_DRIVER",
+          "fullName": "Khaled Fake",
+          "nationalId": "000987654",
+          "phone": "+970007654321",
+          "licenseClass": "B",
+          "licenseExpiry": "2027-05-15",
+          "vehicleRef": "60d0fe4f5311236168a109c2"
+        }
+      ],
+      "damagedItems": [
+        {
+          "id": "60d0fe4f5311236168a109e1",
+          "itemType": "OTHER",
+          "description": "Damaged street sign at intersection"
+        }
+      ],
+      "createdAt": "2026-06-15T07:05:00.000Z"
     }
   }
   ```
 
 ### `GET /incidents`
-- **Purpose:** Retrieve a paginated list of incidents in caller's organization.
-- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Purpose:** Retrieve a paginated list of incidents in caller's organization (strictly stripped of content arrays and PII).
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
 - **Authentication:** Required (JWT).
 - **Request Parameters (Query):**
   - `page`: Optional integer $\ge 1$ (default: `1`).
@@ -639,17 +775,23 @@ Valid status transitions (enforced by the Backend):
         "id": "60d0fe4f5311236168a109bb",
         "incidentNumber": "INC-INS-0001",
         "incidentDate": "2026-06-15",
+        "incidentAt": "2026-06-15T07:00:00.000Z",
         "incidentType": "COLLISION",
-        "incidentLocation": "Al-Irsal St, Ramallah",
-        "createdAt": "2026-06-15T10:00:00.000Z"
+        "incidentLocation": "Faisal St, Nablus",
+        "governorate": "NABLUS",
+        "reportSource": "PALESTINIAN_POLICE_EKROKA",
+        "injuriesReported": false,
+        "vehiclesCount": 2,
+        "partiesCount": 2,
+        "createdAt": "2026-06-15T07:05:00.000Z"
       }
     ]
   }
   ```
 
 ### `GET /incidents/:incidentId`
-- **Purpose:** Retrieve full incident details including its attached sub-claims.
-- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (FIELD_ADJUSTER receives `403 FORBIDDEN`).
+- **Purpose:** Retrieve full incident details including all vehicles, parties, damaged items, and attached sub-claims.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
 - **Authentication:** Required (JWT).
 - **Error Codes:**
   - `404 INCIDENT_NOT_FOUND`: Incident does not exist or belongs to another organization.
@@ -662,24 +804,123 @@ Valid status transitions (enforced by the Backend):
       "id": "60d0fe4f5311236168a109bb",
       "incidentNumber": "INC-INS-0001",
       "incidentDate": "2026-06-15",
+      "incidentAt": "2026-06-15T07:00:00.000Z",
+      "reportedAt": "2026-06-15T07:05:00.000Z",
       "incidentType": "COLLISION",
-      "incidentLocation": "Al-Irsal St, Ramallah",
-      "incidentDescription": "Front collision with barrier",
+      "incidentLocation": "Faisal St, Nablus",
+      "incidentDescription": "Side collision at intersection",
       "incidentCoordinates": {
-        "latitude": 31.9050,
-        "longitude": 35.2040,
-        "capturedAt": "2026-06-15T10:00:00.000Z"
+        "latitude": 32.2211,
+        "longitude": 35.2544,
+        "capturedAt": "2026-06-15T07:05:00.000Z"
       },
-      "createdAt": "2026-06-15T10:00:00.000Z",
+      "governorate": "NABLUS",
+      "reportSource": "PALESTINIAN_POLICE_EKROKA",
+      "eKrokaReference": "EK-2026-00441",
+      "policeReportNumber": null,
+      "injuriesReported": false,
+      "vehicles": [
+        {
+          "id": "60d0fe4f5311236168a109c1",
+          "vehicleRole": "INSURED",
+          "plateRegion": "PALESTINIAN",
+          "plateNumber": "6-1234-90",
+          "vehicleId": "60d0fe4f5311236168a109cb",
+          "make": "Toyota",
+          "model": "Corolla",
+          "year": 2022,
+          "insurerName": "InsurCo",
+          "vehicleUse": "PRIVATE",
+          "lienholderBank": null
+        }
+      ],
+      "parties": [
+        {
+          "id": "60d0fe4f5311236168a109d1",
+          "role": "INSURED_DRIVER",
+          "fullName": "Ahmad Fake",
+          "nationalId": "000123456",
+          "phone": "+970001234567",
+          "licenseClass": "B",
+          "licenseExpiry": "2028-12-31",
+          "vehicleRef": "60d0fe4f5311236168a109c1"
+        }
+      ],
+      "damagedItems": [
+        {
+          "id": "60d0fe4f5311236168a109e1",
+          "itemType": "OTHER",
+          "description": "Damaged street sign at intersection"
+        }
+      ],
+      "createdAt": "2026-06-15T07:05:00.000Z",
       "claims": [
         {
           "id": "60d0fe4f5311236168a109cc",
           "claimNumber": "CLM-INS-0001",
           "claimType": "OWN_DAMAGE",
           "status": "NEW",
-          "plateNumber": "ABC-1234"
+          "plateNumber": "6-1234-90"
         }
       ]
+    }
+  }
+  ```
+
+### `POST /incidents/:incidentId/vehicles`
+- **Purpose:** Append a new vehicle to an existing Incident (cap: 10 vehicles).
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
+- **Request Body:** Single `IncidentVehicle` object.
+- **Error Codes:**
+  - `400 VALIDATION_ERROR`: Missing role/region, plateNumber provided when region is UNKNOWN, or vehicleId provided on non-INSURED vehicle.
+  - `404 INCIDENT_NOT_FOUND`: Incident does not exist in caller's organization.
+  - `404 VEHICLE_NOT_FOUND`: Specified `vehicleId` not found in organization.
+  - `409 CONFLICT_RETRY`: Concurrent modification conflict.
+  - `422 INCIDENT_LIMIT_REACHED`: Incident already contains 10 vehicles.
+- **Success Response (201 Created):** Returns the appended vehicle subdocument with its `id`.
+
+### `POST /incidents/:incidentId/parties`
+- **Purpose:** Append a new party to an existing Incident (cap: 30 parties).
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
+- **Request Body:** Single `Party` object with `vehicleRef` (ObjectId of an existing vehicle in this incident).
+- **Error Codes:**
+  - `400 VALIDATION_ERROR`: Invalid role, licenseClass on non-driver, invalid nationalId, or invalid vehicle linkage for role.
+  - `404 INCIDENT_NOT_FOUND`: Incident does not exist in caller's organization.
+  - `409 CONFLICT_RETRY`: Concurrent modification conflict.
+  - `422 INVALID_VEHICLE_REF`: `vehicleRef` does not point to an existing vehicle in this incident.
+  - `422 INCIDENT_LIMIT_REACHED`: Incident already contains 30 parties.
+- **Success Response (201 Created):** Returns the appended party subdocument with its `id`.
+
+### `POST /incidents/:incidentId/damaged-items`
+- **Purpose:** Append a new damaged item to an existing Incident (cap: 20 items).
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
+- **Request Body:** Single `DamagedItem` object (`itemType`, `description`).
+- **Error Codes:**
+  - `400 VALIDATION_ERROR`: Invalid itemType or missing description.
+  - `404 INCIDENT_NOT_FOUND`: Incident does not exist in caller's organization.
+  - `409 CONFLICT_RETRY`: Concurrent modification conflict.
+  - `422 INCIDENT_LIMIT_REACHED`: Incident already contains 20 damaged items.
+- **Success Response (201 Created):** Returns the appended damaged item subdocument with its `id`.
+
+### `PATCH /incidents/:incidentId/report`
+- **Purpose:** Fill empty report fields (`reportSource`, `eKrokaReference`, `policeReportNumber`, `injuriesReported`). Add-only: already set fields cannot be overwritten.
+- **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
+- **Request Body:** Any of `reportSource` (cannot be `NONE`), `eKrokaReference`, `policeReportNumber`, `injuriesReported` (only `true`). At least one key required.
+- **Error Codes:**
+  - `400 VALIDATION_ERROR`: Empty body, `injuriesReported: false`, `reportSource: NONE`, reference does not match reportSource, or body carries both `eKrokaReference` and `policeReportNumber`.
+  - `404 INCIDENT_NOT_FOUND`: Incident does not exist in caller's organization.
+  - `409 REPORT_FIELD_ALREADY_SET`: Target field was already populated.
+  - `409 CONFLICT_RETRY`: Concurrent modification conflict.
+- **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Report updated successfully",
+    "data": {
+      "reportSource": "PALESTINIAN_POLICE_EKROKA",
+      "eKrokaReference": "EK-2026-00441",
+      "policeReportNumber": null,
+      "injuriesReported": true
     }
   }
   ```

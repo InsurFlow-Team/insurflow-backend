@@ -35,9 +35,37 @@ const createSubClaim = async (req, res) => {
   return res.status(201).json(successResponse('Claim created successfully', result));
 };
 
+const addVehicle = async (req, res) => {
+  const { incidentId } = req.params;
+  const result = await incidentService.addVehicle(incidentId, req.body, req.user);
+  return res.status(201).json(successResponse('Vehicle added successfully', result));
+};
+
+const addParty = async (req, res) => {
+  const { incidentId } = req.params;
+  const result = await incidentService.addParty(incidentId, req.body, req.user);
+  return res.status(201).json(successResponse('Party added successfully', result));
+};
+
+const addDamagedItem = async (req, res) => {
+  const { incidentId } = req.params;
+  const result = await incidentService.addDamagedItem(incidentId, req.body, req.user);
+  return res.status(201).json(successResponse('Damaged item added successfully', result));
+};
+
+const patchReport = async (req, res) => {
+  const { incidentId } = req.params;
+  const result = await incidentService.patchReport(incidentId, req.body, req.user);
+  return res.status(200).json(successResponse('Report updated successfully', result));
+};
+
 module.exports = {
   createIncident,
   getIncidents,
   getIncidentById,
   createSubClaim,
+  addVehicle,
+  addParty,
+  addDamagedItem,
+  patchReport,
 };
