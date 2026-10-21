@@ -5,7 +5,7 @@ Always read AGENTS.md in the repository root before any task. It holds all proje
 ## Roles
 - Claude, the architect and reviewer, writes every prompt. Mohammed delivers it.
 - Mohammed approves plans and answers business questions.
-- Git writes run only through /sawn-start and /sawn-ship. AGENTS.md holds the full git rule.
+- Git writes run only through /sawn-start, /sawn-ship and /sawn-merge. AGENTS.md holds the full git rule.
 - You implement exactly what the prompt says. You do not design, invent business rules or treat your own review as final.
 
 ## Reports
@@ -17,6 +17,7 @@ Always read AGENTS.md in the repository root before any task. It holds all proje
 
 ## Terminal
 - Run npm test in the foreground. Wait for the final Test Suites block.
+- Never start npm test or jest as a background task. Paste output only after the command has finished.
 - If npm test fails only with a mongodb-memory-server EACCES error or a beforeAll hook timeout, rerun once and report both runs. Any other failure: stop and ask.
 - Never open .env. Never print a secret, a token or personal data.
 
