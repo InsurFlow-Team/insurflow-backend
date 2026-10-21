@@ -197,7 +197,7 @@ describe('API Contract Keys — Sorted Key Sets', () => {
     createdTrackingToken = res.body.data.trackingToken;
 
     expect(Object.keys(res.body.data).sort()).toEqual(
-      ['claimNumber', 'coverageSnapshot', 'createdAt', 'eligibilityHint', 'id', 'status', 'trackingToken', 'trackingUrl'].sort()
+      ['claimNumber', 'claimType', 'coverageSnapshot', 'createdAt', 'eligibilityHint', 'id', 'incidentId', 'incidentNumber', 'status', 'trackingToken', 'trackingUrl'].sort()
     );
 
     // coverageSnapshot sub-keys
@@ -221,6 +221,7 @@ describe('API Contract Keys — Sorted Key Sets', () => {
         'accident',
         'assignment',
         'claimNumber',
+        'claimType',
         'closedAt',
         'closedBy',
         'closingNotes',
@@ -235,7 +236,9 @@ describe('API Contract Keys — Sorted Key Sets', () => {
         'incidentCoordinates',
         'incidentDate',
         'incidentDescription',
+        'incidentId',
         'incidentLocation',
+        'incidentNumber',
         'incidentType',
         'location',
         'lossAssessment',
@@ -286,6 +289,7 @@ describe('API Contract Keys — Sorted Key Sets', () => {
         'accident',
         'assignment',
         'claimNumber',
+        'claimType',
         'closedAt',
         'closedBy',
         'closingNotes',
@@ -300,7 +304,9 @@ describe('API Contract Keys — Sorted Key Sets', () => {
         'incidentCoordinates',
         'incidentDate',
         'incidentDescription',
+        'incidentId',
         'incidentLocation',
+        'incidentNumber',
         'incidentType',
         'location',
         'lossAssessment',

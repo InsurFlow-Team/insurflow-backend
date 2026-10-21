@@ -238,6 +238,9 @@
   "data": {
     "id": "<CLAIM_ID>",
     "claimNumber": "CLM-20261001-0001",
+    "incidentId": "<INCIDENT_ID>",
+    "incidentNumber": "INC-20261001-0001",
+    "claimType": "OWN_DAMAGE",
     "status": "NEW",
     "trackingToken": "<TRACKING_TOKEN_64_HEX>",
     "trackingUrl": "http://localhost:5173/track/<TRACKING_TOKEN_64_HEX>",
@@ -257,6 +260,10 @@
   }
 }
 ```
+* **ملاحظات الحقول:**
+  * `incidentId`: معرّف الحادث الأب، وقيمته null للمطالبات القديمة
+  * `incidentNumber`: رقم الحادث، وقيمته null للمطالبات القديمة
+  * `claimType`: نوع المطالبة، وحالياً دائماً OWN_DAMAGE
 
 ---
 
@@ -272,6 +279,9 @@
   "data": {
     "id": "<CLAIM_ID>",
     "claimNumber": "CLM-20261001-0001",
+    "incidentId": "<INCIDENT_ID>",
+    "incidentNumber": "INC-20261001-0001",
+    "claimType": "OWN_DAMAGE",
     "status": "NEW",
     "trackingToken": "<TRACKING_TOKEN_64_HEX>",
     "trackingUrl": "http://localhost:5173/track/<TRACKING_TOKEN_64_HEX>",
@@ -354,6 +364,10 @@
 ```
 * **استجابة المعاين الميداني (`FIELD_ADJUSTER`):**
   تتطابق تماماً مع ما سبق، مع حجب كامل لحقلي `trackingToken` و `trackingUrl`.
+* **ملاحظات الحقول:**
+  * `incidentId`: معرّف الحادث الأب، وقيمته null للمطالبات القديمة
+  * `incidentNumber`: رقم الحادث، وقيمته null للمطالبات القديمة
+  * `claimType`: نوع المطالبة، وحالياً دائماً OWN_DAMAGE
 
 ---
 

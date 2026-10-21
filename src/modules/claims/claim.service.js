@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const claimRepository = require('./claim.repository');
+const incidentRepository = require('../incidents/incident.repository');
 const userRepository = require('../users/user.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
 const policyRepository = require('../policies/policy.repository');
@@ -116,7 +117,20 @@ const createClaim = async (body, authUser) => {
     };
   }
 
+  const incident = await incidentRepository.create({
+    organizationId: authUser.organizationId,
+    incidentDate,
+    incidentType,
+    incidentLocation,
+    incidentDescription: description || null,
+    incidentCoordinates: incidentCoordinatesObj,
+    createdBy: authUser.userId,
+  });
+
   const claimData = {
+    incidentId: incident._id,
+    incidentNumber: incident.incidentNumber,
+    claimType: 'OWN_DAMAGE',
     organizationId: authUser.organizationId,
     createdBy: authUser.userId,
     policyId: policy._id,
@@ -155,7 +169,17 @@ const createClaim = async (body, authUser) => {
     ],
   };
 
-  const claim = await claimRepository.create(claimData);
+  let claim;
+  try {
+    claim = await claimRepository.create(claimData);
+  } catch (claimErr) {
+    try {
+      await incidentRepository.deleteByIdAndOrganization(incident._id, authUser.organizationId);
+    } catch (deleteErr) {
+      console.error('Failed to rollback incident after claim creation failure:', deleteErr);
+    }
+    throw claimErr;
+  }
 
   try {
     if (typeof sendToOrganization === 'function') {
@@ -175,6 +199,9 @@ const createClaim = async (body, authUser) => {
   return {
     id: claim._id,
     claimNumber: claim.claimNumber,
+    incidentId: claim.incidentId ?? null,
+    incidentNumber: claim.incidentNumber ?? null,
+    claimType: claim.claimType ?? 'OWN_DAMAGE',
     status: claim.status,
     trackingToken: claim.trackingToken,
     trackingUrl: buildTrackingUrl(claim.trackingToken),
@@ -276,6 +303,9 @@ const getClaimById = async (claimId, authUser) => {
     // ── 1. Claim Information ─────────────────────────────────────
     id: claim._id,
     claimNumber: claim.claimNumber,
+    incidentId: claim.incidentId ?? null,
+    incidentNumber: claim.incidentNumber ?? null,
+    claimType: claim.claimType ?? 'OWN_DAMAGE',
     status: claim.status,
     // Expose tracking tokens and URLs exclusively to claims officers and administrators
     ...((role === 'CLAIMS_OFFICER' || role === 'ADMIN') && {
