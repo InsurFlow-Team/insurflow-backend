@@ -24,18 +24,10 @@ const buildTrackingUrl = (token) => {
   return `${baseUrl}/track/${token}`;
 };
 
-const createClaim = async (body, authUser) => {
-  const {
-    policyId,
-    plateNumber: requestedPlate,
-    incidentType,
-    incidentLocation,
-    incidentDate,
-    description,
-    latitude,
-    longitude,
-  } = body;
-
+const resolveClaimData = async (
+  { policyId, plateNumber: requestedPlate, incidentType, incidentDate },
+  authUser
+) => {
   // ── 1. Policy existence & tenant isolation ──────────────────────
   const policy = await policyRepository.findByIdAndOrganization(policyId, authUser.organizationId);
   if (!policy) {
@@ -46,24 +38,8 @@ const createClaim = async (body, authUser) => {
   if (policy.status === 'CANCELLED') {
     throw new AppError('Policy has been cancelled', 422, 'POLICY_CANCELLED');
   }
-  // ── 3. Incident date future validation ────────────────────────
-  const now = new Date();
-  if (incidentDate) {
-    const incident = new Date(incidentDate + 'T00:00:00.000Z');
-    if (incident > now) {
-      throw new AppError('Incident date cannot be in the future', 400, 'INVALID_INCIDENT_DATE');
-    }
-  }
 
-  // ── 3b. Compute advisory eligibility hint ───────────────────────
-  const eligibilityHint = computeEligibilityHint({
-    policy,
-    incidentType,
-    incidentDate,
-    now,
-  });
-
-  // ── 4. Resolve vehicle & customer from policy ──────────────────
+  // ── 3. Resolve vehicle & customer from policy ──────────────────
   const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, authUser.organizationId);
 
   if (!vehicles || vehicles.length === 0) {
@@ -88,21 +64,14 @@ const createClaim = async (body, authUser) => {
     vehicle = vehicles[0];
   }
 
-  const customerName = vehicle?.customerId?.fullName || 'Unknown';
-  const customerPhone = vehicle?.customerId?.phone || 'Unknown';
-  const plateNumber = vehicle?.plateNumber;
+  const now = new Date();
+  const eligibilityHint = computeEligibilityHint({
+    policy,
+    incidentType,
+    incidentDate,
+    now,
+  });
 
-  // ── 5. Build claim data ────────────────────────────────────────
-  let incidentCoordinatesObj = null;
-  if (typeof latitude === 'number' && typeof longitude === 'number') {
-    incidentCoordinatesObj = {
-      latitude,
-      longitude,
-      capturedAt: new Date(),
-    };
-  }
-
-  // ── 6. Capture coverage snapshot if policy has policyType & deductibleAmount ──
   let coverageSnapshot = null;
   if (
     policy.policyType &&
@@ -117,47 +86,54 @@ const createClaim = async (body, authUser) => {
     };
   }
 
-  const incident = await incidentRepository.create({
-    organizationId: authUser.organizationId,
-    incidentDate,
-    incidentType,
-    incidentLocation,
-    incidentDescription: description || null,
-    incidentCoordinates: incidentCoordinatesObj,
-    createdBy: authUser.userId,
-  });
+  const customerName = vehicle?.customerId?.fullName || 'Unknown';
+  const customerPhone = vehicle?.customerId?.phone || 'Unknown';
+  const plateNumber = vehicle?.plateNumber;
 
+  const claimFields = {
+    policy,
+    vehicle,
+    customerName,
+    customerPhone,
+    plateNumber,
+    eligibilityHint,
+    coverageSnapshot,
+  };
+
+  return { policy, vehicle, claimFields };
+};
+
+const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', authUser) => {
   const claimData = {
     incidentId: incident._id,
     incidentNumber: incident.incidentNumber,
-    claimType: 'OWN_DAMAGE',
+    claimType,
     organizationId: authUser.organizationId,
     createdBy: authUser.userId,
-    policyId: policy._id,
-    coverageSnapshot,
+    policyId: claimFields.policy._id,
+    coverageSnapshot: claimFields.coverageSnapshot,
     status: 'NEW',
     trackingToken: crypto.randomBytes(32).toString('hex'),
 
     customer: {
-      name: customerName,
-      phone: customerPhone,
+      name: claimFields.customerName,
+      phone: claimFields.customerPhone,
     },
     vehicle: {
-      plateNumber,
-      vehicleId: vehicle?._id || null,
-      policyId: policy._id,
-      customerId: vehicle?.customerId?._id || vehicle?.customerId || null,
+      plateNumber: claimFields.plateNumber,
+      vehicleId: claimFields.vehicle?._id || null,
+      policyId: claimFields.policy._id,
+      customerId: claimFields.vehicle?.customerId?._id || claimFields.vehicle?.customerId || null,
     },
-    incidentDate: incidentDate || null,
-    incidentDescription: description || null,
-    incidentType,
-    eligibilityHint,
-    incidentLocation,
-    incidentCoordinates: incidentCoordinatesObj,
+    incidentDate: incident.incidentDate || null,
+    incidentDescription: incident.incidentDescription || null,
+    incidentType: incident.incidentType,
+    eligibilityHint: claimFields.eligibilityHint,
+    incidentLocation: incident.incidentLocation,
+    incidentCoordinates: incident.incidentCoordinates || null,
 
     timeline: [
       {
-        // NOTE: 'Claim Created' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.
         action: 'Claim Created',
         previousStatus: null,
         newStatus: null,
@@ -173,10 +149,16 @@ const createClaim = async (body, authUser) => {
   try {
     claim = await claimRepository.create(claimData);
   } catch (claimErr) {
-    try {
-      await incidentRepository.deleteByIdAndOrganization(incident._id, authUser.organizationId);
-    } catch (deleteErr) {
-      console.error('Failed to rollback incident after claim creation failure:', deleteErr);
+    if (
+      claimErr.code === 11000 &&
+      claimErr.keyPattern &&
+      claimErr.keyPattern['vehicle.vehicleId']
+    ) {
+      throw new AppError(
+        'A claim for this vehicle already exists in this incident',
+        409,
+        'DUPLICATE_SUB_CLAIM'
+      );
     }
     throw claimErr;
   }
@@ -218,6 +200,86 @@ const createClaim = async (body, authUser) => {
   };
 };
 
+const createClaim = async (body, authUser) => {
+  const {
+    policyId,
+    plateNumber: requestedPlate,
+    incidentType,
+    incidentLocation,
+    incidentDate,
+    description,
+    latitude,
+    longitude,
+  } = body;
+
+  const now = new Date();
+  if (incidentDate) {
+    const incident = new Date(incidentDate + 'T00:00:00.000Z');
+    if (incident > now) {
+      throw new AppError('Incident date cannot be in the future', 400, 'INVALID_INCIDENT_DATE');
+    }
+  }
+
+  const { claimFields } = await resolveClaimData(
+    { policyId, plateNumber: requestedPlate, incidentType, incidentDate },
+    authUser
+  );
+
+  let incidentCoordinatesObj = null;
+  if (typeof latitude === 'number' && typeof longitude === 'number') {
+    incidentCoordinatesObj = {
+      latitude,
+      longitude,
+      capturedAt: new Date(),
+    };
+  }
+
+  const incident = await incidentRepository.create({
+    organizationId: authUser.organizationId,
+    incidentDate,
+    incidentType,
+    incidentLocation,
+    incidentDescription: description || null,
+    incidentCoordinates: incidentCoordinatesObj,
+    createdBy: authUser.userId,
+  });
+
+  try {
+    return await insertClaim(claimFields, incident, 'OWN_DAMAGE', authUser);
+  } catch (claimErr) {
+    try {
+      await incidentRepository.deleteByIdAndOrganization(incident._id, authUser.organizationId);
+    } catch (deleteErr) {
+      console.error('Failed to rollback incident after claim creation failure:', deleteErr);
+    }
+    throw claimErr;
+  }
+};
+
+const createSubClaim = async (incidentId, body, authUser) => {
+  const { claimType, policyId, plateNumber } = body;
+
+  const incident = await incidentRepository.findByIdAndOrganization(incidentId, authUser.organizationId);
+  if (!incident) {
+    throw new AppError('Incident not found', 404, 'INCIDENT_NOT_FOUND');
+  }
+
+  if (claimType === 'THIRD_PARTY_PD') {
+    throw new AppError('Claim type THIRD_PARTY_PD is not supported yet', 422, 'CLAIM_TYPE_NOT_SUPPORTED');
+  }
+
+  const { claimFields } = await resolveClaimData(
+    {
+      policyId,
+      plateNumber,
+      incidentType: incident.incidentType,
+      incidentDate: incident.incidentDate,
+    },
+    authUser
+  );
+
+  return await insertClaim(claimFields, incident, claimType, authUser);
+};
 
 const getClaims = async (authUser, filter = {}, pagination = {}) => {
   const { userId, role, organizationId } = authUser;
@@ -1326,13 +1388,14 @@ const getClaimStats = async (authUser, query = {}) => {
   }
 
   // ADMIN / CLAIMS_OFFICER: Organization-wide claims aggregation and adjusters workload query run concurrently
-  const [statusCounts, adjusters] = await Promise.all([
+  const [statusCounts, adjusters, totalIncidents] = await Promise.all([
     claimRepository.getClaimStats({
       organizationId,
       fromDate,
       toDate,
     }),
     userRepository.findAdjustersWithWorkload(organizationId),
+    incidentRepository.countByOrganization(organizationId, { fromDate, toDate }),
   ]);
 
 
@@ -1365,6 +1428,7 @@ const getClaimStats = async (authUser, query = {}) => {
   return {
     scope: 'ORGANIZATION',
     totalClaims,
+    totalIncidents,
     byStatus,
     pendingActionCount,
     actionableBreakdown: {
@@ -1523,7 +1587,10 @@ const getPublicClaimStatus = async (trackingToken) => {
 
 module.exports = {
   buildTrackingUrl,
+  resolveClaimData,
+  insertClaim,
   createClaim,
+  createSubClaim,
   getClaims,
   getClaimById,
   assignClaim,

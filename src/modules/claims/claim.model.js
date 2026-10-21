@@ -378,6 +378,17 @@ claimSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
 claimSchema.index({ organizationId: 1, policyId: 1 });
 claimSchema.index({ trackingToken: 1 }, { unique: true, sparse: true });
 claimSchema.index({ organizationId: 1, incidentId: 1 });
+claimSchema.index(
+  { organizationId: 1, incidentId: 1, 'vehicle.vehicleId': 1 },
+  {
+    name: 'uniq_own_damage_vehicle_per_incident',
+    unique: true,
+    partialFilterExpression: {
+      claimType: 'OWN_DAMAGE',
+      incidentId: { $type: 'objectId' },
+    },
+  }
+);
 
 
 // ─── Tenant-Scoped Claim Number Generation ───────────────────────────────────

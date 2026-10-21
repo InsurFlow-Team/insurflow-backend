@@ -520,6 +520,151 @@
 
 ---
 
+### 2.6 شاشات إدارة الحوادث والمطالبات الفرعية (Incident Endpoints & Sub-claims)
+
+#### 1. تسجيل حادث جديد (Open Incident)
+* **المسار (Endpoint):** `POST /api/v1/incidents`
+* **الأدوار المصرح لها:** `CLAIMS_OFFICER`, `ADMIN` (المعاين `FIELD_ADJUSTER` يتلقى 403).
+* **جسم الطلب (Request Body):**
+```json
+{
+  "incidentDate": "2026-06-15",
+  "incidentType": "COLLISION",
+  "incidentLocation": "Al-Irsal St, Ramallah",
+  "description": "Front collision with barrier",
+  "latitude": 31.9050,
+  "longitude": 35.2040
+}
+```
+* **استجابة النجاح (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Incident created successfully",
+  "data": {
+    "id": "<INCIDENT_ID>",
+    "incidentNumber": "INC-20261001-0001",
+    "incidentDate": "2026-06-15",
+    "incidentType": "COLLISION",
+    "incidentLocation": "Al-Irsal St, Ramallah",
+    "incidentDescription": "Front collision with barrier",
+    "incidentCoordinates": {
+      "latitude": 31.9050,
+      "longitude": 35.2040,
+      "capturedAt": "2026-06-15T10:00:00.000Z"
+    },
+    "createdAt": "2026-06-15T10:00:00.000Z"
+  }
+}
+```
+
+#### 2. استعراض قائمة الحوادث مع الترقيم والفلترة (List Incidents)
+* **المسار (Endpoint):** `GET /api/v1/incidents`
+* **معاملات الاستعلام (Query Parameters):**
+  * `page`: رقم الصفحة (الافتراضي: 1).
+  * `limit`: عدد السجلات في الصفحة (الافتراضي: 50، الأقصى: 100).
+  * `incidentNumber`: فلترة برقم الحادث المطابق.
+  * `from`: تاريخ البداية بصيغة `YYYY-MM-DD` لفلترة `incidentDate`.
+  * `to`: تاريخ النهاية بصيغة `YYYY-MM-DD` لفلترة `incidentDate`.
+* **ترويسات الاستجابة (Pagination Headers):**
+  * `X-Total-Count`: إجمالي عدد الحوادث المطابقة في المؤسسة.
+  * `X-Page`: الصفحة الحالية.
+  * `X-Limit`: عدد العناصر في الصفحة.
+  * `X-Total-Pages`: إجمالي عدد الصفحات.
+* **استجابة النجاح (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Incidents retrieved successfully",
+  "data": [
+    {
+      "id": "<INCIDENT_ID>",
+      "incidentNumber": "INC-20261001-0001",
+      "incidentDate": "2026-06-15",
+      "incidentType": "COLLISION",
+      "incidentLocation": "Al-Irsal St, Ramallah",
+      "createdAt": "2026-06-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### 3. تفاصيل الحادث والمطالبات المرتبطة (Incident Details & Sub-claims)
+* **المسار (Endpoint):** `GET /api/v1/incidents/:incidentId`
+* **استجابة النجاح (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Incident retrieved successfully",
+  "data": {
+    "id": "<INCIDENT_ID>",
+    "incidentNumber": "INC-20261001-0001",
+    "incidentDate": "2026-06-15",
+    "incidentType": "COLLISION",
+    "incidentLocation": "Al-Irsal St, Ramallah",
+    "incidentDescription": "Front collision with barrier",
+    "incidentCoordinates": {
+      "latitude": 31.9050,
+      "longitude": 35.2040,
+      "capturedAt": "2026-06-15T10:00:00.000Z"
+    },
+    "createdAt": "2026-06-15T10:00:00.000Z",
+    "claims": [
+      {
+        "id": "<CLAIM_ID>",
+        "claimNumber": "CLM-20261001-0001",
+        "claimType": "OWN_DAMAGE",
+        "status": "NEW",
+        "plateNumber": "ABC-1234"
+      }
+    ]
+  }
+}
+```
+
+#### 4. إنشاء مطالبة فرعية وربطها بالحادث (Create Sub-claim)
+* **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/claims`
+* **جسم الطلب (Request Body):**
+```json
+{
+  "claimType": "OWN_DAMAGE",
+  "policyId": "<POLICY_ID>",
+  "plateNumber": "ABC-1234"
+}
+```
+* **قواعد العمل وحماية التكرار (Duplicate Guard):**
+  * يتم نسخ وقائع الحادث تلقائياً من وثيقة الحادث الأصلية ولا تُرسل في الطلب.
+  * نوع المطالبة `THIRD_PARTY_PD` مغلق حالياً ويرجع `422 CLAIM_TYPE_NOT_SUPPORTED`.
+  * حماية التكرار تمنع إنشاء أكثر من مطالبة `OWN_DAMAGE` واحدة لنفس المركبة في نفس الحادث وتُرجع `409 DUPLICATE_SUB_CLAIM`.
+* **استجابة النجاح (201 Created):**
+  تتطابق مفاتيح الاستجابة تماماً مع استجابة إنشاء المطالبة `POST /claims`.
+
+---
+
+### 2.7 إحصائيات لوحة التحكم — إجمالي الحوادث (Dashboard Stats)
+* **المسار (Endpoint):** `GET /api/v1/claims/stats`
+* **التحديث في PB-01b:**
+  * تمت إضافة حقل `totalIncidents` في استجابة نطاق المؤسسة (`scope: ORGANIZATION`) لمسؤولي المطالبات والمديرين (`CLAIMS_OFFICER` و `ADMIN`).
+  * يتم تطبيق فلاتر `from` و `to` على تاريخ إنشاء الحادث `Incident.createdAt` بنفس آلية المطالبات.
+  * استجابة المعاين الميداني (`FIELD_ADJUSTER`) تظل كما هي بنطاق `ASSIGNED` دون إضافة حقل `totalIncidents`.
+```json
+{
+  "success": true,
+  "message": "Claim statistics retrieved successfully",
+  "data": {
+    "scope": "ORGANIZATION",
+    "totalClaims": 13,
+    "totalIncidents": 5,
+    "byStatus": { ... },
+    "pendingActionCount": 4,
+    "actionableBreakdown": { ... },
+    "adjustersWorkload": { ... }
+  }
+}
+```
+
+---
+
 ## 3. جدول دلالات التحقق (eligibilityHint Label Map)
 
 يجب على الواجهة الأمامية استخدام النصوص العربية التالية حرفياً لعرض شارة التوجيه الإرشادي:
@@ -571,9 +716,11 @@
 | 404 | `VEHICLE_NOT_FOUND` | رقم اللوحة غير مسجل في النظام | لم يتم العثور على مركبة برقم اللوحة المدخل |
 | 404 | `CUSTOMER_NOT_FOUND` | العميل غير موجود في النظام | لم يتم العثور على العميل المطلوب |
 | 404 | `USER_NOT_FOUND` | المستخدم أو الموظف غير موجود | لم يتم العثور على المستخدم المطلوب |
+| 404 | `INCIDENT_NOT_FOUND` | الحادث غير موجود في سجلات الشركة أو يتبع لمؤسسة أخرى | الحادث غير موجود |
 | 404 | `RESOURCE_NOT_FOUND` | المسار أو المورد المطلوب غير موجود | المورد المطلوب غير موجود |
 | 409 | `INVALID_STATUS_TRANSITION` | محاولة تغيير حالة المطالبة لمسار غير مسموح | لا يمكن تنفيذ هذا الإجراء في حالة المطالبة الحالية |
 | 409 | `CLAIM_ALREADY_EXISTS` | فتح مطالبة مكررة لنفس الحادث أو الوثيقة | توجد مطالبة سابقة مسجلة بالفعل |
+| 409 | `DUPLICATE_SUB_CLAIM` | فتح مطالبة أضرار ذاتية ثانية لنفس المركبة في نفس الحادث | توجد مطالبة أضرار ذاتية لهذه المركبة في هذا الحادث |
 | 422 | `POLICY_CANCELLED` | محاولة التحقق أو فتح مطالبة على وثيقة ملغاة | الوثيقة ملغاة ولا يمكن فتح مطالبة عليها |
 | 422 | `POLICY_MISMATCH` | الوثيقة المرسلة لا تطابق وثيقة المطالبة | الوثيقة المرسلة لا تطابق وثيقة المطالبة |
 | 422 | `VEHICLE_NOT_ON_CLAIM_POLICY` | المركبة غير مسجلة على وثيقة هذه المطالبة | المركبة غير مسجلة على وثيقة هذه المطالبة |
@@ -584,6 +731,7 @@
 | 422 | `VEHICLE_MISMATCH` | المركبة المدخلة لا تتبع للوثيقة المحددة | رقم لوحة المركبة لا يتطابق مع هذه الوثيقة |
 | 422 | `AMBIGUOUS_VEHICLE_SELECTION`| الوثيقة تضم أكثر من مركبة ولم يُحدد رقم اللوحة | الوثيقة تحتوي أكثر من مركبة، يرجى تحديد رقم اللوحة |
 | 422 | `NO_VEHICLE_ON_POLICY` | لا توجد مركبات مسجلة تحت هذه الوثيقة | لا توجد أي مركبة مسجلة تحت هذه الوثيقة |
+| 422 | `CLAIM_TYPE_NOT_SUPPORTED` | محاولة إنشاء مطالبة من نوع الطرف الثالث قبل تفعيلها | مطالبات الطرف الثالث غير متاحة حالياً |
 | 429 | `TOO_MANY_REQUESTS` | تجاوز حد الطلبات المسموح به خلال النافذة الزمنية | محاولات كثيرة، يرجى المحاولة بعد 15 دقيقة |
 | 500 | `INTERNAL_SERVER_ERROR` | خطأ غير متوقع في الخادم | حدث خطأ داخلي، يرجى المحاولة لاحقاً |
 
