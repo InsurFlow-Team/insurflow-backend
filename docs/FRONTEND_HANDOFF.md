@@ -522,18 +522,81 @@
 
 ### 2.6 شاشات إدارة الحوادث والمطالبات الفرعية (Incident Endpoints & Sub-claims)
 
+> **تنبيه هام لفريق الواجهات الأمامية (Breaking Change - PB-02a):**
+> تم تحديث واجهة فتح الحادث `POST /api/v1/incidents`:
+> 1. حقل `incidentDate` لم يعد مقبولاً في جسم الطلب (يرجع `400 VALIDATION_ERROR`). تم استبداله بحقل `incidentAt` بصيغة ISO 8601 شاملاً الإزاحة الزمنية (مثل: `2026-06-15T10:00:00+03:00`). يقوم الخادم تلقائياً باستخراج `incidentDate` بتوقيت القدس/الخليل (`Asia/Hebron`).
+> 2. حقل `reportedAt` يتم توليده تلقائياً من الخادم ومحظور إرساله من العميل.
+> 3. أصبح إلزامياً إرسال مركبة واحدة على الأقل في مصفوفة `vehicles` (بين 1 إلى 10) وطرف واحد على الأقل في مصفوفة `parties` (بين 1 إلى 30)، مع تحديد المحافظة `governorate` ومصدر التقرير `reportSource` ومؤشر الإصابات `injuriesReported`.
+
 #### 1. تسجيل حادث جديد (Open Incident)
 * **المسار (Endpoint):** `POST /api/v1/incidents`
 * **الأدوار المصرح لها:** `CLAIMS_OFFICER`, `ADMIN` (المعاين `FIELD_ADJUSTER` يتلقى 403).
 * **جسم الطلب (Request Body):**
 ```json
 {
-  "incidentDate": "2026-06-15",
   "incidentType": "COLLISION",
-  "incidentLocation": "Al-Irsal St, Ramallah",
-  "description": "Front collision with barrier",
-  "latitude": 31.9050,
-  "longitude": 35.2040
+  "incidentLocation": "Faisal St, Nablus",
+  "incidentAt": "2026-06-15T10:00:00+03:00",
+  "governorate": "NABLUS",
+  "reportSource": "PALESTINIAN_POLICE_EKROKA",
+  "eKrokaReference": "EK-2026-00441",
+  "policeReportNumber": null,
+  "injuriesReported": false,
+  "description": "Side collision at intersection",
+  "latitude": 32.2211,
+  "longitude": 35.2544,
+  "vehicles": [
+    {
+      "vehicleRole": "INSURED",
+      "plateRegion": "PALESTINIAN",
+      "plateNumber": "6-1234-90",
+      "vehicleId": "60d0fe4f5311236168a109cb",
+      "make": "Toyota",
+      "model": "Corolla",
+      "year": 2022,
+      "insurerName": "InsurCo",
+      "vehicleUse": "PRIVATE",
+      "lienholderBank": null
+    },
+    {
+      "vehicleRole": "THIRD_PARTY",
+      "plateRegion": "PALESTINIAN",
+      "plateNumber": "7-5678-91",
+      "vehicleId": null,
+      "make": "Hyundai",
+      "model": "Elantra",
+      "year": 2021,
+      "insurerName": "Other Insurance",
+      "vehicleUse": "COMMERCIAL",
+      "lienholderBank": null
+    }
+  ],
+  "parties": [
+    {
+      "role": "INSURED_DRIVER",
+      "fullName": "Ahmad Fake",
+      "nationalId": "000123456",
+      "phone": "+970001234567",
+      "licenseClass": "B",
+      "licenseExpiry": "2028-12-31",
+      "vehicleIndex": 0
+    },
+    {
+      "role": "THIRD_PARTY_DRIVER",
+      "fullName": "Khaled Fake",
+      "nationalId": "000987654",
+      "phone": "+970007654321",
+      "licenseClass": "B",
+      "licenseExpiry": "2027-05-15",
+      "vehicleIndex": 1
+    }
+  ],
+  "damagedItems": [
+    {
+      "itemType": "OTHER",
+      "description": "Damaged street sign at intersection"
+    }
+  ]
 }
 ```
 * **استجابة النجاح (201 Created):**
@@ -545,15 +608,56 @@
     "id": "<INCIDENT_ID>",
     "incidentNumber": "INC-20261001-0001",
     "incidentDate": "2026-06-15",
+    "incidentAt": "2026-06-15T07:00:00.000Z",
+    "reportedAt": "2026-06-15T07:05:00.000Z",
     "incidentType": "COLLISION",
-    "incidentLocation": "Al-Irsal St, Ramallah",
-    "incidentDescription": "Front collision with barrier",
+    "incidentLocation": "Faisal St, Nablus",
+    "incidentDescription": "Side collision at intersection",
     "incidentCoordinates": {
-      "latitude": 31.9050,
-      "longitude": 35.2040,
-      "capturedAt": "2026-06-15T10:00:00.000Z"
+      "latitude": 32.2211,
+      "longitude": 35.2544,
+      "capturedAt": "2026-06-15T07:05:00.000Z"
     },
-    "createdAt": "2026-06-15T10:00:00.000Z"
+    "governorate": "NABLUS",
+    "reportSource": "PALESTINIAN_POLICE_EKROKA",
+    "eKrokaReference": "EK-2026-00441",
+    "policeReportNumber": null,
+    "injuriesReported": false,
+    "vehicles": [
+      {
+        "id": "<VEHICLE_SUB_ID_1>",
+        "vehicleRole": "INSURED",
+        "plateRegion": "PALESTINIAN",
+        "plateNumber": "6-1234-90",
+        "vehicleId": "60d0fe4f5311236168a109cb",
+        "make": "Toyota",
+        "model": "Corolla",
+        "year": 2022,
+        "insurerName": "InsurCo",
+        "vehicleUse": "PRIVATE",
+        "lienholderBank": null
+      }
+    ],
+    "parties": [
+      {
+        "id": "<PARTY_SUB_ID_1>",
+        "role": "INSURED_DRIVER",
+        "fullName": "Ahmad Fake",
+        "nationalId": "000123456",
+        "phone": "+970001234567",
+        "licenseClass": "B",
+        "licenseExpiry": "2028-12-31",
+        "vehicleRef": "<VEHICLE_SUB_ID_1>"
+      }
+    ],
+    "damagedItems": [
+      {
+        "id": "<ITEM_SUB_ID_1>",
+        "itemType": "OTHER",
+        "description": "Damaged street sign at intersection"
+      }
+    ],
+    "createdAt": "2026-06-15T07:05:00.000Z"
   }
 }
 ```
@@ -581,9 +685,15 @@
       "id": "<INCIDENT_ID>",
       "incidentNumber": "INC-20261001-0001",
       "incidentDate": "2026-06-15",
+      "incidentAt": "2026-06-15T07:00:00.000Z",
       "incidentType": "COLLISION",
-      "incidentLocation": "Al-Irsal St, Ramallah",
-      "createdAt": "2026-06-15T10:00:00.000Z"
+      "incidentLocation": "Faisal St, Nablus",
+      "governorate": "NABLUS",
+      "reportSource": "PALESTINIAN_POLICE_EKROKA",
+      "injuriesReported": false,
+      "vehiclesCount": 2,
+      "partiesCount": 2,
+      "createdAt": "2026-06-15T07:05:00.000Z"
     }
   ]
 }
@@ -600,22 +710,63 @@
     "id": "<INCIDENT_ID>",
     "incidentNumber": "INC-20261001-0001",
     "incidentDate": "2026-06-15",
+    "incidentAt": "2026-06-15T07:00:00.000Z",
+    "reportedAt": "2026-06-15T07:05:00.000Z",
     "incidentType": "COLLISION",
-    "incidentLocation": "Al-Irsal St, Ramallah",
-    "incidentDescription": "Front collision with barrier",
+    "incidentLocation": "Faisal St, Nablus",
+    "incidentDescription": "Side collision at intersection",
     "incidentCoordinates": {
-      "latitude": 31.9050,
-      "longitude": 35.2040,
-      "capturedAt": "2026-06-15T10:00:00.000Z"
+      "latitude": 32.2211,
+      "longitude": 35.2544,
+      "capturedAt": "2026-06-15T07:05:00.000Z"
     },
-    "createdAt": "2026-06-15T10:00:00.000Z",
+    "governorate": "NABLUS",
+    "reportSource": "PALESTINIAN_POLICE_EKROKA",
+    "eKrokaReference": "EK-2026-00441",
+    "policeReportNumber": null,
+    "injuriesReported": false,
+    "vehicles": [
+      {
+        "id": "<VEHICLE_SUB_ID_1>",
+        "vehicleRole": "INSURED",
+        "plateRegion": "PALESTINIAN",
+        "plateNumber": "6-1234-90",
+        "vehicleId": "60d0fe4f5311236168a109cb",
+        "make": "Toyota",
+        "model": "Corolla",
+        "year": 2022,
+        "insurerName": "InsurCo",
+        "vehicleUse": "PRIVATE",
+        "lienholderBank": null
+      }
+    ],
+    "parties": [
+      {
+        "id": "<PARTY_SUB_ID_1>",
+        "role": "INSURED_DRIVER",
+        "fullName": "Ahmad Fake",
+        "nationalId": "000123456",
+        "phone": "+970001234567",
+        "licenseClass": "B",
+        "licenseExpiry": "2028-12-31",
+        "vehicleRef": "<VEHICLE_SUB_ID_1>"
+      }
+    ],
+    "damagedItems": [
+      {
+        "id": "<ITEM_SUB_ID_1>",
+        "itemType": "OTHER",
+        "description": "Damaged street sign at intersection"
+      }
+    ],
+    "createdAt": "2026-06-15T07:05:00.000Z",
     "claims": [
       {
         "id": "<CLAIM_ID>",
         "claimNumber": "CLM-20261001-0001",
         "claimType": "OWN_DAMAGE",
         "status": "NEW",
-        "plateNumber": "ABC-1234"
+        "plateNumber": "6-1234-90"
       }
     ]
   }
@@ -629,15 +780,34 @@
 {
   "claimType": "OWN_DAMAGE",
   "policyId": "<POLICY_ID>",
-  "plateNumber": "ABC-1234"
+  "plateNumber": "6-1234-90"
 }
 ```
-* **قواعد العمل وحماية التكرار (Duplicate Guard):**
-  * يتم نسخ وقائع الحادث تلقائياً من وثيقة الحادث الأصلية ولا تُرسل في الطلب.
-  * نوع المطالبة `THIRD_PARTY_PD` مغلق حالياً ويرجع `422 CLAIM_TYPE_NOT_SUPPORTED`.
-  * حماية التكرار تمنع إنشاء أكثر من مطالبة `OWN_DAMAGE` واحدة لنفس المركبة في نفس الحادث وتُرجع `409 DUPLICATE_SUB_CLAIM`.
-* **استجابة النجاح (201 Created):**
-  تتطابق مفاتيح الاستجابة تماماً مع استجابة إنشاء المطالبة `POST /claims`.
+* **استجابة النجاح (201 Created):** تتطابق مع استجابة إنشاء المطالبة الأصلية.
+
+#### 5. إضافة مركبة جديدة للحادث (Append Vehicle)
+* **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/vehicles`
+* **الحد الأقصى:** 10 مركبات لكل حادث (يرجع `422 INCIDENT_LIMIT_REACHED` عند تجاوزه).
+* **جسم الطلب (Request Body):** كائن مركبة مفرد `IncidentVehicle`.
+* **استجابة النجاح (201 Created):** كائن المركبة الجديد شاملاً `id`.
+
+#### 6. إضافة طرف جديد للحادث (Append Party)
+* **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/parties`
+* **الحد الأقصى:** 30 طرف لكل حادث (يرجع `422 INCIDENT_LIMIT_REACHED` عند تجاوزه).
+* **جسم الطلب (Request Body):** كائن طرف مفرد `Party` مع `vehicleRef` (يشير لمعرف مركبة تابعة لنفس الحادث).
+* **استجابة النجاح (201 Created):** كائن الطرف الجديد شاملاً `id`.
+
+#### 7. إضافة ممتلكات متضررة للحادث (Append Damaged Item)
+* **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/damaged-items`
+* **الحد الأقصى:** 20 عنصر لكل حادث (يرجع `422 INCIDENT_LIMIT_REACHED` عند تجاوزه).
+* **جسم الطلب (Request Body):** `{ "itemType": "BUILDING" | "OTHER", "description": "وصف الضرر" }`.
+* **استجابة النجاح (201 Created):** كائن الممتلكات المتضررة الجديد شاملاً `id`.
+
+#### 8. تحديث واستكمال بيانات تقرير الحادث (Patch Report)
+* **المسار (Endpoint):** `PATCH /api/v1/incidents/:incidentId/report`
+* **القاعدة:** مخصص لملء الحقول الفارغة فقط؛ أي حقل تم تعيينه مسبقاً يرجع `409 REPORT_FIELD_ALREADY_SET`.
+* **جسم الطلب (Request Body):** أي من `reportSource`, `eKrokaReference`, `policeReportNumber`, `injuriesReported`.
+* **استجابة النجاح (200 OK):** الحقول المحدثة للتقرير.
 
 ---
 
@@ -721,6 +891,7 @@
 | 409 | `INVALID_STATUS_TRANSITION` | محاولة تغيير حالة المطالبة لمسار غير مسموح | لا يمكن تنفيذ هذا الإجراء في حالة المطالبة الحالية |
 | 409 | `CLAIM_ALREADY_EXISTS` | فتح مطالبة مكررة لنفس الحادث أو الوثيقة | توجد مطالبة سابقة مسجلة بالفعل |
 | 409 | `DUPLICATE_SUB_CLAIM` | فتح مطالبة أضرار ذاتية ثانية لنفس المركبة في نفس الحادث | توجد مطالبة أضرار ذاتية لهذه المركبة في هذا الحادث |
+| 409 | `CONFLICT_RETRY` | تعارض تعديل متزامن على الحادث | تم تعديل الحادث، يرجى إعادة المحاولة (Incident changed, retry) |
 | 422 | `POLICY_CANCELLED` | محاولة التحقق أو فتح مطالبة على وثيقة ملغاة | الوثيقة ملغاة ولا يمكن فتح مطالبة عليها |
 | 422 | `POLICY_MISMATCH` | الوثيقة المرسلة لا تطابق وثيقة المطالبة | الوثيقة المرسلة لا تطابق وثيقة المطالبة |
 | 422 | `VEHICLE_NOT_ON_CLAIM_POLICY` | المركبة غير مسجلة على وثيقة هذه المطالبة | المركبة غير مسجلة على وثيقة هذه المطالبة |

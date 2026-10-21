@@ -7,6 +7,10 @@ const {
   createIncidentSchema,
   listIncidentsQuerySchema,
   createSubClaimSchema,
+  vehicleItemSchema,
+  appendPartyItemSchema,
+  damagedItemItemSchema,
+  patchIncidentReportSchema,
 } = require('./incident.validation');
 
 const router = express.Router();
@@ -22,6 +26,30 @@ router.post(
   validateObjectId('incidentId'),
   validate(createSubClaimSchema),
   incidentController.createSubClaim
+);
+router.post(
+  '/:incidentId/vehicles',
+  validateObjectId('incidentId'),
+  validate(vehicleItemSchema),
+  incidentController.addVehicle
+);
+router.post(
+  '/:incidentId/parties',
+  validateObjectId('incidentId'),
+  validate(appendPartyItemSchema),
+  incidentController.addParty
+);
+router.post(
+  '/:incidentId/damaged-items',
+  validateObjectId('incidentId'),
+  validate(damagedItemItemSchema),
+  incidentController.addDamagedItem
+);
+router.patch(
+  '/:incidentId/report',
+  validateObjectId('incidentId'),
+  validate(patchIncidentReportSchema),
+  incidentController.patchReport
 );
 
 module.exports = router;

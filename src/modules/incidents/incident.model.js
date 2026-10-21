@@ -2,6 +2,132 @@ const mongoose = require('mongoose');
 const Counter = require('../../utils/counter.model');
 const Organization = require('../organizations/organization.model');
 
+const incidentVehicleSchema = new mongoose.Schema(
+  {
+    vehicleRole: {
+      type: String,
+      enum: ['INSURED', 'THIRD_PARTY', 'OTHER'],
+      required: true,
+    },
+    plateRegion: {
+      type: String,
+      enum: ['PALESTINIAN', 'ISRAELI', 'OTHER', 'UNKNOWN'],
+      required: true,
+    },
+    plateNumber: {
+      type: String,
+      trim: true,
+      maxlength: 20,
+      default: null,
+    },
+    vehicleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vehicle',
+      default: null,
+    },
+    make: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+      default: null,
+    },
+    model: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+      default: null,
+    },
+    year: {
+      type: Number,
+      default: null,
+    },
+    insurerName: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+    vehicleUse: {
+      type: String,
+      trim: true,
+      maxlength: 20,
+      default: null,
+    },
+    lienholderBank: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+  },
+  { _id: true, timestamps: false }
+);
+
+const partySchema = new mongoose.Schema(
+  {
+    role: {
+      type: String,
+      enum: [
+        'INSURED_DRIVER',
+        'OWNER',
+        'THIRD_PARTY_DRIVER',
+        'PASSENGER',
+        'PEDESTRIAN',
+        'WITNESS',
+        'GUARDIAN',
+        'HEIR',
+      ],
+      required: true,
+    },
+    fullName: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+    nationalId: {
+      type: String,
+      default: null,
+    },
+    phone: {
+      type: String,
+      default: null,
+    },
+    licenseClass: {
+      type: String,
+      trim: true,
+      maxlength: 20,
+      default: null,
+    },
+    licenseExpiry: {
+      type: String,
+      default: null,
+    },
+    vehicleRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+  },
+  { _id: true, timestamps: false }
+);
+
+const damagedItemSchema = new mongoose.Schema(
+  {
+    itemType: {
+      type: String,
+      enum: ['BUILDING', 'OTHER'],
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 500,
+    },
+  },
+  { _id: true, timestamps: false }
+);
+
 const incidentSchema = new mongoose.Schema(
   {
     organizationId: {
@@ -16,6 +142,14 @@ const incidentSchema = new mongoose.Schema(
     incidentDate: {
       type: String,
       required: true,
+    },
+    incidentAt: {
+      type: Date,
+      default: null,
+    },
+    reportedAt: {
+      type: Date,
+      default: Date.now,
     },
     incidentType: {
       type: String,
@@ -43,6 +177,67 @@ const incidentSchema = new mongoose.Schema(
         { _id: false }
       ),
       default: null,
+    },
+    governorate: {
+      type: String,
+      enum: [
+        'JENIN',
+        'TUBAS',
+        'TULKARM',
+        'NABLUS',
+        'QALQILYA',
+        'SALFIT',
+        'RAMALLAH_AL_BIREH',
+        'JERICHO',
+        'JERUSALEM',
+        'BETHLEHEM',
+        'HEBRON',
+        'NORTH_GAZA',
+        'GAZA',
+        'DEIR_AL_BALAH',
+        'KHAN_YUNIS',
+        'RAFAH',
+      ],
+      default: null,
+    },
+    reportSource: {
+      type: String,
+      enum: [
+        'PALESTINIAN_POLICE_EKROKA',
+        'PALESTINIAN_POLICE_PAPER',
+        'ISRAELI_POLICE',
+        'AGREED_STATEMENT',
+        'NONE',
+      ],
+      default: null,
+    },
+    eKrokaReference: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+      default: null,
+    },
+    policeReportNumber: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+      default: null,
+    },
+    injuriesReported: {
+      type: Boolean,
+      default: null,
+    },
+    vehicles: {
+      type: [incidentVehicleSchema],
+      default: [],
+    },
+    parties: {
+      type: [partySchema],
+      default: [],
+    },
+    damagedItems: {
+      type: [damagedItemSchema],
+      default: [],
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

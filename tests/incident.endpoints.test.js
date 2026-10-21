@@ -147,10 +147,27 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       .send({
         incidentType: 'COLLISION',
         incidentLocation: 'King Fahd Rd, Riyadh',
-        incidentDate: '2026-06-15',
+        incidentAt: '2026-06-15T10:00:00+03:00',
+        governorate: 'RAMALLAH_AL_BIREH',
+        reportSource: 'NONE',
+        injuriesReported: false,
         description: 'Two car collision',
         latitude: 24.7136,
         longitude: 46.6753,
+        vehicles: [
+          {
+            vehicleRole: 'THIRD_PARTY',
+            plateRegion: 'PALESTINIAN',
+            plateNumber: 'TP-100',
+          },
+        ],
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            fullName: 'Driver One',
+            vehicleIndex: 0,
+          },
+        ],
       });
 
     expect(res.status).toBe(201);
@@ -178,8 +195,25 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       .send({
         incidentType: 'COLLISION',
         incidentLocation: 'King Fahd Rd, Riyadh',
-        incidentDate: '2099-01-01',
+        incidentAt: '2099-01-01T10:00:00+03:00',
+        governorate: 'RAMALLAH_AL_BIREH',
+        reportSource: 'NONE',
+        injuriesReported: false,
         description: 'Future accident',
+        vehicles: [
+          {
+            vehicleRole: 'THIRD_PARTY',
+            plateRegion: 'PALESTINIAN',
+            plateNumber: 'TP-100',
+          },
+        ],
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            fullName: 'Driver One',
+            vehicleIndex: 0,
+          },
+        ],
       });
 
     expect(res.status).toBe(400);
@@ -482,7 +516,24 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       .send({
         incidentType: 'COLLISION',
         incidentLocation: 'Loc',
-        incidentDate: '2026-06-15',
+        incidentAt: '2026-06-15T10:00:00+03:00',
+        governorate: 'RAMALLAH_AL_BIREH',
+        reportSource: 'NONE',
+        injuriesReported: false,
+        vehicles: [
+          {
+            vehicleRole: 'THIRD_PARTY',
+            plateRegion: 'PALESTINIAN',
+            plateNumber: 'TP-100',
+          },
+        ],
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            fullName: 'Driver One',
+            vehicleIndex: 0,
+          },
+        ],
       });
     expect(postIncidentRes.status).toBe(403);
 
