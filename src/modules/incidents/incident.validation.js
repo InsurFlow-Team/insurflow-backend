@@ -44,29 +44,93 @@ const vehicleItemSchema = Joi.object({
 });
 
 const partyItemSchema = Joi.object({
-  role: Joi.string()
-    .valid(
-      'INSURED_DRIVER',
-      'OWNER',
-      'THIRD_PARTY_DRIVER',
-      'PASSENGER',
-      'PEDESTRIAN',
-      'WITNESS',
-      'GUARDIAN',
-      'HEIR'
-    )
-    .required()
+  partyType: Joi.string()
+    .valid('PERSON', 'COMPANY')
+    .default('PERSON')
     .messages({
-      'any.only':
-        'role must be one of: INSURED_DRIVER, OWNER, THIRD_PARTY_DRIVER, PASSENGER, PEDESTRIAN, WITNESS, GUARDIAN, HEIR',
-      'any.required': 'role is required',
+      'any.only': 'partyType must be one of: PERSON, COMPANY',
     }),
+  role: Joi.when('partyType', {
+    is: 'COMPANY',
+    then: Joi.string()
+      .valid('POLICYHOLDER', 'OWNER', 'LIENHOLDER')
+      .required()
+      .messages({
+        'any.only': 'role for COMPANY must be one of: POLICYHOLDER, OWNER, LIENHOLDER',
+        'any.required': 'role is required',
+      }),
+    otherwise: Joi.string()
+      .valid(
+        'INSURED_DRIVER',
+        'OWNER',
+        'THIRD_PARTY_DRIVER',
+        'PASSENGER',
+        'PEDESTRIAN',
+        'WITNESS',
+        'GUARDIAN',
+        'HEIR',
+        'POLICYHOLDER',
+        'AUTHORIZED_REPRESENTATIVE',
+        'LIENHOLDER'
+      )
+      .required()
+      .messages({
+        'any.only': 'Invalid party role',
+        'any.required': 'role is required',
+      }),
+  }),
   fullName: Joi.string().trim().max(100).required().messages({
     'string.empty': 'fullName cannot be empty',
     'any.required': 'fullName is required',
   }),
-  nationalId: Joi.string().pattern(/^\d{9}$/).allow(null).optional().messages({
-    'string.pattern.base': 'nationalId must be exactly 9 digits',
+  idType: Joi.when('partyType', {
+    is: 'COMPANY',
+    then: Joi.string()
+      .valid('COMPANY_REGISTRATION')
+      .allow(null)
+      .optional()
+      .messages({
+        'any.only': 'idType for COMPANY must be COMPANY_REGISTRATION',
+      }),
+    otherwise: Joi.string()
+      .valid('PALESTINIAN_ID', 'ISRAELI_ID', 'PASSPORT')
+      .allow(null)
+      .optional()
+      .messages({
+        'any.only': 'idType for PERSON must be one of: PALESTINIAN_ID, ISRAELI_ID, PASSPORT',
+      }),
+  }),
+  idNumber: Joi.when('idType', {
+    switch: [
+      {
+        is: Joi.valid('PALESTINIAN_ID', 'ISRAELI_ID').required(),
+        then: Joi.string().pattern(/^\d{9}$/).required().messages({
+          'string.pattern.base': 'idNumber must be exactly 9 digits',
+          'any.required': 'idNumber is required when idType is provided',
+        }),
+      },
+      {
+        is: Joi.valid('PASSPORT').required(),
+        then: Joi.string().uppercase().pattern(/^[A-Z0-9]{5,20}$/).required().messages({
+          'string.pattern.base': 'idNumber for PASSPORT must be 5 to 20 letters or digits',
+          'any.required': 'idNumber is required when idType is provided',
+        }),
+      },
+      {
+        is: Joi.valid('COMPANY_REGISTRATION').required(),
+        then: Joi.string().pattern(/^[A-Za-z0-9-]{3,20}$/).required().messages({
+          'string.pattern.base': 'idNumber for COMPANY_REGISTRATION must be 3 to 20 letters, digits or hyphens',
+          'any.required': 'idNumber is required when idType is provided',
+        }),
+      },
+      {
+        is: Joi.valid(null).required(),
+        then: Joi.valid(null).optional(),
+      },
+    ],
+    otherwise: Joi.forbidden().messages({
+      'any.unknown': 'idNumber is not allowed without idType',
+    }),
   }),
   phone: Joi.string().pattern(/^\+?\d{9,15}$/).allow(null).optional().messages({
     'string.pattern.base': 'phone must be a valid phone number',
@@ -87,13 +151,24 @@ const partyItemSchema = Joi.object({
       'any.unknown': 'licenseExpiry is only allowed for driver roles',
     }),
   }),
-});
+  nationalId: Joi.forbidden().messages({
+    'any.unknown': 'nationalId has been replaced by partyType, idType and idNumber',
+  }),
+}).and('idType', 'idNumber');
 
 const createPartyItemSchema = partyItemSchema.keys({
   vehicleIndex: Joi.when('role', {
     switch: [
       {
-        is: Joi.valid('INSURED_DRIVER', 'THIRD_PARTY_DRIVER', 'OWNER', 'PASSENGER'),
+        is: Joi.valid(
+          'INSURED_DRIVER',
+          'THIRD_PARTY_DRIVER',
+          'OWNER',
+          'PASSENGER',
+          'POLICYHOLDER',
+          'AUTHORIZED_REPRESENTATIVE',
+          'LIENHOLDER'
+        ),
         then: Joi.number().integer().min(0).required().messages({
           'any.required': 'vehicleIndex is required for this role',
         }),
@@ -116,7 +191,15 @@ const appendPartyItemSchema = partyItemSchema.keys({
   vehicleRef: Joi.when('role', {
     switch: [
       {
-        is: Joi.valid('INSURED_DRIVER', 'THIRD_PARTY_DRIVER', 'OWNER', 'PASSENGER'),
+        is: Joi.valid(
+          'INSURED_DRIVER',
+          'THIRD_PARTY_DRIVER',
+          'OWNER',
+          'PASSENGER',
+          'POLICYHOLDER',
+          'AUTHORIZED_REPRESENTATIVE',
+          'LIENHOLDER'
+        ),
         then: Joi.string().pattern(objectIdPattern).required().messages({
           'string.pattern.base': 'vehicleRef must be a valid MongoDB ObjectId',
           'any.required': 'vehicleRef is required for this role',
@@ -337,6 +420,24 @@ const createSubClaimSchema = Joi.object({
   plateNumber: Joi.string().trim().optional().messages({
     'string.base': 'Plate number must be a string',
   }),
+  claimantPartyId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'claimantPartyId must be a valid MongoDB ObjectId',
+      'string.empty': 'claimantPartyId is required',
+      'any.required': 'claimantPartyId is required',
+    }),
+  subjectRef: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'subjectRef must be a valid MongoDB ObjectId',
+      'string.empty': 'subjectRef is required',
+      'any.required': 'subjectRef is required',
+    }),
 });
 
 module.exports = {

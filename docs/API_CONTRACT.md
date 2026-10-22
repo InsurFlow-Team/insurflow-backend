@@ -36,6 +36,21 @@ Mobile client requests performed by `FIELD_ADJUSTER` users passively transmit th
 - `X-Longitude` (or alias `X-Adjuster-Longitude`): Current longitude as decimal number (`-180.0` to `180.0`).
 These headers are processed asynchronously by a lightweight middleware mounted after authentication. They update the adjuster's stored location without interrupting, delaying, or rejecting the primary request.
 
+### 2.2 Field-Level PII Masking Rules (Feature PB-02b)
+Personal Identifiable Information (PII) is masked server-side based on the authenticated caller's role and the data access context:
+- **Masking Algorithm:**
+  - `idNumber`: Mask every character except the last 4 with `*` (e.g., `000123456` becomes `*****3456`). If length $\le 4$, string is unmasked.
+  - `phone`: Mask every character except the last 3 with `*`. Leading `+` sign is preserved untouched (e.g., `+970001234567` becomes `+*********567`, `0591234567` becomes `*******567`). If length $\le 3$ (excluding `+`), string is unmasked.
+  - `null` or `undefined` values remain `null`.
+- **Role & Endpoint Exposure Matrix:**
+  | Field | `ADMIN` / `CLAIMS_OFFICER` | `FIELD_ADJUSTER` (Assigned Claim Detail `GET /claims/:claimId`) | `FIELD_ADJUSTER` (All other endpoints e.g. `GET /vehicles/lookup`, lists) |
+  | :--- | :--- | :--- | :--- |
+  | `customer.phone` | Full | Full | Masked (last 3 chars) |
+  | `claimant.phone` | Full | Full | Masked (last 3 chars) |
+  | `claimant.idNumber` (`partyType: PERSON`) | Full | Masked (last 4 chars) | Masked (last 4 chars) |
+  | `claimant.idNumber` (`partyType: COMPANY`) | Full (public registration) | Full (public registration) | Full (public registration) |
+- **Reports:** The downloadable PDF dossier (`GET /claims/:claimId/report`) and `POST /policies/verify` are restricted to `ADMIN` and `CLAIMS_OFFICER` only, hence PII is always rendered full and unmasked.
+
 ## 3. Authentication
 The API uses JWT-based authentication. The context containing user identity, role, and organization is securely extracted by the Backend from the access token.
 
@@ -330,6 +345,8 @@ Valid status transitions (enforced by the Backend):
       "incidentNumber": "INC-DEMO-0001",
       "claimType": "OWN_DAMAGE",
       "status": "ASSIGNED",
+      "claimantPartyId": "60d0fe4f5311236168a109d1",
+      "subjectRef": "60d0fe4f5311236168a109c1",
       "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
       "incidentType": "COLLISION",
@@ -344,8 +361,18 @@ Valid status transitions (enforced by the Backend):
       "updatedAt": "2026-08-26T15:10:00.000Z",
 
       "customer": {
-        "name": "John Doe",
-        "phone": "0591234567"
+        "name": "Ahmad Fake",
+        "phone": "+970001234567"
+      },
+
+      "claimant": {
+        "id": "60d0fe4f5311236168a109d1",
+        "partyType": "PERSON",
+        "role": "POLICYHOLDER",
+        "fullName": "Ahmad Fake",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
+        "phone": "+970001234567"
       },
 
       "vehicle": {
@@ -621,18 +648,40 @@ Valid status transitions (enforced by the Backend):
     ],
     "parties": [
       {
+        "partyType": "PERSON",
+        "role": "POLICYHOLDER",
+        "fullName": "Ahmad Fake",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
+        "phone": "+970001234567",
+        "vehicleIndex": 0
+      },
+      {
+        "partyType": "PERSON",
         "role": "INSURED_DRIVER",
         "fullName": "Ahmad Fake",
-        "nationalId": "000123456",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
         "phone": "+970001234567",
         "licenseClass": "B",
         "licenseExpiry": "2028-12-31",
         "vehicleIndex": 0
       },
       {
+        "partyType": "COMPANY",
+        "role": "POLICYHOLDER",
+        "fullName": "Al-Quds Transport Co",
+        "idType": "COMPANY_REGISTRATION",
+        "idNumber": "562-0001",
+        "phone": "+970002223344",
+        "vehicleIndex": 0
+      },
+      {
+        "partyType": "PERSON",
         "role": "THIRD_PARTY_DRIVER",
         "fullName": "Khaled Fake",
-        "nationalId": "000987654",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000987654",
         "phone": "+970007654321",
         "licenseClass": "B",
         "licenseExpiry": "2027-05-15",
@@ -657,8 +706,13 @@ Valid status transitions (enforced by the Backend):
     - `plateNumber` missing when `plateRegion` is not `UNKNOWN`, or present when `plateRegion` is `UNKNOWN`.
     - `vehicleId` sent on a non-`INSURED` vehicle.
     - `licenseClass` or `licenseExpiry` sent for a non-driver role.
-    - Missing vehicle link for driver, owner, or passenger roles; or vehicle link provided for pedestrian or witness.
-    - `nationalId` format not exactly 9 digits.
+    - Missing vehicle link for driver (`INSURED_DRIVER`, `THIRD_PARTY_DRIVER`), `OWNER`, `PASSENGER`, `POLICYHOLDER`, `AUTHORIZED_REPRESENTATIVE`, or `LIENHOLDER` roles; or vehicle link provided for pedestrian or witness.
+    - Sending legacy `nationalId` (replaced by `partyType`, `idType`, and `idNumber`).
+    - Invalid `partyType` (must be `PERSON` or `COMPANY`, default `PERSON`).
+    - Invalid `role` for partyType (`COMPANY` parties must have role `POLICYHOLDER`, `OWNER`, or `LIENHOLDER`).
+    - Invalid `idType` (`COMPANY` must use `COMPANY_REGISTRATION`; `PERSON` must use `PALESTINIAN_ID`, `ISRAELI_ID`, or `PASSPORT`).
+    - Sending `idNumber` without `idType` or vice versa.
+    - `idNumber` format mismatch (`PALESTINIAN_ID`/`ISRAELI_ID`: 9 digits; `PASSPORT`: 5-20 uppercase alphanumeric; `COMPANY_REGISTRATION`: 3-20 alphanumeric or hyphens).
   - `400 INVALID_INCIDENT_DATE`: `incidentAt` is more than 5 minutes in the future relative to server time.
   - `403 FORBIDDEN`: Authenticated user is not `CLAIMS_OFFICER` or `ADMIN`.
   - `404 VEHICLE_NOT_FOUND`: Specified `vehicleId` does not exist in caller's organization.
@@ -717,10 +771,24 @@ Valid status transitions (enforced by the Backend):
       ],
       "parties": [
         {
+          "id": "60d0fe4f5311236168a109d0",
+          "partyType": "PERSON",
+          "role": "POLICYHOLDER",
+          "fullName": "Ahmad Fake",
+          "idType": "PALESTINIAN_ID",
+          "idNumber": "000123456",
+          "phone": "+970001234567",
+          "licenseClass": null,
+          "licenseExpiry": null,
+          "vehicleRef": "60d0fe4f5311236168a109c1"
+        },
+        {
           "id": "60d0fe4f5311236168a109d1",
+          "partyType": "PERSON",
           "role": "INSURED_DRIVER",
           "fullName": "Ahmad Fake",
-          "nationalId": "000123456",
+          "idType": "PALESTINIAN_ID",
+          "idNumber": "000123456",
           "phone": "+970001234567",
           "licenseClass": "B",
           "licenseExpiry": "2028-12-31",
@@ -728,9 +796,23 @@ Valid status transitions (enforced by the Backend):
         },
         {
           "id": "60d0fe4f5311236168a109d2",
+          "partyType": "COMPANY",
+          "role": "POLICYHOLDER",
+          "fullName": "Al-Quds Transport Co",
+          "idType": "COMPANY_REGISTRATION",
+          "idNumber": "562-0001",
+          "phone": "+970002223344",
+          "licenseClass": null,
+          "licenseExpiry": null,
+          "vehicleRef": "60d0fe4f5311236168a109c1"
+        },
+        {
+          "id": "60d0fe4f5311236168a109d3",
+          "partyType": "PERSON",
           "role": "THIRD_PARTY_DRIVER",
           "fullName": "Khaled Fake",
-          "nationalId": "000987654",
+          "idType": "PALESTINIAN_ID",
+          "idNumber": "000987654",
           "phone": "+970007654321",
           "licenseClass": "B",
           "licenseExpiry": "2027-05-15",
@@ -837,9 +919,23 @@ Valid status transitions (enforced by the Backend):
       "parties": [
         {
           "id": "60d0fe4f5311236168a109d1",
+          "partyType": "PERSON",
+          "role": "POLICYHOLDER",
+          "fullName": "Ahmad Fake",
+          "idType": "PALESTINIAN_ID",
+          "idNumber": "000123456",
+          "phone": "+970001234567",
+          "licenseClass": null,
+          "licenseExpiry": null,
+          "vehicleRef": "60d0fe4f5311236168a109c1"
+        },
+        {
+          "id": "60d0fe4f5311236168a109d2",
+          "partyType": "PERSON",
           "role": "INSURED_DRIVER",
           "fullName": "Ahmad Fake",
-          "nationalId": "000123456",
+          "idType": "PALESTINIAN_ID",
+          "idNumber": "000123456",
           "phone": "+970001234567",
           "licenseClass": "B",
           "licenseExpiry": "2028-12-31",
@@ -882,9 +978,20 @@ Valid status transitions (enforced by the Backend):
 ### `POST /incidents/:incidentId/parties`
 - **Purpose:** Append a new party to an existing Incident (cap: 30 parties).
 - **Authorized Roles:** `CLAIMS_OFFICER`, `ADMIN` (`FIELD_ADJUSTER` receives `403 FORBIDDEN`).
-- **Request Body:** Single `Party` object with `vehicleRef` (ObjectId of an existing vehicle in this incident).
+- **Request Body:** Single `Party` object with `vehicleRef` (ObjectId of an existing vehicle in this incident when required by role):
+  ```json
+  {
+    "partyType": "PERSON",
+    "role": "POLICYHOLDER",
+    "fullName": "Ahmad Fake",
+    "idType": "PALESTINIAN_ID",
+    "idNumber": "000123456",
+    "phone": "+970001234567",
+    "vehicleRef": "60d0fe4f5311236168a109c1"
+  }
+  ```
 - **Error Codes:**
-  - `400 VALIDATION_ERROR`: Invalid role, licenseClass on non-driver, invalid nationalId, or invalid vehicle linkage for role.
+  - `400 VALIDATION_ERROR`: Invalid partyType, invalid role for partyType, missing vehicleRef for driver/owner/passenger/policyholder/authorized representative/lienholder, vehicleRef on witness/pedestrian, licenseClass on non-driver, sending legacy nationalId, idNumber without idType or vice versa, or invalid idNumber format.
   - `404 INCIDENT_NOT_FOUND`: Incident does not exist in caller's organization.
   - `409 CONFLICT_RETRY`: Concurrent modification conflict.
   - `422 INVALID_VEHICLE_REF`: `vehicleRef` does not point to an existing vehicle in this incident.
@@ -934,18 +1041,32 @@ Valid status transitions (enforced by the Backend):
   {
     "claimType": "OWN_DAMAGE",
     "policyId": "651a2b3c4d5e6f7a8b9c0d1e",
-    "plateNumber": "ABC-1234"
+    "plateNumber": "6-1234-90",
+    "claimantPartyId": "60d0fe4f5311236168a109d1",
+    "subjectRef": "60d0fe4f5311236168a109c1"
   }
   ```
+- **Validation Rules (400 VALIDATION_ERROR):**
+  - `claimType` (required, valid enum).
+  - `policyId` (required, MongoDB ObjectId).
+  - `claimantPartyId` (required, MongoDB ObjectId).
+  - `subjectRef` (required, MongoDB ObjectId).
+  - `plateNumber` (optional string).
 - **Check Order & Error Codes:**
   1. `404 INCIDENT_NOT_FOUND`: Incident not found in caller's organization.
   2. `422 CLAIM_TYPE_NOT_SUPPORTED`: `claimType` is `THIRD_PARTY_PD`.
-  3. `404 POLICY_NOT_FOUND`: Policy not found in caller's organization.
-  4. `422 POLICY_CANCELLED`: Policy is cancelled.
-  5. `422 NO_VEHICLE_ON_POLICY`: No vehicle registered under policy.
-  6. `422 VEHICLE_MISMATCH`: Specified plate number does not match policy.
-  7. `422 AMBIGUOUS_VEHICLE_SELECTION`: Multiple vehicles on policy and caller omitted plateNumber.
-  8. `409 DUPLICATE_SUB_CLAIM`: An OWN_DAMAGE claim already exists for this vehicle in this incident.
+  3. `422 SUBJECT_VEHICLE_NOT_FOUND`: `subjectRef` does not point to an existing vehicle in this incident.
+  4. `422 SUBJECT_VEHICLE_NOT_INSURED`: Incident vehicle role is not `INSURED`.
+  5. `404 POLICY_NOT_FOUND`: Policy not found in caller's organization.
+  6. `422 POLICY_CANCELLED`: Policy is cancelled.
+  7. `422 NO_VEHICLE_ON_POLICY`: No vehicle registered under policy.
+  8. `422 VEHICLE_MISMATCH`: Specified plate number does not match policy.
+  9. `422 SUBJECT_VEHICLE_MISMATCH`: Incident vehicle `vehicleId` does not match the vehicle resolved from policy.
+  10. `422 AMBIGUOUS_VEHICLE_SELECTION`: Multiple vehicles on policy and caller omitted plateNumber.
+  11. `422 CLAIMANT_PARTY_NOT_FOUND`: `claimantPartyId` does not point to an existing party in this incident.
+  12. `422 INVALID_CLAIMANT_ROLE`: Claimant party role is not `POLICYHOLDER` or `AUTHORIZED_REPRESENTATIVE`.
+  13. `422 CLAIMANT_VEHICLE_MISMATCH`: Claimant party `vehicleRef` does not equal `subjectRef`.
+  14. `409 DUPLICATE_SUB_CLAIM`: An OWN_DAMAGE claim already exists for this vehicle in this incident.
 - **Success Response (201 Created):**
   ```json
   {
@@ -958,6 +1079,8 @@ Valid status transitions (enforced by the Backend):
       "incidentNumber": "INC-INS-0001",
       "claimType": "OWN_DAMAGE",
       "status": "NEW",
+      "claimantPartyId": "60d0fe4f5311236168a109d1",
+      "subjectRef": "60d0fe4f5311236168a109c1",
       "trackingToken": "d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "trackingUrl": "http://localhost:3000/track/d4e2a6b8c0f1e3d5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3",
       "eligibilityHint": "ELIGIBLE_FOR_REVIEW",
@@ -1137,15 +1260,16 @@ Valid status transitions (enforced by the Backend):
 - **Authentication:** Required (JWT).
 - **Request Parameters:** `?plateNumber=ABC-1234`
 - **Business Rules:** Mock Data is strictly accessed via the Backend (no direct client-to-insurance DB connections). 
+- **PII Masking (PB-02b):** Since this lookup is not scoped to an assigned claim, `customer.phone` is masked for `FIELD_ADJUSTER` (preserving only the last 3 digits, e.g. `"phone": "*******567"` or `"+******111"`).
 - **Warning Condition:** If the retrieved policy is EXPIRED, it does not prevent the workflow, but should return a clear indication for the client.
 - **Success Response (200):**
   ```json
   {
     "success": true,
     "data": {
-      "vehicle": { "id": "v-uuid", "plateNumber": "ABC-1234", "make": "Toyota", "model": "Corolla", "year": 2022, "color": "White" },
-      "customer": { "id": "c-uuid", "fullName": "John Doe", "phone": "0591234567" },
-      "policy": { "id": "p-uuid", "policyNumber": "POL-102938", "status": "ACTIVE", "startDate": "2023-01-01", "expiryDate": "2024-01-01" }
+      "vehicle": { "id": "v-uuid", "plateNumber": "6-1234-90", "make": "Toyota", "model": "Corolla", "year": 2022, "color": "White" },
+      "customer": { "id": "c-uuid", "fullName": "Ahmad Fake", "phone": "*******567" },
+      "policy": { "id": "p-uuid", "policyNumber": "POL-102938", "status": "ACTIVE", "startDate": "2026-01-01", "expiryDate": "2027-01-01" }
     }
   }
   ```

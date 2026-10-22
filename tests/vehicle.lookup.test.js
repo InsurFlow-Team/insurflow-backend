@@ -181,7 +181,7 @@ describe('Vehicle Lookup API', () => {
     expect(vehicle.year).toBe(2021);
     
     expect(customer.fullName).toBe('Test Customer 1');
-    expect(customer.phone).toBe('+111111111');
+    expect(customer.phone).toBe('+******111');
     
     expect(policy.policyNumber).toBe('POL-TEST-1');
     expect(policy.status).toBe('ACTIVE');

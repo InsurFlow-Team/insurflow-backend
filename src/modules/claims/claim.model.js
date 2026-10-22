@@ -55,6 +55,14 @@ const claimSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    claimantPartyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    subjectRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     claimType: {
       type: String,
       enum: ['OWN_DAMAGE', 'THIRD_PARTY_PD'],

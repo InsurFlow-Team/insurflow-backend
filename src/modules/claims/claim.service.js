@@ -10,6 +10,7 @@ const Organization = require('../organizations/organization.model');
 const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const maskPlateNumber = require('../../utils/maskPlateNumber');
+const { maskIdNumber } = require('../../utils/maskPii');
 const { PUBLIC_STATUS_MAP, PUBLIC_STATUS_RANK, PUBLIC_TIMELINE_TEXT } = require('./claim.public.constants');
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
@@ -103,10 +104,12 @@ const resolveClaimData = async (
   return { policy, vehicle, claimFields };
 };
 
-const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', authUser) => {
+const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', authUser, subClaimRefs = {}) => {
   const claimData = {
     incidentId: incident._id,
     incidentNumber: incident.incidentNumber,
+    claimantPartyId: subClaimRefs.claimantPartyId || null,
+    subjectRef: subClaimRefs.subjectRef || null,
     claimType,
     organizationId: authUser.organizationId,
     createdBy: authUser.userId,
@@ -197,6 +200,10 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
         }
       : null,
     createdAt: claim.createdAt,
+    ...(subClaimRefs.claimantPartyId && subClaimRefs.subjectRef && {
+      claimantPartyId: claim.claimantPartyId,
+      subjectRef: claim.subjectRef,
+    }),
   };
 };
 
@@ -257,7 +264,7 @@ const createClaim = async (body, authUser) => {
 };
 
 const createSubClaim = async (incidentId, body, authUser) => {
-  const { claimType, policyId, plateNumber } = body;
+  const { claimType, policyId, plateNumber, claimantPartyId, subjectRef } = body;
 
   const incident = await incidentRepository.findByIdAndOrganization(incidentId, authUser.organizationId);
   if (!incident) {
@@ -268,7 +275,29 @@ const createSubClaim = async (incidentId, body, authUser) => {
     throw new AppError('Claim type THIRD_PARTY_PD is not supported yet', 422, 'CLAIM_TYPE_NOT_SUPPORTED');
   }
 
-  const { claimFields } = await resolveClaimData(
+  // 1. subjectRef is an incident vehicle with vehicleRole INSURED, else 422 INVALID_SUBJECT_VEHICLE
+  const subjectVehicle = (incident.vehicles || []).find(
+    (v) => v._id.toString() === subjectRef.toString()
+  );
+  if (!subjectVehicle || subjectVehicle.vehicleRole !== 'INSURED') {
+    throw new AppError('Invalid subject vehicle', 422, 'INVALID_SUBJECT_VEHICLE');
+  }
+
+  // 2. claimantPartyId is an incident party with role POLICYHOLDER or AUTHORIZED_REPRESENTATIVE and vehicleRef equal to subjectRef, else 422 INVALID_CLAIMANT
+  const claimantParty = (incident.parties || []).find(
+    (p) => p._id.toString() === claimantPartyId.toString()
+  );
+  if (
+    !claimantParty ||
+    !['POLICYHOLDER', 'AUTHORIZED_REPRESENTATIVE'].includes(claimantParty.role) ||
+    !claimantParty.vehicleRef ||
+    claimantParty.vehicleRef.toString() !== subjectRef.toString()
+  ) {
+    throw new AppError('Invalid claimant', 422, 'INVALID_CLAIMANT');
+  }
+
+  // 3. resolveClaimData as today
+  const { claimFields, vehicle: resolvedVehicle } = await resolveClaimData(
     {
       policyId,
       plateNumber,
@@ -278,7 +307,24 @@ const createSubClaim = async (incidentId, body, authUser) => {
     authUser
   );
 
-  return await insertClaim(claimFields, incident, claimType, authUser);
+  // 4. subject vehicle vehicleId is non-null and equals the resolved vehicle _id, else 422 SUBJECT_VEHICLE_MISMATCH
+  if (
+    !subjectVehicle.vehicleId ||
+    !resolvedVehicle?._id ||
+    subjectVehicle.vehicleId.toString() !== resolvedVehicle._id.toString()
+  ) {
+    throw new AppError(
+      'Subject vehicle does not match the policy vehicle',
+      422,
+      'SUBJECT_VEHICLE_MISMATCH'
+    );
+  }
+
+  // 5. insertClaim stores claimantPartyId and subjectRef
+  return await insertClaim(claimFields, incident, claimType, authUser, {
+    claimantPartyId,
+    subjectRef,
+  });
 };
 
 const getClaims = async (authUser, filter = {}, pagination = {}) => {
@@ -361,12 +407,41 @@ const getClaimById = async (claimId, authUser) => {
     return { id: u._id, name: u.name ?? null, employeeCode: u.employeeCode ?? null };
   };
 
+  let claimant = null;
+  if (claim.claimantPartyId && claim.incidentId) {
+    const incident = await incidentRepository.findByIdAndOrganization(
+      claim.incidentId,
+      organizationId
+    );
+    const party = (incident?.parties || []).find(
+      (p) => p._id.toString() === claim.claimantPartyId.toString()
+    );
+    if (party) {
+      const isAdjuster = role === 'FIELD_ADJUSTER';
+      claimant = {
+        id: party._id,
+        role: party.role,
+        partyType: party.partyType,
+        fullName: party.fullName,
+        idType: party.idType ?? null,
+        idNumber:
+          isAdjuster && party.partyType === 'PERSON'
+            ? maskIdNumber(party.idNumber)
+            : (party.idNumber ?? null),
+        phone: party.phone ?? null,
+      };
+    }
+  }
+
   return {
     // ── 1. Claim Information ─────────────────────────────────────
     id: claim._id,
     claimNumber: claim.claimNumber,
     incidentId: claim.incidentId ?? null,
     incidentNumber: claim.incidentNumber ?? null,
+    claimantPartyId: claim.claimantPartyId ?? null,
+    subjectRef: claim.subjectRef ?? null,
+    claimant,
     claimType: claim.claimType ?? 'OWN_DAMAGE',
     status: claim.status,
     // Expose tracking tokens and URLs exclusively to claims officers and administrators
