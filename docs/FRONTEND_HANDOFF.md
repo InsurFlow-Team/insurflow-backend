@@ -522,11 +522,20 @@
 
 ### 2.6 شاشات إدارة الحوادث والمطالبات الفرعية (Incident Endpoints & Sub-claims)
 
-> **تنبيه هام لفريق الواجهات الأمامية (Breaking Change - PB-02a):**
-> تم تحديث واجهة فتح الحادث `POST /api/v1/incidents`:
+> **تنبيه هام لفريق الواجهات الأمامية (Breaking Change - PB-02a & PB-02b):**
 > 1. حقل `incidentDate` لم يعد مقبولاً في جسم الطلب (يرجع `400 VALIDATION_ERROR`). تم استبداله بحقل `incidentAt` بصيغة ISO 8601 شاملاً الإزاحة الزمنية (مثل: `2026-06-15T10:00:00+03:00`). يقوم الخادم تلقائياً باستخراج `incidentDate` بتوقيت القدس/الخليل (`Asia/Hebron`).
 > 2. حقل `reportedAt` يتم توليده تلقائياً من الخادم ومحظور إرساله من العميل.
 > 3. أصبح إلزامياً إرسال مركبة واحدة على الأقل في مصفوفة `vehicles` (بين 1 إلى 10) وطرف واحد على الأقل في مصفوفة `parties` (بين 1 إلى 30)، مع تحديد المحافظة `governorate` ومصدر التقرير `reportSource` ومؤشر الإصابات `injuriesReported`.
+> 4. **تحديث هوية الأطراف (PB-02b):** تم إلغاء حقل `nationalId` نهائياً (إرساله يرجع `400 VALIDATION_ERROR`) واستبداله بالثلاثية:
+>    - `partyType`: نوع الكيان (`PERSON` افتراضياً أو `COMPANY`).
+>    - `idType`: نوع الوثيقة (للأشخاص: `PALESTINIAN_ID`, `ISRAELI_ID`, `PASSPORT`؛ للشركات: `COMPANY_REGISTRATION`).
+>    - `idNumber`: رقم الوثيقة (إلزامي إذا تم تحديد `idType`). للأرقام الوطنية/الإسرائيلية: 9 أرقام بالضبط. لجواز السفر: 5-20 خانة. للسجل التجاري: 3-20 خانة.
+>    - الأدوار الجديدة: إضافة `POLICYHOLDER` (حامل الوثيقة)، `AUTHORIZED_REPRESENTATIVE` (المفوض)، `LIENHOLDER` (الجهة الراهنة). للشركات يسمح فقط بالأدوار: `POLICYHOLDER`, `OWNER`, `LIENHOLDER`.
+> 5. **المطالبات الفرعية (PB-02b):** يتطلب إنشاء المطالبة الفرعية `POST /incidents/:incidentId/claims` تحديد طرف المطالبة `claimantPartyId` والمركبة المؤمنة محل المطالبة `subjectRef`.
+> 6. **قواعد حجب البيانات الحساسة (PII Masking):**
+>    - يرى المعاين (`FIELD_ADJUSTER`) أرقام الهويات للأشخاص محجوبة دوماً وتظهر آخر 4 خانات فقط (مثل: `*****3456`)، بينما تظهر كاملة لمسؤول المطالبات والمدير.
+>    - أرقام السجلات التجارية للشركات (`COMPANY`) لا تحجب أبداً لكونها بيانات عامة.
+>    - يرى المعاين رقم هاتف العميل والمطالب كاملاً داخل تفاصيل المطالبة المعينة له فقط (`GET /claims/:claimId`)، ومحجوباً في استعلام المركبات العام (`GET /vehicles/lookup`) بحيث تظهر آخر 3 خانات فقط (مثل: `*******567`).
 
 #### 1. تسجيل حادث جديد (Open Incident)
 * **المسار (Endpoint):** `POST /api/v1/incidents`
@@ -573,18 +582,40 @@
   ],
   "parties": [
     {
+      "partyType": "PERSON",
+      "role": "POLICYHOLDER",
+      "fullName": "Ahmad Fake",
+      "idType": "PALESTINIAN_ID",
+      "idNumber": "000123456",
+      "phone": "+970001234567",
+      "vehicleIndex": 0
+    },
+    {
+      "partyType": "PERSON",
       "role": "INSURED_DRIVER",
       "fullName": "Ahmad Fake",
-      "nationalId": "000123456",
+      "idType": "PALESTINIAN_ID",
+      "idNumber": "000123456",
       "phone": "+970001234567",
       "licenseClass": "B",
       "licenseExpiry": "2028-12-31",
       "vehicleIndex": 0
     },
     {
+      "partyType": "COMPANY",
+      "role": "POLICYHOLDER",
+      "fullName": "Al-Quds Transport Co",
+      "idType": "COMPANY_REGISTRATION",
+      "idNumber": "562-0001",
+      "phone": "+970002223344",
+      "vehicleIndex": 0
+    },
+    {
+      "partyType": "PERSON",
       "role": "THIRD_PARTY_DRIVER",
       "fullName": "Khaled Fake",
-      "nationalId": "000987654",
+      "idType": "PALESTINIAN_ID",
+      "idNumber": "000987654",
       "phone": "+970007654321",
       "licenseClass": "B",
       "licenseExpiry": "2027-05-15",
@@ -641,9 +672,23 @@
     "parties": [
       {
         "id": "<PARTY_SUB_ID_1>",
+        "partyType": "PERSON",
+        "role": "POLICYHOLDER",
+        "fullName": "Ahmad Fake",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
+        "phone": "+970001234567",
+        "licenseClass": null,
+        "licenseExpiry": null,
+        "vehicleRef": "<VEHICLE_SUB_ID_1>"
+      },
+      {
+        "id": "<PARTY_SUB_ID_2>",
+        "partyType": "PERSON",
         "role": "INSURED_DRIVER",
         "fullName": "Ahmad Fake",
-        "nationalId": "000123456",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
         "phone": "+970001234567",
         "licenseClass": "B",
         "licenseExpiry": "2028-12-31",
@@ -743,9 +788,23 @@
     "parties": [
       {
         "id": "<PARTY_SUB_ID_1>",
+        "partyType": "PERSON",
+        "role": "POLICYHOLDER",
+        "fullName": "Ahmad Fake",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
+        "phone": "+970001234567",
+        "licenseClass": null,
+        "licenseExpiry": null,
+        "vehicleRef": "<VEHICLE_SUB_ID_1>"
+      },
+      {
+        "id": "<PARTY_SUB_ID_2>",
+        "partyType": "PERSON",
         "role": "INSURED_DRIVER",
         "fullName": "Ahmad Fake",
-        "nationalId": "000123456",
+        "idType": "PALESTINIAN_ID",
+        "idNumber": "000123456",
         "phone": "+970001234567",
         "licenseClass": "B",
         "licenseExpiry": "2028-12-31",
@@ -775,15 +834,21 @@
 
 #### 4. إنشاء مطالبة فرعية وربطها بالحادث (Create Sub-claim)
 * **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/claims`
+* **الأدوار المصرح لها:** `CLAIMS_OFFICER`, `ADMIN` (المعاين `FIELD_ADJUSTER` يتلقى 403).
 * **جسم الطلب (Request Body):**
 ```json
 {
   "claimType": "OWN_DAMAGE",
   "policyId": "<POLICY_ID>",
-  "plateNumber": "6-1234-90"
+  "plateNumber": "6-1234-90",
+  "claimantPartyId": "<PARTY_SUB_ID_1>",
+  "subjectRef": "<VEHICLE_SUB_ID_1>"
 }
 ```
-* **استجابة النجاح (201 Created):** تتطابق مع استجابة إنشاء المطالبة الأصلية.
+* **شروط التحقق:**
+  - `claimantPartyId`: معرف الطرف المطالب في نفس الحادث (يجب أن يكون دوره `POLICYHOLDER` أو `AUTHORIZED_REPRESENTATIVE`، ومرتبطاً بنفس المركبة `subjectRef`).
+  - `subjectRef`: معرف المركبة المتضررة المؤمنة في نفس الحادث (يجب أن يكون دورها `INSURED` ومطابقة لمركبة الوثيقة).
+* **استجابة النجاح (201 Created):** تتطابق مع استجابة إنشاء المطالبة الأصلية بالإضافة لحقلي `claimantPartyId` و `subjectRef`.
 
 #### 5. إضافة مركبة جديدة للحادث (Append Vehicle)
 * **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/vehicles`
@@ -794,7 +859,18 @@
 #### 6. إضافة طرف جديد للحادث (Append Party)
 * **المسار (Endpoint):** `POST /api/v1/incidents/:incidentId/parties`
 * **الحد الأقصى:** 30 طرف لكل حادث (يرجع `422 INCIDENT_LIMIT_REACHED` عند تجاوزه).
-* **جسم الطلب (Request Body):** كائن طرف مفرد `Party` مع `vehicleRef` (يشير لمعرف مركبة تابعة لنفس الحادث).
+* **جسم الطلب (Request Body):**
+```json
+{
+  "partyType": "PERSON",
+  "role": "POLICYHOLDER",
+  "fullName": "Ahmad Fake",
+  "idType": "PALESTINIAN_ID",
+  "idNumber": "000123456",
+  "phone": "+970001234567",
+  "vehicleRef": "<VEHICLE_SUB_ID_1>"
+}
+```
 * **استجابة النجاح (201 Created):** كائن الطرف الجديد شاملاً `id`.
 
 #### 7. إضافة ممتلكات متضررة للحادث (Append Damaged Item)

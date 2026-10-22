@@ -1,5 +1,6 @@
 const vehicleRepository = require('./vehicle.repository');
 const AppError = require('../../utils/appError');
+const { maskPhone } = require('../../utils/maskPii');
 
 /**
  * Lookup a vehicle by plate number.
@@ -34,7 +35,9 @@ const lookupVehicle = async (plateNumber, authUser) => {
       ? {
           id: vehicle.customerId._id,
           fullName: vehicle.customerId.fullName,
-          phone: vehicle.customerId.phone,
+          phone: authUser.role === 'FIELD_ADJUSTER'
+            ? maskPhone(vehicle.customerId.phone)
+            : vehicle.customerId.phone,
         }
       : null,
     policy: vehicle.policyId

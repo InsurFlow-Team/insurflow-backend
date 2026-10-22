@@ -76,8 +76,17 @@ const partySchema = new mongoose.Schema(
         'WITNESS',
         'GUARDIAN',
         'HEIR',
+        'POLICYHOLDER',
+        'AUTHORIZED_REPRESENTATIVE',
+        'LIENHOLDER',
       ],
       required: true,
+    },
+    partyType: {
+      type: String,
+      enum: ['PERSON', 'COMPANY'],
+      required: true,
+      default: 'PERSON',
     },
     fullName: {
       type: String,
@@ -85,8 +94,14 @@ const partySchema = new mongoose.Schema(
       trim: true,
       maxlength: 100,
     },
-    nationalId: {
+    idType: {
       type: String,
+      enum: ['PALESTINIAN_ID', 'ISRAELI_ID', 'PASSPORT', 'COMPANY_REGISTRATION'],
+      default: null,
+    },
+    idNumber: {
+      type: String,
+      trim: true,
       default: null,
     },
     phone: {

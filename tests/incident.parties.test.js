@@ -132,8 +132,10 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
     parties: [
       {
         role: 'THIRD_PARTY_DRIVER',
+        partyType: 'PERSON',
         fullName: 'Driver Fake',
-        nationalId: '000123456',
+        idType: 'PALESTINIAN_ID',
+        idNumber: '000123456',
         phone: '+970001111111',
         licenseClass: 'b',
         licenseExpiry: '2028-01-01',
@@ -175,7 +177,10 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
     expect(data.parties[0]._id).toBeUndefined();
     expect(data.parties[0].role).toBe('THIRD_PARTY_DRIVER');
     expect(data.parties[0].fullName).toBe('Driver Fake');
-    expect(data.parties[0].nationalId).toBe('000123456');
+    expect(data.parties[0].partyType).toBe('PERSON');
+    expect(data.parties[0].idType).toBe('PALESTINIAN_ID');
+    expect(data.parties[0].idNumber).toBe('000123456');
+    expect(data.parties[0].nationalId).toBeUndefined();
     expect(data.parties[0].vehicleRef).toBe(data.vehicles[0].id);
   });
 
@@ -474,8 +479,10 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
       parties: [
         {
           role: 'THIRD_PARTY_DRIVER',
+          partyType: 'PERSON',
           fullName: 'Driver Person',
-          nationalId: '12345',
+          idType: 'PALESTINIAN_ID',
+          idNumber: '12345',
           vehicleIndex: 0,
         },
       ],
@@ -505,8 +512,10 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
       .set('Authorization', `Bearer ${officerToken}`)
       .send({
         role: 'PASSENGER',
+        partyType: 'PERSON',
         fullName: 'Passenger Fake',
-        nationalId: '000789123',
+        idType: 'PALESTINIAN_ID',
+        idNumber: '000789123',
         phone: '+970002222222',
         vehicleRef: vehicleId,
       });
@@ -951,5 +960,225 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
 
     expect(res.status).toBe(400);
     expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('accepts a COMPANY POLICYHOLDER with a COMPANY_REGISTRATION id', async () => {
+    await setupBaseFixture();
+    const payload = validPayload({
+      parties: [
+        {
+          role: 'POLICYHOLDER',
+          partyType: 'COMPANY',
+          fullName: 'Al-Quds Transport Co',
+          idType: 'COMPANY_REGISTRATION',
+          idNumber: 'CR-98765-X',
+          vehicleIndex: 0,
+        },
+      ],
+    });
+    const res = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    const p = res.body.data.parties[0];
+    expect(p.role).toBe('POLICYHOLDER');
+    expect(p.partyType).toBe('COMPANY');
+    expect(p.idType).toBe('COMPANY_REGISTRATION');
+    expect(p.idNumber).toBe('CR-98765-X');
+    expect(p.nationalId).toBeUndefined();
+  });
+
+  it('accepts a PERSON party with a PASSPORT id and an ISRAELI_ID party', async () => {
+    await setupBaseFixture();
+    const payload = validPayload({
+      vehicles: [
+        {
+          vehicleRole: 'THIRD_PARTY',
+          plateRegion: 'PALESTINIAN',
+          plateNumber: 'TP-1234',
+        },
+        {
+          vehicleRole: 'OTHER',
+          plateRegion: 'ISRAELI',
+          plateNumber: 'IL-5678',
+        },
+      ],
+      parties: [
+        {
+          role: 'THIRD_PARTY_DRIVER',
+          partyType: 'PERSON',
+          fullName: 'Foreign Driver',
+          idType: 'PASSPORT',
+          idNumber: 'A12345678',
+          vehicleIndex: 0,
+        },
+        {
+          role: 'WITNESS',
+          partyType: 'PERSON',
+          fullName: 'Jerusalem Resident',
+          idType: 'ISRAELI_ID',
+          idNumber: '000987654',
+        },
+      ],
+    });
+    const res = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.parties).toHaveLength(2);
+    expect(res.body.data.parties[0].idType).toBe('PASSPORT');
+    expect(res.body.data.parties[0].idNumber).toBe('A12345678');
+    expect(res.body.data.parties[1].idType).toBe('ISRAELI_ID');
+    expect(res.body.data.parties[1].idNumber).toBe('000987654');
+  });
+
+  it('rejects nationalId in the body', async () => {
+    await setupBaseFixture();
+    const payload = validPayload({
+      parties: [
+        {
+          role: 'THIRD_PARTY_DRIVER',
+          partyType: 'PERSON',
+          fullName: 'Driver Fake',
+          nationalId: '000123456',
+          vehicleIndex: 0,
+        },
+      ],
+    });
+    const res = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects idNumber without idType and idType without idNumber', async () => {
+    await setupBaseFixture();
+    const res1 = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(validPayload({
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            partyType: 'PERSON',
+            fullName: 'Driver Fake',
+            idNumber: '000123456',
+            vehicleIndex: 0,
+          },
+        ],
+      }));
+    expect(res1.status).toBe(400);
+    expect(res1.body.errors[0].code).toBe('VALIDATION_ERROR');
+
+    const res2 = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(validPayload({
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            partyType: 'PERSON',
+            fullName: 'Driver Fake',
+            idType: 'PALESTINIAN_ID',
+            vehicleIndex: 0,
+          },
+        ],
+      }));
+    expect(res2.status).toBe(400);
+    expect(res2.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a COMPANY party with a driver or passenger role', async () => {
+    await setupBaseFixture();
+    const payload = validPayload({
+      parties: [
+        {
+          role: 'THIRD_PARTY_DRIVER',
+          partyType: 'COMPANY',
+          fullName: 'Driver Company Ltd',
+          idType: 'COMPANY_REGISTRATION',
+          idNumber: 'CR-12345',
+          vehicleIndex: 0,
+        },
+      ],
+    });
+    const res = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a PERSON party with a COMPANY_REGISTRATION id', async () => {
+    await setupBaseFixture();
+    const payload = validPayload({
+      parties: [
+        {
+          role: 'OWNER',
+          partyType: 'PERSON',
+          fullName: 'Individual Owner',
+          idType: 'COMPANY_REGISTRATION',
+          idNumber: 'CR-12345',
+          vehicleIndex: 0,
+        },
+      ],
+    });
+    const res = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+  });
+
+  it('requires a vehicle link for POLICYHOLDER, AUTHORIZED_REPRESENTATIVE and LIENHOLDER', async () => {
+    await setupBaseFixture();
+    for (const role of ['POLICYHOLDER', 'AUTHORIZED_REPRESENTATIVE', 'LIENHOLDER']) {
+      const resCreate = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(validPayload({
+          parties: [
+            {
+              role,
+              partyType: role === 'LIENHOLDER' ? 'COMPANY' : 'PERSON',
+              fullName: 'Party Name',
+            },
+          ],
+        }));
+      expect(resCreate.status).toBe(400);
+      expect(resCreate.body.errors[0].code).toBe('VALIDATION_ERROR');
+    }
+
+    const baseIncident = await request(app)
+      .post('/api/v1/incidents')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send(validPayload());
+    const incidentId = baseIncident.body.data.id;
+
+    for (const role of ['POLICYHOLDER', 'AUTHORIZED_REPRESENTATIVE', 'LIENHOLDER']) {
+      const resAppend = await request(app)
+        .post(`/api/v1/incidents/${incidentId}/parties`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          role,
+          partyType: role === 'LIENHOLDER' ? 'COMPANY' : 'PERSON',
+          fullName: 'Appended Party',
+        });
+      expect(resAppend.status).toBe(400);
+      expect(resAppend.body.errors[0].code).toBe('VALIDATION_ERROR');
+    }
   });
 });

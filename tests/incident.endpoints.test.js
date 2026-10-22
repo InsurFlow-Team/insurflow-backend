@@ -125,6 +125,29 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
   };
 
   const createIncidentFixture = async (overrides = {}) => {
+    const vId = new mongoose.Types.ObjectId();
+    const pId = new mongoose.Types.ObjectId();
+    const defaultVehicles = [
+      {
+        _id: vId,
+        vehicleRole: 'INSURED',
+        plateRegion: 'PALESTINIAN',
+        plateNumber: 'INC-100',
+        vehicleId: vehicle ? vehicle._id : null,
+      },
+    ];
+    const defaultParties = [
+      {
+        _id: pId,
+        role: 'POLICYHOLDER',
+        partyType: 'PERSON',
+        fullName: 'Ahmad Customer',
+        idType: 'PALESTINIAN_ID',
+        idNumber: '000123456',
+        vehicleRef: vId,
+      },
+    ];
+
     return await Incident.create({
       organizationId: org._id,
       incidentDate: '2026-06-15',
@@ -133,6 +156,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       incidentDescription: 'Front collision with barrier',
       incidentCoordinates: { latitude: 24.7136, longitude: 46.6753, capturedAt: new Date() },
       createdBy: officer._id,
+      vehicles: defaultVehicles,
+      parties: defaultParties,
       ...overrides,
     });
   };
@@ -236,6 +261,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: incident.parties[0]._id.toString(),
+        subjectRef: incident.vehicles[0]._id.toString(),
       });
 
     expect(res.status).toBe(201);
@@ -275,7 +302,49 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       customerId: customer._id,
     });
 
-    const incident = await createIncidentFixture();
+    const v1Id = new mongoose.Types.ObjectId();
+    const v2Id = new mongoose.Types.ObjectId();
+    const p1Id = new mongoose.Types.ObjectId();
+    const p2Id = new mongoose.Types.ObjectId();
+
+    const incident = await createIncidentFixture({
+      vehicles: [
+        {
+          _id: v1Id,
+          vehicleRole: 'INSURED',
+          plateRegion: 'PALESTINIAN',
+          plateNumber: 'INC-100',
+          vehicleId: vehicle._id,
+        },
+        {
+          _id: v2Id,
+          vehicleRole: 'INSURED',
+          plateRegion: 'PALESTINIAN',
+          plateNumber: 'INC-200',
+          vehicleId: vehicle2._id,
+        },
+      ],
+      parties: [
+        {
+          _id: p1Id,
+          role: 'POLICYHOLDER',
+          partyType: 'PERSON',
+          fullName: 'Ahmad Customer 1',
+          idType: 'PALESTINIAN_ID',
+          idNumber: '000123456',
+          vehicleRef: v1Id,
+        },
+        {
+          _id: p2Id,
+          role: 'POLICYHOLDER',
+          partyType: 'PERSON',
+          fullName: 'Ahmad Customer 2',
+          idType: 'PALESTINIAN_ID',
+          idNumber: '000654321',
+          vehicleRef: v2Id,
+        },
+      ],
+    });
 
     const res1 = await request(app)
       .post(`/api/v1/incidents/${incident._id}/claims`)
@@ -284,6 +353,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: p1Id.toString(),
+        subjectRef: v1Id.toString(),
       });
     expect(res1.status).toBe(201);
 
@@ -294,6 +365,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-200',
+        claimantPartyId: p2Id.toString(),
+        subjectRef: v2Id.toString(),
       });
     expect(res2.status).toBe(201);
 
@@ -312,6 +385,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: incident.parties[0]._id.toString(),
+        subjectRef: incident.vehicles[0]._id.toString(),
       });
     expect(res1.status).toBe(201);
 
@@ -322,6 +397,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: incident.parties[0]._id.toString(),
+        subjectRef: incident.vehicles[0]._id.toString(),
       });
 
     expect(res2.status).toBe(409);
@@ -344,6 +421,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
           claimType: 'OWN_DAMAGE',
           policyId: policy._id.toString(),
           plateNumber: 'INC-100',
+          claimantPartyId: incident.parties[0]._id.toString(),
+          subjectRef: incident.vehicles[0]._id.toString(),
         });
 
     const [resA, resB] = await Promise.all([sendReq(), sendReq()]);
@@ -369,6 +448,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'THIRD_PARTY_PD',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: incident.parties[0]._id.toString(),
+        subjectRef: incident.vehicles[0]._id.toString(),
       });
 
     expect(res.status).toBe(422);
@@ -402,6 +483,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: new mongoose.Types.ObjectId().toString(),
+        subjectRef: new mongoose.Types.ObjectId().toString(),
       });
     expect(postRes.status).toBe(404);
     expect(postRes.body.errors[0].code).toBe('INCIDENT_NOT_FOUND');
@@ -424,6 +507,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: otherPolicy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: incident.parties[0]._id.toString(),
+        subjectRef: incident.vehicles[0]._id.toString(),
       });
 
     expect(res.status).toBe(404);
@@ -482,6 +567,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
         plateNumber: 'INC-100',
+        claimantPartyId: incident.parties[0]._id.toString(),
+        subjectRef: incident.vehicles[0]._id.toString(),
       });
     expect(subClaimRes.status).toBe(201);
     const createdClaim = subClaimRes.body.data;
@@ -553,6 +640,8 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       .send({
         claimType: 'OWN_DAMAGE',
         policyId: policy._id.toString(),
+        claimantPartyId: new mongoose.Types.ObjectId().toString(),
+        subjectRef: new mongoose.Types.ObjectId().toString(),
       });
     expect(postSubClaimRes.status).toBe(403);
   });
