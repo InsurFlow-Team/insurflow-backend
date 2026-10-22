@@ -38,8 +38,7 @@ Claude applies this list to every delivery. Blockers come first.
 - No test deleted or loosened to pass.
 
 ## Docs
-- Only files from the prompt changed.
-- Docs match the code. Code wins.
+- No .md file created or changed outside the prompt.
 - No file:// link or absolute path.
 
 ## Severity
