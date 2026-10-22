@@ -1,6 +1,6 @@
 # Sawn Agent Rules
 Sawn was InsurFlow. Stack: Node.js, Express 5, Mongoose, MongoDB.
-Read this file, then the prompt. Open only the docs/features file the prompt names.
+Read this file, then the prompt.
 
 ## Hard stops
 - Git: run git writes only through /sawn-start, /sawn-ship and /sawn-merge, with the inputs the prompt or Claude's approval gives.
@@ -12,7 +12,6 @@ Read this file, then the prompt. Open only the docs/features file the prompt nam
 - Never rename the service URL or the database name without a separate plan.
 
 ## Conventions
-Full text: docs/project/DEVELOPMENT_RULES.md.
 - camelCase in requests and responses.
 - organizationId comes from the JWT only.
 - Cross-tenant and wrong-owner access return 404.
@@ -23,7 +22,8 @@ Full text: docs/project/DEVELOPMENT_RULES.md.
 - A prose report is not proof.
 
 ## Documentation
-- Update only the docs files the prompt lists. Report other gaps. Do not fix them.
+- Never create or edit a .md file unless the prompt names it.
+- The code is the only API contract. Do not read docs for context. Read the code.
 
 ## Language
 - Plans and reports in English. Code and comments in English.
