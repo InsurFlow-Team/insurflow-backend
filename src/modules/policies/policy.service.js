@@ -45,7 +45,7 @@ const verifyPolicy = async (body, authUser) => {
       throw new AppError('Policy not found in your insurance company', 404, 'POLICY_NOT_FOUND');
     }
 
-    const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, organizationId);
+    const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, organizationId, policy.policyKind);
 
     // Cross-match plate if provided
     if (plateNumber) {
@@ -89,11 +89,28 @@ const verifyPolicy = async (body, authUser) => {
       throw new AppError('Vehicle not found with the provided plate number', 404, 'VEHICLE_NOT_FOUND');
     }
 
-    if (!vehicle.policyId) {
-      throw new AppError('No insurance policy is linked to this vehicle', 404, 'POLICY_NOT_FOUND');
-    }
+    if (body.policyKind) {
+      policy =
+        body.policyKind === 'UNIFIED_COMPULSORY'
+          ? vehicle.compulsoryPolicyId
+          : vehicle.complementaryPolicyId;
 
-    policy = vehicle.policyId;
+      if (!policy) {
+        throw new AppError('No insurance policy is linked to this vehicle', 404, 'POLICY_NOT_FOUND');
+      }
+    } else {
+      if (vehicle.compulsoryPolicyId && vehicle.complementaryPolicyId) {
+        throw new AppError(
+          'Vehicle has multiple policies. Please specify policyKind.',
+          422,
+          'AMBIGUOUS_POLICY_SELECTION'
+        );
+      }
+      policy = vehicle.compulsoryPolicyId || vehicle.complementaryPolicyId;
+      if (!policy) {
+        throw new AppError('No insurance policy is linked to this vehicle', 404, 'POLICY_NOT_FOUND');
+      }
+    }
   }
 
   // 2. Check policy status - cancelled policies trigger a hard block
@@ -121,18 +138,22 @@ const verifyPolicy = async (body, authUser) => {
     now,
   });
 
-  // 5. Build coverage object (null for legacy policies without policyType)
+  // 5. Build coverage object (null for legacy policies without policyKind)
   let coverage = null;
 
-  if (policy.policyType) {
+  if (policy.policyKind) {
     const policyPerils = Array.isArray(policy.coveredPerils) ? policy.coveredPerils : [];
-    const incidents = Policy.COVERED_PERILS.map((peril) => ({
-      code: peril,
-      covered: policyPerils.includes(peril),
-    }));
+    const incidents =
+      policy.policyKind === 'COMPLEMENTARY' && policy.policyType
+        ? Policy.COVERED_PERILS.map((peril) => ({
+            code: peril,
+            covered: policyPerils.includes(peril),
+          }))
+        : [];
 
     coverage = {
-      policyType: policy.policyType,
+      policyKind: policy.policyKind,
+      policyType: policy.policyType ?? null,
       effectiveFrom: policy.startDate ? new Date(policy.startDate).toISOString().split('T')[0] : null,
       effectiveTo: policy.expiryDate ? new Date(policy.expiryDate).toISOString().split('T')[0] : null,
       deductible:
@@ -154,6 +175,7 @@ const verifyPolicy = async (body, authUser) => {
     policy: {
       id: policy._id,
       policyNumber: policy.policyNumber,
+      policyKind: policy.policyKind ?? null,
       status: policy.status,
       startDate: policy.startDate ? new Date(policy.startDate).toISOString().split('T')[0] : null,
       expiryDate: policy.expiryDate ? new Date(policy.expiryDate).toISOString().split('T')[0] : null,
@@ -163,6 +185,9 @@ const verifyPolicy = async (body, authUser) => {
         policy.deductibleAmount !== undefined && policy.deductibleAmount !== null
           ? policy.deductibleAmount
           : null,
+      sumInsured: policy.sumInsured ?? null,
+      propertyDamageLimit: policy.propertyDamageLimit ?? null,
+      vehicleUse: policy.vehicleUse ?? null,
     },
     coverage,
     vehicle: vehicle

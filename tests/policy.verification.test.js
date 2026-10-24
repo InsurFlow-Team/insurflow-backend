@@ -146,22 +146,22 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     // ── Vehicles ──
     vehicle1 = await Vehicle.create({
       plateNumber: 'ABC-1234', make: 'Toyota', model: 'Camry', year: 2022, color: 'White',
-      customerId: customer1._id, policyId: activePolicy._id, organizationId: org1._id,
+      customerId: customer1._id, complementaryPolicyId: activePolicy._id, organizationId: org1._id,
     });
 
     vehicleThirdParty = await Vehicle.create({
       plateNumber: 'TPL-4000', make: 'Hyundai', model: 'Elantra', year: 2023, color: 'Silver',
-      customerId: customer1._id, policyId: thirdPartyPolicy._id, organizationId: org1._id,
+      customerId: customer1._id, compulsoryPolicyId: thirdPartyPolicy._id, organizationId: org1._id,
     });
 
     vehicle2 = await Vehicle.create({
       plateNumber: 'XYZ-9876', make: 'Honda', model: 'Civic', year: 2019, color: 'Black',
-      customerId: customer2._id, policyId: expiredPolicy._id, organizationId: org1._id,
+      customerId: customer2._id, complementaryPolicyId: expiredPolicy._id, organizationId: org1._id,
     });
 
     vehicleOrg2 = await Vehicle.create({
       plateNumber: 'ORG2-VEH', make: 'BMW', model: 'X5', year: 2024, color: 'Blue',
-      policyId: org2Policy._id, organizationId: org2._id,
+      complementaryPolicyId: org2Policy._id, organizationId: org2._id,
     });
 
     // ── Vehicle without policy ──
@@ -183,11 +183,11 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     });
     await Vehicle.create({
       plateNumber: 'MULTI-1', make: 'Hyundai', model: 'Elantra', year: 2021, color: 'Silver',
-      customerId: customer1._id, policyId: multiVehPolicy._id, organizationId: org1._id,
+      customerId: customer1._id, complementaryPolicyId: multiVehPolicy._id, organizationId: org1._id,
     });
     await Vehicle.create({
       plateNumber: 'MULTI-2', make: 'Kia', model: 'Cerato', year: 2022, color: 'White',
-      customerId: customer1._id, policyId: multiVehPolicy._id, organizationId: org1._id,
+      customerId: customer1._id, complementaryPolicyId: multiVehPolicy._id, organizationId: org1._id,
     });
   });
 
@@ -437,7 +437,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.isEligible).toBe(true);
     expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
-    expect(res.body.data.policy.policyType).toBe('THIRD_PARTY');
+    expect(res.body.data.policy.policyType).toBeNull();
     expect(res.body.data.policy.coveredPerils).toEqual([]);
     expect(res.body.data.policy.deductibleAmount).toBe(0);
     expect(res.body.data.vehicle.plateNumber).toBe('TPL-4000');
@@ -483,8 +483,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       model: 'Sunny',
       year: 2020,
       color: 'Black',
-      customerId: customer1._id,
-      policyId: rawLegacyPolicyId,
+      customerId: customer1._id, complementaryPolicyId: rawLegacyPolicyId,
       organizationId: org1._id,
     });
 
@@ -606,7 +605,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.isEligible).toBe(true);
     expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
-    expect(res.body.data.policy.policyType).toBe('THIRD_PARTY');
+    expect(res.body.data.policy.policyType).toBeNull();
     expect(res.body.data.policy.coveredPerils).toEqual([]);
     expect(res.body.data.policy.deductibleAmount).toBe(0);
   });
@@ -849,6 +848,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       const { coverage } = res.body.data;
       expect(coverage).toBeDefined();
       expect(coverage.policyType).toBe('COMPREHENSIVE');
+      expect(coverage.policyKind).toBe('COMPLEMENTARY');
       expect(coverage.effectiveFrom).toBe('2025-01-01');
       expect(coverage.effectiveTo).toBe('2026-12-31');
       expect(coverage.deductible).toBe(500);
@@ -983,6 +983,11 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
     });
 
     it('GAP-02 Test 8: should return coverage for THIRD_PARTY policy with deductible 0 and all incidents un-covered', async () => {
+      await Policy.updateOne(
+        { policyNumber: 'POL-V-4000' },
+        { $set: { policyType: null, policyKind: 'UNIFIED_COMPULSORY' } }
+      );
+
       const res = await request(app)
         .post('/api/v1/policies/verify')
         .set('Authorization', `Bearer ${officerToken}`)
@@ -995,15 +1000,12 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
 
       const { coverage } = res.body.data;
       expect(coverage).toBeDefined();
-      expect(coverage.policyType).toBe('THIRD_PARTY');
+      expect(coverage.policyKind).toBe('UNIFIED_COMPULSORY');
+      expect(coverage.policyType).toBeNull();
       expect(coverage.deductible).toBe(0);
       expect(coverage.effectiveFrom).toBe('2025-01-01');
       expect(coverage.effectiveTo).toBe('2026-12-31');
-
-      // All perils must be covered: false for THIRD_PARTY
-      coverage.incidents.forEach((inc) => {
-        expect(inc.covered).toBe(false);
-      });
+      expect(coverage.incidents).toEqual([]);
     });
 
     it('GAP-02 Test 9: should maintain 100% backward compatibility of existing response envelope & fields', async () => {
@@ -1051,6 +1053,9 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       await Policy.collection.insertOne({
         _id: expCompId,
         policyNumber: 'POL-V-EXP-COMP',
+
+        policyKind: 'COMPLEMENTARY',
+        sumInsured: 50000,
         status: 'EXPIRED',
         startDate: new Date('2022-01-01T00:00:00Z'),
         expiryDate: new Date('2023-12-31T23:59:59Z'),
@@ -1067,6 +1072,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
         .set('Authorization', `Bearer ${officerToken}`)
         .send({
           policyNumber: 'POL-V-EXP-COMP',
+
           incidentDate: '2023-06-15',
           incidentType: 'COLLISION',
         });
@@ -1077,6 +1083,130 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
       expect(res.body.data.coverage).toBeDefined();
       expect(res.body.data.coverage.policyType).toBe('COMPREHENSIVE');
+    });
+  });
+  describe('PB-04a Policy verification extensions', () => {
+    beforeEach(async () => {
+      await Policy.updateOne(
+        { policyNumber: 'POL-V-4000' },
+        { $set: { policyType: null, policyKind: 'UNIFIED_COMPULSORY' } }
+      );
+    });
+    it('verify by plate returns the only policy of a vehicle without policyKind', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ plateNumber: 'ABC-1234' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.policy.policyNumber).toBe('POL-V-1000');
+      expect(res.body.data.policy.policyKind).toBe('COMPLEMENTARY');
+    });
+
+    it('verify by plate with two policies and no policyKind returns 422 AMBIGUOUS_POLICY_SELECTION', async () => {
+      const compulPol = await buildPolicy({
+        policyNumber: 'POL-DUAL-COMPUL',
+        policyKind: 'UNIFIED_COMPULSORY',
+        propertyDamageLimit: 100000,
+        deductibleAmount: 0,
+        organizationId: org1._id,
+      });
+
+      const complePol = await buildPolicy({
+        policyNumber: 'POL-DUAL-COMPLE',
+        policyKind: 'COMPLEMENTARY',
+        policyType: 'COMPREHENSIVE',
+        sumInsured: 50000,
+        deductibleAmount: 500,
+        organizationId: org1._id,
+      });
+
+      await Vehicle.create({
+        plateNumber: 'DUAL-POL-VEH',
+        customerId: customer1._id,
+        compulsoryPolicyId: compulPol._id,
+        complementaryPolicyId: complePol._id,
+        organizationId: org1._id,
+      });
+
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ plateNumber: 'DUAL-POL-VEH' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('AMBIGUOUS_POLICY_SELECTION');
+    });
+
+    it('verify by plate with policyKind returns that policy', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ plateNumber: 'DUAL-POL-VEH', policyKind: 'UNIFIED_COMPULSORY' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.policy.policyNumber).toBe('POL-DUAL-COMPUL');
+      expect(res.body.data.policy.policyKind).toBe('UNIFIED_COMPULSORY');
+    });
+
+    it('verify by plate with policyKind for an empty slot returns 404 POLICY_NOT_FOUND', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ plateNumber: 'ABC-1234', policyKind: 'UNIFIED_COMPULSORY' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.errors[0].code).toBe('POLICY_NOT_FOUND');
+    });
+
+    it('rejects policyKind together with policyNumber with 400', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-1000', policyKind: 'COMPLEMENTARY' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns a coverage object and NOT_COVERED_BY_POLICY_TYPE for a UNIFIED_COMPULSORY policy with an own-damage peril', async () => {
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-V-4000', incidentType: 'COLLISION' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+      expect(res.body.data.coverage).toBeDefined();
+      expect(res.body.data.coverage.policyKind).toBe('UNIFIED_COMPULSORY');
+      expect(res.body.data.coverage.policyType).toBeNull();
+      expect(res.body.data.coverage.incidents).toEqual([]);
+    });
+
+    it('returns policyKind, sumInsured, propertyDamageLimit and vehicleUse in the policy block', async () => {
+      const customPol = await buildPolicy({
+        policyNumber: 'POL-BLOCK-TEST',
+        policyKind: 'COMPLEMENTARY',
+        policyType: 'COMPREHENSIVE',
+        sumInsured: 60000,
+        vehicleUse: 'COMMERCIAL',
+        deductibleAmount: 400,
+        organizationId: org1._id,
+      });
+
+      const res = await request(app)
+        .post('/api/v1/policies/verify')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ policyNumber: 'POL-BLOCK-TEST' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.policy).toMatchObject({
+        policyKind: 'COMPLEMENTARY',
+        sumInsured: 60000,
+        propertyDamageLimit: null,
+        vehicleUse: 'COMMERCIAL',
+      });
     });
   });
 });

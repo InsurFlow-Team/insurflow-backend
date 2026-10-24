@@ -4,16 +4,7 @@ const claimRepository = require('../claims/claim.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
 const AppError = require('../../utils/appError');
 
-const deriveIncidentDate = (incidentAt) => {
-  const date = incidentAt instanceof Date ? incidentAt : new Date(incidentAt);
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Hebron',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return formatter.format(date);
-};
+const { deriveIncidentDate } = require('../../utils/hebronDate');
 
 const formatVehicle = (v) => ({
   id: v._id,

@@ -93,40 +93,52 @@ const seedMockData = async () => {
     const policiesData = [
       {
         policyNumber: 'POL-1000',
+        policyKind: 'COMPLEMENTARY',
         status: 'ACTIVE',
         policyType: 'COMPREHENSIVE',
         coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
         deductibleAmount: 500,
+        sumInsured: 50000,
+        propertyDamageLimit: null,
         startDate: new Date('2025-01-01'),
         expiryDate: new Date('2027-12-31'),
         organizationId: organization._id,
       },
       {
         policyNumber: 'POL-4000',
+        policyKind: 'UNIFIED_COMPULSORY',
         status: 'ACTIVE',
-        policyType: 'THIRD_PARTY',
+        policyType: null,
         coveredPerils: [],
         deductibleAmount: 0,
+        sumInsured: null,
+        propertyDamageLimit: 100000,
         startDate: new Date('2025-01-01'),
         expiryDate: new Date('2027-12-31'),
         organizationId: organization._id,
       },
       {
         policyNumber: 'POL-2000',
+        policyKind: 'UNIFIED_COMPULSORY',
         status: 'EXPIRED',
-        policyType: 'THIRD_PARTY',
+        policyType: null,
         coveredPerils: [],
         deductibleAmount: 0,
+        sumInsured: null,
+        propertyDamageLimit: 100000,
         startDate: new Date('2022-01-01'),
         expiryDate: new Date('2023-12-31'),
         organizationId: organization._id,
       },
       {
         policyNumber: 'POL-3000',
+        policyKind: 'COMPLEMENTARY',
         status: 'CANCELLED',
         policyType: 'COMPREHENSIVE',
         coveredPerils: ['COLLISION'],
         deductibleAmount: 250,
+        sumInsured: 50000,
+        propertyDamageLimit: null,
         startDate: new Date('2025-06-01'),
         expiryDate: new Date('2026-06-01'),
         organizationId: organization._id,
@@ -153,7 +165,7 @@ const seedMockData = async () => {
         year: 2022,
         color: 'White',
         customerId: customers[0]._id,
-        policyId: policies[0]._id, // POL-1000 (COMPREHENSIVE)
+        complementaryPolicyId: policies[0]._id, compulsoryPolicyId: null, // POL-1000 (COMPLEMENTARY)
         organizationId: organization._id,
       },
       {
@@ -163,7 +175,7 @@ const seedMockData = async () => {
         year: 2023,
         color: 'Silver',
         customerId: customers[2]._id,
-        policyId: policies[1]._id, // POL-4000 (THIRD_PARTY)
+        compulsoryPolicyId: policies[1]._id, complementaryPolicyId: null, // POL-4000 (UNIFIED_COMPULSORY)
         organizationId: organization._id,
       },
       {
@@ -173,7 +185,7 @@ const seedMockData = async () => {
         year: 2019,
         color: 'Black',
         customerId: customers[1]._id,
-        policyId: policies[2]._id, // POL-2000 (EXPIRED)
+        compulsoryPolicyId: policies[2]._id, complementaryPolicyId: null, // POL-2000 (EXPIRED)
         organizationId: organization._id,
       },
     ];

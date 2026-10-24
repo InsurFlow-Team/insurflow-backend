@@ -642,7 +642,7 @@ describe('Public Claim Tracking (Feature 23)', () => {
         model: 'Camry',
         year: 2023,
         organizationId: org1._id,
-        policyId: testPolicy._id,
+        complementaryPolicyId: testPolicy._id,
       });
 
       const token = generateToken(officer1);

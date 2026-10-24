@@ -124,7 +124,7 @@ describe('Evidence Photos & Digital Signature (Cloudinary)', () => {
       model: 'Camry',
       year: 2022,
       customerId: customer._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
     });
 
     inProgressClaim = await Claim.create({

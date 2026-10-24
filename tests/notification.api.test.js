@@ -103,7 +103,7 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
 
     vehicle1 = await Vehicle.create({
       plateNumber: '11-22334', make: 'Toyota', model: 'Corolla', year: 2022,
-      customerId: customer1._id, policyId: policy1._id, organizationId: org1._id,
+      customerId: customer1._id, complementaryPolicyId: policy1._id, organizationId: org1._id,
     });
 
     claim1 = await Claim.create({

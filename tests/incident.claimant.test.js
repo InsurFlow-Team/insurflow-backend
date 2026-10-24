@@ -119,7 +119,7 @@ describe('PB-02b Claimant & Subject Vehicle on Sub-Claims & PII Masking', () => 
       model: 'Ioniq',
       year: 2023,
       organizationId: org._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
       customerId: customer._id,
     });
 
@@ -129,7 +129,7 @@ describe('PB-02b Claimant & Subject Vehicle on Sub-Claims & PII Masking', () => 
       model: 'Sportage',
       year: 2022,
       organizationId: org._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
       customerId: customer._id,
     });
   });

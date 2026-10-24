@@ -494,7 +494,9 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
       _id: halfLegacyPolicyId,
       policyNumber: 'POL-HALFLEG-01',
       status: 'ACTIVE',
+      policyKind: 'COMPLEMENTARY',
       policyType: 'COMPREHENSIVE',
+      sumInsured: 50000,
       deductibleAmount: null,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2027-12-31T00:00:00Z'),
@@ -518,7 +520,7 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
       model: 'Sportage',
       year: 2022,
       customerId: cust._id,
-      policyId: halfLegacyPolicyId,
+      complementaryPolicyId: halfLegacyPolicyId,
       organizationId: org1._id,
     });
 

@@ -103,12 +103,11 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
     });
 
     const now = new Date();
-    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneYearLater = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
     testPolicy = await buildPolicy({
       organizationId: org1._id,
       policyNumber: 'POL-DEMO-2026',
-      startDate: oneMonthAgo,
+      startDate: new Date('2026-01-01T00:00:00Z'),
       expiryDate: oneYearLater,
       status: 'ACTIVE',
     });
@@ -116,7 +115,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
     testVehicle = await Vehicle.create({
       organizationId: org1._id,
       customerId: testCustomer._id,
-      policyId: testPolicy._id,
+      complementaryPolicyId: testPolicy._id,
       plateNumber: 'ABC-1234',
       make: 'Toyota',
       model: 'Corolla',
@@ -311,7 +310,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.vehicle.plateNumber).toBe('ABC-1234');
-    expect(res.body.data.policy.policyNumber).toBe('POL-DEMO-2026');
+    expect(res.body.data.policies.complementary.policyNumber).toBe('POL-DEMO-2026');
   });
 
   // --------------------------------------------------------------------------

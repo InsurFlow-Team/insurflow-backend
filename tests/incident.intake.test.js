@@ -73,7 +73,7 @@ describe('PB-01a Incident Intake', () => {
       year: 2023,
       color: 'White',
       organizationId: org._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
       customerId: customer._id,
     });
   });
@@ -180,7 +180,7 @@ describe('PB-01a Incident Intake', () => {
       year: 2023,
       color: 'Black',
       organizationId: org2._id,
-      policyId: policy2._id,
+      complementaryPolicyId: policy2._id,
       customerId: customer2._id,
     });
 
@@ -305,7 +305,7 @@ describe('PB-01a Incident Intake', () => {
         model: 'Focus',
         year: 2023,
         organizationId: org._id,
-        policyId: cancelledPolicy._id,
+        complementaryPolicyId: cancelledPolicy._id,
         customerId: customer._id,
       });
 
