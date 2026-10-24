@@ -242,6 +242,11 @@ const incidentSchema = new mongoose.Schema(
       type: Boolean,
       default: null,
     },
+    accidentArea: {
+      type: String,
+      enum: ['PALESTINIAN_AREA', 'ISRAEL', 'UNKNOWN'],
+      default: null,
+    },
     vehicles: {
       type: [incidentVehicleSchema],
       default: [],

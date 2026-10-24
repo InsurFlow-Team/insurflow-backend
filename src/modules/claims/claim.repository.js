@@ -74,7 +74,7 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
 
 const findByIncidentId = async (organizationId, incidentId) => {
   return await Claim.find({ organizationId, incidentId })
-    .select('claimNumber claimType status vehicle.plateNumber createdAt')
+    .select('claimNumber claimType status vehicle.plateNumber vehicle.vehicleId createdAt')
     .sort({ createdAt: 1 })
     .lean();
 };

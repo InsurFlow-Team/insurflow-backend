@@ -21,6 +21,11 @@ router.use(authorizeRole(['CLAIMS_OFFICER', 'ADMIN']));
 router.post('/', validate(createIncidentSchema), incidentController.createIncident);
 router.get('/', validate(listIncidentsQuerySchema, 'query'), incidentController.getIncidents);
 router.get('/:incidentId', validateObjectId('incidentId'), incidentController.getIncidentById);
+router.get(
+  '/:incidentId/coverage-suggestions',
+  validateObjectId('incidentId'),
+  incidentController.getCoverageSuggestions
+);
 router.post(
   '/:incidentId/claims',
   validateObjectId('incidentId'),
