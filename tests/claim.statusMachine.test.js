@@ -135,8 +135,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       policyNumber: 'POL-100',
       status: 'ACTIVE',
       customerId: customer._id,
-      startDate: new Date(),
-      expiryDate: new Date(Date.now() + 31536000000),
+      startDate: new Date('2026-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T21:59:59.999Z'),
     });
 
     vehicle = await Vehicle.create({
@@ -145,7 +145,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       make: 'Toyota',
       model: 'Corolla',
       customerId: customer._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
     });
   });
 
@@ -751,7 +751,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
         make: 'Honda',
         model: 'Accord',
         customerId: customer._id,
-        policyId: policy._id,
+        complementaryPolicyId: policy._id,
       });
 
       const res = await request(app)

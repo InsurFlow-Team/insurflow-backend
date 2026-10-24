@@ -4,9 +4,11 @@ const { ELIGIBILITY_HINTS } = require('../src/modules/policies/policy.model');
 describe('computeEligibilityHint utility', () => {
   const basePolicy = {
     policyNumber: 'POL-1000',
+    policyKind: 'COMPLEMENTARY',
     status: 'ACTIVE',
     startDate: new Date('2025-01-01T00:00:00.000Z'),
-    expiryDate: new Date('2025-12-31T23:59:59.999Z'),
+    // 23:59:59.999 Asia/Hebron on 2025-12-31 (winter offset +02:00 is 21:59:59.999Z) per C7
+    expiryDate: new Date('2025-12-31T21:59:59.999Z'),
     policyType: 'COMPREHENSIVE',
     coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
     deductibleAmount: 500,
@@ -153,7 +155,8 @@ describe('computeEligibilityHint utility', () => {
     it('handles expiryDate stored with end-of-day timestamp 23:59:59.999Z cleanly', () => {
       const policy = {
         ...basePolicy,
-        expiryDate: new Date('2025-12-31T23:59:59.999Z'),
+        // 23:59:59.999 Asia/Hebron on 2025-12-31 (winter offset +02:00 is 21:59:59.999Z) per C7
+    expiryDate: new Date('2025-12-31T21:59:59.999Z'),
       };
       const hint = computeEligibilityHint({
         policy,
@@ -168,7 +171,8 @@ describe('computeEligibilityHint utility', () => {
         policyNumber: 'POL-LEGACY',
         status: 'ACTIVE',
         startDate: new Date('2025-01-01T00:00:00.000Z'),
-        expiryDate: new Date('2025-12-31T23:59:59.999Z'),
+        // 23:59:59.999 Asia/Hebron on 2025-12-31 (winter offset +02:00 is 21:59:59.999Z) per C7
+    expiryDate: new Date('2025-12-31T21:59:59.999Z'),
       };
       const hint = computeEligibilityHint({
         policy: legacyPolicy,
@@ -213,7 +217,8 @@ describe('computeEligibilityHint utility', () => {
 
     const thirdPartyPolicy = {
       ...basePolicy,
-      policyType: 'THIRD_PARTY',
+      policyKind: 'UNIFIED_COMPULSORY',
+      policyType: null,
       coveredPerils: [],
     };
 
@@ -296,6 +301,24 @@ describe('computeEligibilityHint utility', () => {
         incidentDate: '2025-06-15',
       });
       expect(theftHint).toBe(ELIGIBILITY_HINTS.ELIGIBLE_FOR_REVIEW);
+    });
+  });
+  describe('Rule: Asia/Hebron day comparison (PB-04a)', () => {
+    it('compares the policy period by Asia/Hebron day', () => {
+      // startDate: 2026-03-01T22:30:00.000Z (2026-03-02 00:30 Asia/Hebron, winter offset +02:00)
+      const policy = {
+        ...basePolicy,
+        policyKind: 'COMPLEMENTARY',
+        policyType: 'COMPREHENSIVE',
+        startDate: new Date('2026-03-01T22:30:00.000Z'),
+        expiryDate: new Date('2026-12-31T21:59:59.999Z'),
+      };
+      const hint = computeEligibilityHint({
+        policy,
+        incidentType: 'COLLISION',
+        incidentDate: '2026-03-01',
+      });
+      expect(hint).toBe(ELIGIBILITY_HINTS.INCIDENT_OUTSIDE_POLICY_PERIOD);
     });
   });
 });

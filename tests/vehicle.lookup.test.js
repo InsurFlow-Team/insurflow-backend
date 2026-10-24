@@ -88,8 +88,7 @@ describe('Vehicle Lookup API', () => {
       model: 'Focus',
       year: 2021,
       color: 'Blue',
-      customerId: customer1._id,
-      policyId: policy1._id,
+      customerId: customer1._id, complementaryPolicyId: policy1._id,
       organizationId: org1._id,
     });
 
@@ -107,8 +106,7 @@ describe('Vehicle Lookup API', () => {
       model: 'Civic',
       year: 2019,
       color: 'Silver',
-      customerId: customer1._id,
-      policyId: expiredPolicy._id,
+      customerId: customer1._id, complementaryPolicyId: expiredPolicy._id,
       organizationId: org1._id,
     });
 
@@ -174,7 +172,7 @@ describe('Vehicle Lookup API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     
-    const { vehicle, customer, policy } = res.body.data;
+    const { vehicle, customer, policies, warnings } = res.body.data;
     
     expect(vehicle.plateNumber).toBe('TST-1234');
     expect(vehicle.make).toBe('Ford');
@@ -183,12 +181,14 @@ describe('Vehicle Lookup API', () => {
     expect(customer.fullName).toBe('Test Customer 1');
     expect(customer.phone).toBe('+******111');
     
-    expect(policy.policyNumber).toBe('POL-TEST-1');
-    expect(policy.status).toBe('ACTIVE');
-    expect(policy.startDate).toBe('2026-01-01');
-    expect(policy.expiryDate).toBe('2026-12-31');
+    expect(policies.complementary.policyNumber).toBe('POL-TEST-1');
+    expect(policies.complementary.status).toBe('ACTIVE');
+    expect(policies.complementary.startDate).toBe('2026-01-01');
+    expect(policies.complementary.expiryDate).toBe('2026-12-31');
+    expect(policies.compulsory).toBeNull();
     
-    expect(res.body.data.warning).toBeUndefined();
+    expect(res.body.data.policy).toBeUndefined();
+    expect(warnings).toEqual([]);
   });
 
   it('should return warning object if policy is expired', async () => {
@@ -199,12 +199,14 @@ describe('Vehicle Lookup API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     
-    const { vehicle, policy, warning } = res.body.data;
+    const { vehicle, policies, warnings } = res.body.data;
     expect(vehicle.plateNumber).toBe('XYZ-9876');
-    expect(policy.status).toBe('EXPIRED');
+    expect(policies.complementary.status).toBe('EXPIRED');
     
-    expect(warning).toBeDefined();
-    expect(warning.code).toBe('POLICY_EXPIRED');
+    expect(res.body.data.warning).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].code).toBe('POLICY_EXPIRED');
+    expect(warnings[0].policyKind).toBe('COMPLEMENTARY');
   });
 
   it('should return 404 for an unknown plate number', async () => {
@@ -225,5 +227,91 @@ describe('Vehicle Lookup API', () => {
     expect(res.statusCode).toBe(404);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toBe('Vehicle not found');
+  });
+  describe('PB-04a Policy slots & warnings', () => {
+    it('returns policies.compulsory and policies.complementary and no policy key', async () => {
+      const res = await request(app)
+        .get('/api/v1/vehicles/lookup?plateNumber=TST-1234')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.policy).toBeUndefined();
+      expect(res.body.data.policies).toBeDefined();
+      expect(res.body.data.policies.complementary).toMatchObject({
+        policyNumber: 'POL-TEST-1',
+        policyKind: 'COMPLEMENTARY',
+        status: 'ACTIVE',
+      });
+      expect(res.body.data.policies.compulsory).toBeNull();
+    });
+
+    it('returns one POLICY_EXPIRED warning per expired policy', async () => {
+      const expCompulsory = await buildPolicy({
+        policyNumber: 'POL-EXP-COMPUL',
+        policyKind: 'UNIFIED_COMPULSORY',
+        status: 'EXPIRED',
+        startDate: new Date('2024-01-01T00:00:00Z'),
+        expiryDate: new Date('2024-12-31T00:00:00Z'),
+        organizationId: org1._id,
+        propertyDamageLimit: 100000,
+        deductibleAmount: 0,
+      });
+
+      const expComplementary = await buildPolicy({
+        policyNumber: 'POL-EXP-COMPLE',
+        policyKind: 'COMPLEMENTARY',
+        status: 'EXPIRED',
+        startDate: new Date('2024-01-01T00:00:00Z'),
+        expiryDate: new Date('2024-12-31T00:00:00Z'),
+        organizationId: org1._id,
+        sumInsured: 50000,
+        deductibleAmount: 500,
+      });
+
+      await Vehicle.create({
+        plateNumber: 'EXP-DUAL',
+        make: 'Ford',
+        model: 'Fiesta',
+        year: 2020,
+        customerId: customer1._id,
+        compulsoryPolicyId: expCompulsory._id,
+        complementaryPolicyId: expComplementary._id,
+        organizationId: org1._id,
+      });
+
+      const res = await request(app)
+        .get('/api/v1/vehicles/lookup?plateNumber=EXP-DUAL')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.warnings).toHaveLength(2);
+      expect(res.body.data.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'POLICY_EXPIRED', policyKind: 'UNIFIED_COMPULSORY' }),
+          expect.objectContaining({ code: 'POLICY_EXPIRED', policyKind: 'COMPLEMENTARY' }),
+        ])
+      );
+    });
+
+    it('returns null slots and empty warnings for a vehicle without policies', async () => {
+      await Vehicle.create({
+        plateNumber: 'NO-POL-VEH',
+        make: 'Toyota',
+        model: 'Yaris',
+        year: 2020,
+        organizationId: org1._id,
+      });
+
+      const res = await request(app)
+        .get('/api/v1/vehicles/lookup?plateNumber=NO-POL-VEH')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.policies).toEqual({
+        compulsory: null,
+        complementary: null,
+      });
+      expect(res.body.data.warnings).toEqual([]);
+    });
   });
 });

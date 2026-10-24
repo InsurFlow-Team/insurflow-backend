@@ -54,7 +54,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       model: 'Corolla',
       year: 2023,
       organizationId: org1._id,
-      policyId: global.__testPol._id,
+      complementaryPolicyId: global.__testPol._id,
     });
     org2 = await Organization.create({ name: 'Beta Insurance', code: 'BETA' });
     global.__testPol2 = await buildPolicy({ policyNumber: 'POL-FIX-002', status: 'ACTIVE', startDate: new Date('2026-01-01'), expiryDate: new Date('2027-12-31'), organizationId: org2._id });

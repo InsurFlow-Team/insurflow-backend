@@ -104,7 +104,7 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
       model: 'Corolla',
       year: 2023,
       organizationId: org._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
       customerId: customer._id,
     });
   };

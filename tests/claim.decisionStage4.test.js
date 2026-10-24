@@ -92,9 +92,10 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
     policy0 = await buildPolicy({
       policyNumber: 'POL-DEC-0',
       status: 'ACTIVE',
-      policyType: 'THIRD_PARTY',
+      policyKind: 'UNIFIED_COMPULSORY',
       coveredPerils: [],
       deductibleAmount: 0,
+      propertyDamageLimit: 100000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2027-12-31T00:00:00Z'),
       organizationId: org._id,

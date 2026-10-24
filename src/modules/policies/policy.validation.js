@@ -15,6 +15,13 @@ const verifyPolicySchema = Joi.object({
     'string.base': 'Plate number must be a string',
     'string.empty': 'Plate number cannot be empty',
   }),
+  policyKind: Joi.string()
+    .valid(...Policy.POLICY_KINDS)
+    .optional()
+    .messages({
+      'any.only': `policyKind must be one of: ${Policy.POLICY_KINDS.join(', ')}`,
+      'string.base': 'policyKind must be a string',
+    }),
   incidentDate: Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
@@ -30,7 +37,9 @@ const verifyPolicySchema = Joi.object({
     }),
 })
   .or('policyNumber', 'plateNumber')
+  .without('policyNumber', ['policyKind'])
   .messages({
+    'object.without': 'policyKind is not allowed with policyNumber',
     'object.missing': 'Either policyNumber or plateNumber must be provided',
   });
 

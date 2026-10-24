@@ -23,9 +23,15 @@ const vehicleSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
     },
-    policyId: {
+    compulsoryPolicyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Policy',
+      default: null,
+    },
+    complementaryPolicyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Policy',
+      default: null,
     },
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -38,6 +44,7 @@ const vehicleSchema = new mongoose.Schema(
 
 // Indexes
 vehicleSchema.index({ organizationId: 1, plateNumber: 1 }, { unique: true });
-vehicleSchema.index({ organizationId: 1, policyId: 1 });
+vehicleSchema.index({ organizationId: 1, compulsoryPolicyId: 1 });
+vehicleSchema.index({ organizationId: 1, complementaryPolicyId: 1 });
 
 module.exports = mongoose.model('Vehicle', vehicleSchema);

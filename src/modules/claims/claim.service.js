@@ -1,3 +1,4 @@
+const { getPolicyPeriodViolation } = require('../../utils/policyPeriod');
 const crypto = require('crypto');
 const claimRepository = require('./claim.repository');
 const incidentRepository = require('../incidents/incident.repository');
@@ -25,8 +26,28 @@ const buildTrackingUrl = (token) => {
   return `${baseUrl}/track/${token}`;
 };
 
+const assertPolicyCoverage = ({ policy, claimType = 'OWN_DAMAGE', incidentAt, incidentDate }) => {
+  if (claimType === 'OWN_DAMAGE') {
+    if (!policy.policyKind) {
+      throw new AppError('Policy kind is missing', 422, 'COVERAGE_NOT_APPLICABLE', 'POLICY_KIND_MISSING');
+    }
+    if (policy.policyKind === 'UNIFIED_COMPULSORY') {
+      throw new AppError('Own damage claim requires a complementary policy', 422, 'COVERAGE_NOT_APPLICABLE', 'WRONG_POLICY_KIND');
+    }
+  }
+
+  const violation = getPolicyPeriodViolation({ policy, incidentAt, incidentDate });
+  if (violation) {
+    const message =
+      violation === 'BEFORE_POLICY_START'
+        ? 'Incident occurred before policy start date'
+        : 'Incident occurred after policy expiry date';
+    throw new AppError(message, 422, 'COVERAGE_NOT_APPLICABLE', violation);
+  }
+};
+
 const resolveClaimData = async (
-  { policyId, plateNumber: requestedPlate, incidentType, incidentDate },
+  { policyId, plateNumber: requestedPlate, incidentType, incidentDate, incidentAt, claimType = 'OWN_DAMAGE' },
   authUser
 ) => {
   // ── 1. Policy existence & tenant isolation ──────────────────────
@@ -40,8 +61,11 @@ const resolveClaimData = async (
     throw new AppError('Policy has been cancelled', 422, 'POLICY_CANCELLED');
   }
 
-  // ── 3. Resolve vehicle & customer from policy ──────────────────
-  const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, authUser.organizationId);
+  // ── 3. Coverage & Period gate (A3) ────────────────────────────
+  assertPolicyCoverage({ policy, claimType, incidentAt, incidentDate });
+
+  // ── 4. Resolve vehicle & customer from policy ──────────────────
+  const vehicles = await vehicleRepository.findAllByPolicyAndOrganization(policy._id, authUser.organizationId, policy.policyKind);
 
   if (!vehicles || vehicles.length === 0) {
     throw new AppError('No vehicle is registered under this policy', 422, 'NO_VEHICLE_ON_POLICY');
@@ -80,9 +104,11 @@ const resolveClaimData = async (
     policy.deductibleAmount !== null
   ) {
     coverageSnapshot = {
+      policyKind: policy.policyKind ?? null,
       policyType: policy.policyType,
       coveredPerils: Array.isArray(policy.coveredPerils) ? [...policy.coveredPerils] : [],
       deductibleAmount: policy.deductibleAmount,
+      sumInsured: policy.sumInsured ?? null,
       capturedAt: new Date(),
     };
   }
@@ -193,9 +219,11 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
     eligibilityHint: claim.eligibilityHint ?? null,
     coverageSnapshot: claim.coverageSnapshot
       ? {
+          policyKind: claim.coverageSnapshot.policyKind ?? null,
           policyType: claim.coverageSnapshot.policyType,
           coveredPerils: claim.coverageSnapshot.coveredPerils,
           deductibleAmount: claim.coverageSnapshot.deductibleAmount,
+          sumInsured: claim.coverageSnapshot.sumInsured ?? null,
           capturedAt: claim.coverageSnapshot.capturedAt,
         }
       : null,
@@ -228,7 +256,7 @@ const createClaim = async (body, authUser) => {
   }
 
   const { claimFields } = await resolveClaimData(
-    { policyId, plateNumber: requestedPlate, incidentType, incidentDate },
+    { policyId, plateNumber: requestedPlate, incidentType, incidentDate, incidentAt: null, claimType: 'OWN_DAMAGE' },
     authUser
   );
 
@@ -303,6 +331,8 @@ const createSubClaim = async (incidentId, body, authUser) => {
       plateNumber,
       incidentType: incident.incidentType,
       incidentDate: incident.incidentDate,
+      incidentAt: incident.incidentAt,
+      claimType: claimType || 'OWN_DAMAGE',
     },
     authUser
   );
@@ -541,9 +571,11 @@ const getClaimById = async (claimId, authUser) => {
     // ── 13. Coverage Snapshot (captured at intake) ───────────────
     coverageSnapshot: claim.coverageSnapshot
       ? {
+          policyKind: claim.coverageSnapshot.policyKind ?? null,
           policyType: claim.coverageSnapshot.policyType ?? null,
           coveredPerils: claim.coverageSnapshot.coveredPerils ?? [],
           deductibleAmount: claim.coverageSnapshot.deductibleAmount ?? null,
+          sumInsured: claim.coverageSnapshot.sumInsured ?? null,
           capturedAt: claim.coverageSnapshot.capturedAt ?? null,
         }
       : null,
@@ -865,7 +897,11 @@ const updateVehicle = async (claimId, body, authUser) => {
     throw new AppError('Policy does not match the claim policy', 422, 'POLICY_MISMATCH');
   }
 
-  if (!vehicle.policyId || !claimPolicyId.equals(vehicle.policyId)) {
+  const matchesPolicy =
+    (vehicle.compulsoryPolicyId && claimPolicyId.equals(vehicle.compulsoryPolicyId)) ||
+    (vehicle.complementaryPolicyId && claimPolicyId.equals(vehicle.complementaryPolicyId));
+
+  if (!matchesPolicy) {
     throw new AppError('Vehicle is not registered under the claim policy', 422, 'VEHICLE_NOT_ON_CLAIM_POLICY');
   }
 
@@ -1661,6 +1697,7 @@ const getPublicClaimStatus = async (trackingToken) => {
 };
 
 module.exports = {
+  assertPolicyCoverage,
   buildTrackingUrl,
   resolveClaimData,
   insertClaim,

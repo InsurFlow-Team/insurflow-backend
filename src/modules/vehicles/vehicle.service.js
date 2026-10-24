@@ -22,6 +22,39 @@ const lookupVehicle = async (plateNumber, authUser) => {
     throw new AppError('Vehicle not found', 404, 'VEHICLE_NOT_FOUND');
   }
 
+  const formatPolicy = (p) =>
+    p
+      ? {
+          id: p._id,
+          policyNumber: p.policyNumber,
+          policyKind: p.policyKind,
+          status: p.status,
+          startDate: p.startDate ? p.startDate.toISOString().split('T')[0] : null,
+          expiryDate: p.expiryDate ? p.expiryDate.toISOString().split('T')[0] : null,
+        }
+      : null;
+
+  const policies = {
+    compulsory: formatPolicy(vehicle.compulsoryPolicyId),
+    complementary: formatPolicy(vehicle.complementaryPolicyId),
+  };
+
+  const warnings = [];
+  if (vehicle.compulsoryPolicyId && vehicle.compulsoryPolicyId.status === 'EXPIRED') {
+    warnings.push({
+      code: 'POLICY_EXPIRED',
+      policyKind: vehicle.compulsoryPolicyId.policyKind,
+      details: 'This policy has expired. The inspection may continue, but flag this claim for review.',
+    });
+  }
+  if (vehicle.complementaryPolicyId && vehicle.complementaryPolicyId.status === 'EXPIRED') {
+    warnings.push({
+      code: 'POLICY_EXPIRED',
+      policyKind: vehicle.complementaryPolicyId.policyKind,
+      details: 'This policy has expired. The inspection may continue, but flag this claim for review.',
+    });
+  }
+
   const response = {
     vehicle: {
       id: vehicle._id,
@@ -35,28 +68,15 @@ const lookupVehicle = async (plateNumber, authUser) => {
       ? {
           id: vehicle.customerId._id,
           fullName: vehicle.customerId.fullName,
-          phone: authUser.role === 'FIELD_ADJUSTER'
-            ? maskPhone(vehicle.customerId.phone)
-            : vehicle.customerId.phone,
+          phone:
+            authUser.role === 'FIELD_ADJUSTER'
+              ? maskPhone(vehicle.customerId.phone)
+              : vehicle.customerId.phone,
         }
       : null,
-    policy: vehicle.policyId
-      ? {
-          id: vehicle.policyId._id,
-          policyNumber: vehicle.policyId.policyNumber,
-          status: vehicle.policyId.status,
-          startDate: vehicle.policyId.startDate ? vehicle.policyId.startDate.toISOString().split('T')[0] : null,
-          expiryDate: vehicle.policyId.expiryDate ? vehicle.policyId.expiryDate.toISOString().split('T')[0] : null,
-        }
-      : null,
+    policies,
+    warnings,
   };
-
-  if (vehicle.policyId && vehicle.policyId.status === 'EXPIRED') {
-    response.warning = {
-      code: 'POLICY_EXPIRED',
-      details: 'This policy has expired. The inspection may continue, but flag this claim for review.',
-    };
-  }
 
   return response;
 };

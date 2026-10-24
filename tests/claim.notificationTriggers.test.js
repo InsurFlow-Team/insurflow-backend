@@ -88,7 +88,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
       model: 'Camry',
       year: 2022,
       customerId: customer._id,
-      policyId: global.__testPol._id,
+      complementaryPolicyId: global.__testPol._id,
       organizationId: org._id,
     });
   });

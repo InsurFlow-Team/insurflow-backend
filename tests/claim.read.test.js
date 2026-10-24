@@ -102,7 +102,7 @@ describe('Claim Read Endpoints', () => {
       year: 2024,
       color: 'White',
       customerId: customer1._id,
-      policyId: policy1._id,
+      complementaryPolicyId: policy1._id,
       organizationId: org1._id,
     });
 

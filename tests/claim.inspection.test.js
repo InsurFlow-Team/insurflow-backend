@@ -58,7 +58,7 @@ describe('Inspection Endpoints', () => {
 
     customer = await Customer.create({ organizationId: org1._id, fullName: 'C', phone: '123' });
     policy = await buildPolicy({ organizationId: org1._id, policyNumber: 'P-123', status: 'ACTIVE', customerId: customer._id, startDate: new Date(), expiryDate: new Date(Date.now() + 31536000000) });
-    vehicle = await Vehicle.create({ organizationId: org1._id, plateNumber: 'REAL-PLATE', make: 'Toyota', model: 'Camry', customerId: customer._id, policyId: policy._id });
+    vehicle = await Vehicle.create({ organizationId: org1._id, plateNumber: 'REAL-PLATE', make: 'Toyota', model: 'Camry', customerId: customer._id, complementaryPolicyId: policy._id });
 
     claimAssigned = await Claim.create({
       organizationId: org1._id,
@@ -348,7 +348,7 @@ describe('Inspection Endpoints', () => {
         make: 'Honda',
         model: 'Civic',
         customerId: customer._id,
-        policyId: otherPolicy._id,
+        complementaryPolicyId: otherPolicy._id,
       });
       const token = generateToken(adjuster1);
       const res = await request(app)
@@ -529,6 +529,23 @@ describe('Inspection Endpoints', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+    it('accepts a vehicle whose complementaryPolicyId equals the claim policy in the vehicle step', async () => {
+      const token = generateToken(adjuster1);
+      const res = await request(app)
+        .put(`/api/v1/claims/${claimAssigned._id}/vehicle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          vehicleId: vehicle._id.toString(),
+          policyId: policy._id.toString(),
+          customerId: customer._id.toString(),
+          plateNumber: 'REAL-PLATE',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('IN_PROGRESS');
+      expect(res.body.data.vehicle.plateNumber).toBe('REAL-PLATE');
     });
   });
 });

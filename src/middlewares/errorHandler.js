@@ -1,3 +1,4 @@
+const AppError = require('../utils/appError');
 const { errorResponse } = require('../utils/apiResponse');
 const config = require('../config/env');
 
@@ -41,7 +42,11 @@ const errorHandler = (err, req, res, next) => {
     console.error(err.stack);
   }
 
-  const errors = [{ code, details: message }];
+  const errorObj = { code, details: message };
+  if (err instanceof AppError && typeof err.reason === 'string') {
+    errorObj.reason = err.reason;
+  }
+  const errors = [errorObj];
 
   res.status(statusCode).json(errorResponse(message, errors));
 };

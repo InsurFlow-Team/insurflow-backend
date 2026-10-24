@@ -94,6 +94,11 @@ const claimSchema = new mongoose.Schema(
     coverageSnapshot: {
       type: new mongoose.Schema(
         {
+          policyKind: {
+            type: String,
+            enum: ['UNIFIED_COMPULSORY', 'COMPLEMENTARY'],
+            default: null,
+          },
           policyType: {
             type: String,
             enum: ['COMPREHENSIVE', 'THIRD_PARTY'],
@@ -109,6 +114,11 @@ const claimSchema = new mongoose.Schema(
             default: [],
           },
           deductibleAmount: {
+            type: Number,
+            min: 0,
+            default: null,
+          },
+          sumInsured: {
             type: Number,
             min: 0,
             default: null,

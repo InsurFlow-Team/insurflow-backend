@@ -119,7 +119,7 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       year: 2023,
       color: 'White',
       organizationId: org._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
       customerId: customer._id,
     });
   };
@@ -298,7 +298,7 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       year: 2024,
       color: 'Black',
       organizationId: org._id,
-      policyId: policy._id,
+      complementaryPolicyId: policy._id,
       customerId: customer._id,
     });
 

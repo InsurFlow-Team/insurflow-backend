@@ -86,8 +86,7 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       model: 'RAV4',
       year: 2023,
       color: 'Silver',
-      customerId: customer._id,
-      policyId: comprehensivePolicy._id,
+      customerId: customer._id, complementaryPolicyId: comprehensivePolicy._id,
       organizationId: org._id,
     });
 
@@ -97,8 +96,7 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       model: 'Micra',
       year: 2021,
       color: 'White',
-      customerId: customer._id,
-      policyId: thirdPartyPolicy._id,
+      customerId: customer._id, compulsoryPolicyId: thirdPartyPolicy._id,
       organizationId: org._id,
     });
   });
@@ -127,7 +125,9 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
     // Verify persisted snapshot in database
     const claimDoc = await Claim.findById(claimId).lean();
     expect(claimDoc.coverageSnapshot).toBeDefined();
+    expect(claimDoc.coverageSnapshot.policyKind).toBe('COMPLEMENTARY');
     expect(claimDoc.coverageSnapshot.policyType).toBe('COMPREHENSIVE');
+    expect(claimDoc.coverageSnapshot.sumInsured).toBe(50000);
     expect(claimDoc.coverageSnapshot.coveredPerils).toEqual([
       'COLLISION',
       'THEFT',
@@ -144,14 +144,16 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.data.coverageSnapshot).toEqual({
+      policyKind: 'COMPLEMENTARY',
       policyType: 'COMPREHENSIVE',
+      sumInsured: 50000,
       coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
       deductibleAmount: 500,
       capturedAt: expect.any(String),
     });
   });
 
-  it('should capture THIRD_PARTY coverageSnapshot with empty coveredPerils and 0 deductible', async () => {
+  it('rejects an OWN_DAMAGE claim on a UNIFIED_COMPULSORY policy with WRONG_POLICY_KIND', async () => {
     const res = await request(app)
       .post('/api/v1/claims')
       .set('Authorization', `Bearer ${officerToken}`)
@@ -163,20 +165,9 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
         incidentDate: '2026-07-01',
       });
 
-    expect(res.status).toBe(201);
-    const claimId = res.body.data.id;
-
-    const getRes = await request(app)
-      .get(`/api/v1/claims/${claimId}`)
-      .set('Authorization', `Bearer ${officerToken}`);
-
-    expect(getRes.status).toBe(200);
-    expect(getRes.body.data.coverageSnapshot).toEqual({
-      policyType: 'THIRD_PARTY',
-      coveredPerils: [],
-      deductibleAmount: 0,
-      capturedAt: expect.any(String),
-    });
+    expect(res.status).toBe(422);
+    expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+    expect(res.body.errors[0].reason).toBe('WRONG_POLICY_KIND');
   });
 
   it('should maintain immutable coverageSnapshot even if policy is modified after claim creation', async () => {
@@ -195,10 +186,10 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
     expect(createRes.status).toBe(201);
     const claimId = createRes.body.data.id;
 
-    // 2. Tamper with the policy document directly in DB (e.g. downgraded to THIRD_PARTY with 0 deductible)
+    // 2. Tamper with the policy document directly in DB
     await Policy.updateOne(
       { _id: comprehensivePolicy._id },
-      { $set: { policyType: 'THIRD_PARTY', coveredPerils: [], deductibleAmount: 0 } }
+      { $set: { coveredPerils: ['THEFT'], deductibleAmount: 0, sumInsured: 1000 } }
     );
 
     // 3. Fetch claim — snapshot must remain pristine with intake conditions
@@ -207,8 +198,10 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       .set('Authorization', `Bearer ${officerToken}`);
 
     expect(getRes.status).toBe(200);
+    expect(getRes.body.data.coverageSnapshot.policyKind).toBe('COMPLEMENTARY');
     expect(getRes.body.data.coverageSnapshot.policyType).toBe('COMPREHENSIVE');
     expect(getRes.body.data.coverageSnapshot.deductibleAmount).toBe(500);
+    expect(getRes.body.data.coverageSnapshot.sumInsured).toBe(50000);
     expect(getRes.body.data.coverageSnapshot.coveredPerils).toEqual([
       'COLLISION',
       'THEFT',
@@ -222,14 +215,16 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       {
         $set: {
           policyType: 'COMPREHENSIVE',
+          policyKind: 'COMPLEMENTARY',
           coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
           deductibleAmount: 500,
+          sumInsured: 50000,
         },
       }
     );
   });
 
-  it('should gracefully set coverageSnapshot to null when creating claim under legacy policy missing coverage fields', async () => {
+  it('rejects claim creation under a legacy policy without policyKind with POLICY_KIND_MISSING', async () => {
     const legacyPolicyId = new mongoose.Types.ObjectId();
     await Policy.collection.insertOne({
       _id: legacyPolicyId,
@@ -248,7 +243,7 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       model: 'Cerato',
       year: 2018,
       customerId: customer._id,
-      policyId: legacyPolicyId,
+      complementaryPolicyId: legacyPolicyId,
       organizationId: org._id,
     });
 
@@ -263,15 +258,9 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
         incidentDate: '2026-05-10',
       });
 
-    expect(res.status).toBe(201);
-    const claimId = res.body.data.id;
-
-    const getRes = await request(app)
-      .get(`/api/v1/claims/${claimId}`)
-      .set('Authorization', `Bearer ${officerToken}`);
-
-    expect(getRes.status).toBe(200);
-    expect(getRes.body.data.coverageSnapshot).toBeNull();
+    expect(res.status).toBe(422);
+    expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+    expect(res.body.errors[0].reason).toBe('POLICY_KIND_MISSING');
   });
 
   it('should not expose coverageSnapshot in claims listing endpoint (GET /claims)', async () => {

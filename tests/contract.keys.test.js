@@ -80,7 +80,7 @@ describe('API Contract Keys — Sorted Key Sets', () => {
 
     vehicle = await Vehicle.create({
       organizationId: org._id,
-      policyId: eligiblePolicy._id,
+      complementaryPolicyId: eligiblePolicy._id,
       customerId: customer._id,
       plateNumber: '1234-A',
       make: 'Toyota',
@@ -130,12 +130,12 @@ describe('API Contract Keys — Sorted Key Sets', () => {
 
     // data.policy
     expect(Object.keys(data.policy).sort()).toEqual(
-      ['coveredPerils', 'deductibleAmount', 'expiryDate', 'id', 'policyNumber', 'policyType', 'startDate', 'status'].sort()
+      ['coveredPerils', 'deductibleAmount', 'expiryDate', 'id', 'policyKind', 'policyNumber', 'policyType', 'propertyDamageLimit', 'startDate', 'status', 'sumInsured', 'vehicleUse'].sort()
     );
 
     // data.coverage
     expect(Object.keys(data.coverage).sort()).toEqual(
-      ['deductible', 'effectiveFrom', 'effectiveTo', 'incidents', 'policyType'].sort()
+      ['deductible', 'effectiveFrom', 'effectiveTo', 'incidents', 'policyKind', 'policyType'].sort()
     );
 
     // one data.coverage.incidents item
@@ -202,7 +202,7 @@ describe('API Contract Keys — Sorted Key Sets', () => {
 
     // coverageSnapshot sub-keys
     expect(Object.keys(res.body.data.coverageSnapshot).sort()).toEqual(
-      ['capturedAt', 'coveredPerils', 'deductibleAmount', 'policyType'].sort()
+      ['capturedAt', 'coveredPerils', 'deductibleAmount', 'policyKind', 'policyType', 'sumInsured'].sort()
     );
   });
 
@@ -269,7 +269,7 @@ describe('API Contract Keys — Sorted Key Sets', () => {
     expect(Object.keys(data.assignment).sort()).toEqual(['assignedAt', 'assignedBy', 'assignedTo', 'assignmentNotes', 'priority'].sort());
 
     // coverageSnapshot sub-keys
-    expect(Object.keys(data.coverageSnapshot).sort()).toEqual(['capturedAt', 'coveredPerils', 'deductibleAmount', 'policyType'].sort());
+    expect(Object.keys(data.coverageSnapshot).sort()).toEqual(['capturedAt', 'coveredPerils', 'deductibleAmount', 'policyKind', 'policyType', 'sumInsured'].sort());
   });
 
   // 5. GET /claims/:claimId as FIELD_ADJUSTER (trackingToken and trackingUrl absent)

@@ -1,4 +1,6 @@
 const { ELIGIBILITY_HINTS } = require('../modules/policies/policy.model');
+const { toHebronDate } = require('./hebronDate');
+const { getPolicyPeriodViolation } = require('./policyPeriod');
 
 /**
  * Mapping between granular claim incident types and core policy covered perils.
@@ -26,24 +28,24 @@ const CLAIM_TYPE_TO_PERIL = Object.freeze({
  * @returns {string|null} ELIGIBILITY_HINTS value or null
  */
 const computeEligibilityHint = ({ policy, incidentType, incidentDate, now = new Date() }) => {
-  // 1. If an incident type is supplied but the policy lacks a policyType (legacy unmigrated policy), coverage is unknown.
-  if (incidentType && !policy.policyType) {
+  // 1. If an incident type is supplied but the policy lacks policyKind or has COMPLEMENTARY without policyType
+  if (
+    incidentType &&
+    (!policy.policyKind || (policy.policyKind === 'COMPLEMENTARY' && !policy.policyType))
+  ) {
     return ELIGIBILITY_HINTS.COVERAGE_UNKNOWN;
   }
 
-  // 2. Determine reference date and compare against policy validity period (inclusive).
-  const refDateStr = incidentDate || new Date(now).toISOString().split('T')[0];
-  const startDateStr = policy.startDate
-    ? new Date(policy.startDate).toISOString().split('T')[0]
-    : null;
-  const expiryDateStr = policy.expiryDate
-    ? new Date(policy.expiryDate).toISOString().split('T')[0]
-    : null;
+  // 2. Determine reference date and compare against policy validity period via C2
+  const effectiveIncidentDate = incidentDate || toHebronDate(now);
+  const violation = getPolicyPeriodViolation({
+    policy,
+    incidentAt: null,
+    incidentDate: effectiveIncidentDate,
+  });
 
-  if (startDateStr && expiryDateStr) {
-    if (refDateStr < startDateStr || refDateStr > expiryDateStr) {
-      return ELIGIBILITY_HINTS.INCIDENT_OUTSIDE_POLICY_PERIOD;
-    }
+  if (violation) {
+    return ELIGIBILITY_HINTS.INCIDENT_OUTSIDE_POLICY_PERIOD;
   }
 
   // 3. If no incident type was provided, no peril-level eligibility hint applies.

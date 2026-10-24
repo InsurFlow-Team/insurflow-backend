@@ -115,8 +115,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       model: 'Corolla',
       year: 2022,
       color: 'White',
-      customerId: customer._id,
-      policyId: activeCompPolicy._id,
+      customerId: customer._id, complementaryPolicyId: activeCompPolicy._id,
       organizationId: org._id,
     });
 
@@ -126,8 +125,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       model: 'Elantra',
       year: 2021,
       color: 'Blue',
-      customerId: customer._id,
-      policyId: cancelledPolicy._id,
+      customerId: customer._id, complementaryPolicyId: cancelledPolicy._id,
       organizationId: org._id,
     });
 
@@ -137,8 +135,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       model: 'Cerato',
       year: 2020,
       color: 'Black',
-      customerId: customer._id,
-      policyId: expiredPolicy._id,
+      customerId: customer._id, complementaryPolicyId: expiredPolicy._id,
       organizationId: org._id,
     });
 
@@ -172,8 +169,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       model: 'Sunny',
       year: 2019,
       color: 'Silver',
-      customerId: customer._id,
-      policyId: collisionOnlyPolicy._id,
+      customerId: customer._id, complementaryPolicyId: collisionOnlyPolicy._id,
       organizationId: org._id,
     });
 
@@ -183,8 +179,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       model: '3',
       year: 2017,
       color: 'Red',
-      customerId: customer._id,
-      policyId: legacyPolicy._id,
+      customerId: customer._id, complementaryPolicyId: legacyPolicy._id,
       organizationId: org._id,
     });
   });
@@ -332,9 +327,9 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentDate: '2024-06-15', // before policy start 2025-01-01
         });
 
-      expect(res.status).toBe(201);
-      const claimDoc = await Claim.findById(res.body.data.id).lean();
-      expect(claimDoc.eligibilityHint).toBe('INCIDENT_OUTSIDE_POLICY_PERIOD');
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+      expect(res.body.errors[0].reason).toBe('BEFORE_POLICY_START');
     });
 
     it('computes and stores NOT_COVERED_BY_POLICY_TYPE when peril is not covered', async () => {
@@ -366,9 +361,9 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentDate: '2026-06-15',
         });
 
-      expect(res.status).toBe(201);
-      const claimDoc = await Claim.findById(res.body.data.id).lean();
-      expect(claimDoc.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+      expect(res.body.errors[0].reason).toBe('POLICY_KIND_MISSING');
     });
 
     it('creates claim for expired policy when incidentDate is inside the period (returns ELIGIBLE_FOR_REVIEW)', async () => {
@@ -427,6 +422,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
       expect(res.body.data).toHaveProperty('trackingUrl');
       expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
       expect(res.body.data.coverageSnapshot).toEqual({
+        policyKind: 'COMPLEMENTARY',
+        sumInsured: 50000,
         policyType: 'COMPREHENSIVE',
         coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
         deductibleAmount: 500,
@@ -447,9 +444,9 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentDate: '2026-06-15',
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body.data.coverageSnapshot).toBeNull();
-      expect(res.body.data.eligibilityHint).toBe('COVERAGE_UNKNOWN');
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+      expect(res.body.errors[0].reason).toBe('POLICY_KIND_MISSING');
     });
 
     it('builds trackingUrl from config and returns null when publicFrontendUrl is unset', async () => {
@@ -538,8 +535,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         model: 'Civic',
         year: 2021,
         color: 'Black',
-        customerId: customer._id,
-        policyId: thirdPartyPolicy._id,
+        customerId: customer._id, compulsoryPolicyId: thirdPartyPolicy._id,
         organizationId: org._id,
       });
 
@@ -560,8 +556,7 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
         model: 'Elantra',
         year: 2020,
         color: 'Silver',
-        customerId: customer._id,
-        policyId: theftOnlyPolicy._id,
+        customerId: customer._id, complementaryPolicyId: theftOnlyPolicy._id,
         organizationId: org._id,
       });
     });
@@ -610,10 +605,10 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentLocation: 'Ramallah',
             incidentDate: '2026-06-15',
           });
-        expect(res.status).toBe(201);
-        expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
+        expect(res.status).toBe(422);
+        expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+        expect(res.body.errors[0].reason).toBe('WRONG_POLICY_KIND');
       }
-
       const resOther = await request(app)
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
@@ -624,8 +619,9 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentLocation: 'Ramallah',
           incidentDate: '2026-06-15',
         });
-      expect(resOther.status).toBe(201);
-      expect(resOther.body.data.eligibilityHint).toBeNull();
+      expect(resOther.status).toBe(422);
+      expect(resOther.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
+      expect(resOther.body.errors[0].reason).toBe('WRONG_POLICY_KIND');
     });
 
     it('sets eligibilityHint NOT_COVERED_BY_POLICY_TYPE for collision types and null for OTHER on theft-only policy', async () => {
