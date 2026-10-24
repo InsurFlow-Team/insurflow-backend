@@ -122,6 +122,10 @@ const fillReportFields = async (incidentId, organizationId, fields) => {
     filter.injuriesReported = { $in: [null, false] };
     setUpdates.injuriesReported = true;
   }
+  if (fields.accidentArea !== undefined) {
+    filter.accidentArea = { $in: [null, 'UNKNOWN'] };
+    setUpdates.accidentArea = fields.accidentArea;
+  }
 
   return await Incident.findOneAndUpdate(
     filter,

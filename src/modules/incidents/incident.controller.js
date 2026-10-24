@@ -59,6 +59,12 @@ const patchReport = async (req, res) => {
   return res.status(200).json(successResponse('Report updated successfully', result));
 };
 
+const getCoverageSuggestions = async (req, res) => {
+  const { incidentId } = req.params;
+  const result = await incidentService.getCoverageSuggestions(incidentId, req.user);
+  return res.status(200).json(successResponse('Coverage suggestions retrieved successfully', result));
+};
+
 module.exports = {
   createIncident,
   getIncidents,
@@ -68,4 +74,5 @@ module.exports = {
   addParty,
   addDamagedItem,
   patchReport,
+  getCoverageSuggestions,
 };

@@ -18,6 +18,10 @@ const findByIdAndOrganization = async (vehicleId, organizationId) => {
   return await Vehicle.findOne({ _id: vehicleId, organizationId }).lean();
 };
 
+const findByIdsAndOrganization = async (vehicleIds, organizationId) => {
+  return await Vehicle.find({ _id: { $in: vehicleIds }, organizationId }).lean();
+};
+
 const findAllByPolicyAndOrganization = async (policyId, organizationId, policyKind) => {
   const filter = { organizationId };
   if (policyKind === 'COMPLEMENTARY') {
@@ -35,6 +39,7 @@ const findAllByPolicyAndOrganization = async (policyId, organizationId, policyKi
 module.exports = {
   findByPlateAndOrganization,
   findByIdAndOrganization,
+  findByIdsAndOrganization,
   findAllByPolicyAndOrganization,
   create,
 };

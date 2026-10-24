@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const incidentRepository = require('./incident.repository');
 const claimRepository = require('../claims/claim.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
+const policyRepository = require('../policies/policy.repository');
+const { assertPolicyCoverage, getEligibleClaimantParties } = require('../claims/claim.service');
+const { getPolicyPeriodViolation } = require('../../utils/policyPeriod');
 const AppError = require('../../utils/appError');
 
 const { deriveIncidentDate } = require('../../utils/hebronDate');
@@ -49,6 +52,7 @@ const createIncident = async (body, authUser) => {
     eKrokaReference,
     policeReportNumber,
     injuriesReported,
+    accidentArea = null,
     description,
     latitude,
     longitude,
@@ -147,6 +151,7 @@ const createIncident = async (body, authUser) => {
     eKrokaReference: eKrokaReference || null,
     policeReportNumber: policeReportNumber || null,
     injuriesReported,
+    accidentArea: accidentArea ?? null,
     vehicles: preparedVehicles,
     parties: preparedParties,
     damagedItems: preparedDamagedItems,
@@ -168,6 +173,7 @@ const createIncident = async (body, authUser) => {
     eKrokaReference: incident.eKrokaReference ?? null,
     policeReportNumber: incident.policeReportNumber ?? null,
     injuriesReported: incident.injuriesReported ?? null,
+    accidentArea: incident.accidentArea ?? null,
     vehicles: incident.vehicles.map(formatVehicle),
     parties: incident.parties.map(formatParty),
     damagedItems: incident.damagedItems.map(formatDamagedItem),
@@ -242,6 +248,7 @@ const getIncidentById = async (incidentId, authUser) => {
     eKrokaReference: incident.eKrokaReference ?? null,
     policeReportNumber: incident.policeReportNumber ?? null,
     injuriesReported: incident.injuriesReported ?? null,
+    accidentArea: incident.accidentArea ?? null,
     vehicles: (incident.vehicles ?? []).map(formatVehicle),
     parties: (incident.parties ?? []).map(formatParty),
     damagedItems: (incident.damagedItems ?? []).map(formatDamagedItem),
@@ -420,6 +427,13 @@ const patchReport = async (incidentId, body, authUser) => {
     if (body.injuriesReported !== undefined && existing.injuriesReported === true) {
       throw new AppError('Report field already set', 409, 'REPORT_FIELD_ALREADY_SET');
     }
+    if (
+      body.accidentArea !== undefined &&
+      existing.accidentArea !== null &&
+      existing.accidentArea !== 'UNKNOWN'
+    ) {
+      throw new AppError('Report field already set', 409, 'REPORT_FIELD_ALREADY_SET');
+    }
     throw new AppError('Incident changed, retry', 409, 'CONFLICT_RETRY');
   }
 
@@ -428,6 +442,273 @@ const patchReport = async (incidentId, body, authUser) => {
     eKrokaReference: updated.eKrokaReference ?? null,
     policeReportNumber: updated.policeReportNumber ?? null,
     injuriesReported: updated.injuriesReported ?? null,
+    accidentArea: updated.accidentArea ?? null,
+  };
+};
+
+
+const getCoverageSuggestions = async (incidentId, authUser) => {
+  const incident = await incidentRepository.findByIdAndOrganization(
+    incidentId,
+    authUser.organizationId
+  );
+  if (!incident) {
+    throw new AppError('Incident not found', 404, 'INCIDENT_NOT_FOUND');
+  }
+
+  const insuredVehicles = (incident.vehicles || []).filter(
+    (v) => v.vehicleRole === 'INSURED' && v.vehicleId
+  );
+  const vehicleIds = insuredVehicles.map((v) => v.vehicleId);
+
+  const [vehiclesInBook, existingClaims] = await Promise.all([
+    vehicleIds.length > 0
+      ? vehicleRepository.findByIdsAndOrganization(vehicleIds, authUser.organizationId)
+      : [],
+    claimRepository.findByIncidentId(authUser.organizationId, incidentId),
+  ]);
+
+  const vehicleMap = new Map();
+  for (const v of vehiclesInBook) {
+    vehicleMap.set(v._id.toString(), v);
+  }
+
+  const policyIds = [];
+  for (const v of vehiclesInBook) {
+    if (v.compulsoryPolicyId) policyIds.push(v.compulsoryPolicyId);
+    if (v.complementaryPolicyId) policyIds.push(v.complementaryPolicyId);
+  }
+
+  const policies =
+    policyIds.length > 0
+      ? await policyRepository.findByIdsAndOrganization(policyIds, authUser.organizationId)
+      : [];
+
+  const policyMap = new Map();
+  for (const p of policies) {
+    policyMap.set(p._id.toString(), p);
+  }
+
+  const evaluateSlot = (policyId) => {
+    if (!policyId) return null;
+    const pidStr = policyId.toString();
+    const policy = policyMap.get(pidStr);
+    if (!policy) {
+      return {
+        id: pidStr,
+        policyNumber: null,
+        policyKind: null,
+        status: null,
+        check: 'POLICY_NOT_FOUND',
+      };
+    }
+
+    let check;
+    if (policy.status === 'CANCELLED') {
+      check = 'POLICY_CANCELLED';
+    } else if (!policy.policyKind) {
+      check = 'POLICY_KIND_MISSING';
+    } else {
+      const violation = getPolicyPeriodViolation({
+        policy,
+        incidentAt: incident.incidentAt,
+        incidentDate: incident.incidentDate,
+      });
+      check = violation || 'VALID';
+    }
+
+    return {
+      id: policy._id.toString(),
+      policyNumber: policy.policyNumber ?? null,
+      policyKind: policy.policyKind ?? null,
+      status: policy.status ?? null,
+      check,
+    };
+  };
+
+  const vehiclesResult = (incident.vehicles || []).map((v) => {
+    const isInsured = v.vehicleRole === 'INSURED';
+    const vehicleDoc = isInsured && v.vehicleId ? vehicleMap.get(v.vehicleId.toString()) : null;
+    const inOurBook = Boolean(vehicleDoc);
+
+    const compulsorySlot = inOurBook ? evaluateSlot(vehicleDoc.compulsoryPolicyId) : null;
+    const complementarySlot = inOurBook ? evaluateSlot(vehicleDoc.complementaryPolicyId) : null;
+
+    let suggestions = [];
+    if (isInsured) {
+      let ownDamageResult;
+      let ownDamageReason = null;
+      let ownDamagePolicyId = null;
+      let claimantPartyIds = [];
+      let warnings = [];
+
+      if (!inOurBook) {
+        ownDamageResult = 'NOT_APPLICABLE';
+        ownDamageReason = 'NOT_IN_OUR_BOOK';
+      } else if (!vehicleDoc.complementaryPolicyId) {
+        ownDamageResult = 'NOT_APPLICABLE';
+        ownDamageReason = 'NO_COMPLEMENTARY_POLICY';
+      } else if (!policyMap.has(vehicleDoc.complementaryPolicyId.toString())) {
+        ownDamageResult = 'NOT_APPLICABLE';
+        ownDamageReason = 'POLICY_NOT_FOUND';
+        ownDamagePolicyId = vehicleDoc.complementaryPolicyId.toString();
+      } else {
+        const compPolicy = policyMap.get(vehicleDoc.complementaryPolicyId.toString());
+        ownDamagePolicyId = compPolicy._id.toString();
+
+        if (compPolicy.status === 'CANCELLED') {
+          ownDamageResult = 'NOT_APPLICABLE';
+          ownDamageReason = 'POLICY_CANCELLED';
+        } else {
+          try {
+            assertPolicyCoverage({
+              policy: compPolicy,
+              claimType: 'OWN_DAMAGE',
+              incidentAt: incident.incidentAt,
+              incidentDate: incident.incidentDate,
+            });
+
+            const eligibleParties = getEligibleClaimantParties(incident.parties, v._id);
+            claimantPartyIds = eligibleParties.map((p) => p._id.toString());
+            if (claimantPartyIds.length === 0) {
+              ownDamageResult = 'BLOCKED';
+              ownDamageReason = 'NO_ELIGIBLE_CLAIMANT';
+            } else {
+              const isDuplicate = existingClaims.some(
+                (c) =>
+                  (c.claimType || 'OWN_DAMAGE') === 'OWN_DAMAGE' &&
+                  c.vehicle?.vehicleId &&
+                  c.vehicle.vehicleId.toString() === vehicleDoc._id.toString()
+              );
+              if (isDuplicate) {
+                ownDamageResult = 'ALREADY_OPEN';
+                ownDamageReason = 'DUPLICATE_SUB_CLAIM';
+              } else {
+                ownDamageResult = 'ALLOWED';
+                ownDamageReason = null;
+                if (incident.accidentArea === 'ISRAEL') {
+                  warnings.push('COMPLEMENTARY_TERRITORY_CHECK');
+                }
+              }
+            }
+          } catch (err) {
+            if (err instanceof AppError && err.code === 'COVERAGE_NOT_APPLICABLE') {
+              ownDamageResult = 'NOT_APPLICABLE';
+              ownDamageReason = err.reason;
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
+
+      suggestions.push({
+        claimType: 'OWN_DAMAGE',
+        result: ownDamageResult,
+        reason: ownDamageReason,
+        policyId: ownDamagePolicyId,
+        claimantPartyIds,
+        warnings,
+      });
+
+      if (inOurBook) {
+        suggestions.push({
+          claimType: 'THIRD_PARTY_PD',
+          result: 'NOT_SUPPORTED',
+          reason: 'CLAIM_TYPE_NOT_SUPPORTED',
+          policyId: vehicleDoc.compulsoryPolicyId
+            ? vehicleDoc.compulsoryPolicyId.toString()
+            : null,
+          dependsOnLiability: true,
+        });
+      }
+    }
+
+    let bodilyInjury;
+    if (!inOurBook) {
+      bodilyInjury = {
+        cover: 'OUTSIDE_OUR_BOOK',
+        policyId: null,
+        dependsOnFault: false,
+        fundMayApply: false,
+      };
+    } else if (!vehicleDoc.compulsoryPolicyId) {
+      bodilyInjury = {
+        cover: 'NO_COMPULSORY_WITH_US',
+        policyId: null,
+        dependsOnFault: false,
+        fundMayApply: false,
+      };
+    } else {
+      const isCompulsoryValid = compulsorySlot && compulsorySlot.check === 'VALID';
+      bodilyInjury = {
+        cover: isCompulsoryValid ? 'OUR_COMPULSORY' : 'OUR_COMPULSORY_NOT_VALID',
+        policyId: vehicleDoc.compulsoryPolicyId.toString(),
+        dependsOnFault: false,
+        fundMayApply: !isCompulsoryValid,
+      };
+    }
+
+    return {
+      vehicleRef: v._id.toString(),
+      vehicleRole: v.vehicleRole,
+      plateRegion: v.plateRegion,
+      plateNumber: v.plateNumber ?? null,
+      vehicleId: v.vehicleId ? v.vehicleId.toString() : null,
+      insurerName: v.insurerName ?? null,
+      inOurBook,
+      policies: {
+        compulsory: compulsorySlot,
+        complementary: complementarySlot,
+      },
+      suggestions,
+      bodilyInjury,
+    };
+  });
+
+  const flags = [];
+  if (incident.accidentArea === 'ISRAEL') {
+    flags.push({
+      code: 'ACCIDENT_IN_ISRAEL',
+      details:
+        'The accident side compensates bodily injury under its own law (Paris Protocol Article 76); confirm with the insurer.',
+    });
+  }
+  if (!incident.accidentArea || incident.accidentArea === 'UNKNOWN') {
+    flags.push({
+      code: 'ACCIDENT_AREA_UNKNOWN',
+      details:
+        'Accident area is unknown; geographic coverage and governing compensation law cannot be confirmed.',
+    });
+  }
+  if (incident.governorate === 'JERUSALEM') {
+    flags.push({
+      code: 'JERUSALEM_COVERAGE_UNCONFIRMED',
+      details:
+        'Accident occurred in Jerusalem governorate; verify whether Palestinian or Israeli jurisdiction applies.',
+    });
+  }
+  const hasIsraeliVehicle = (incident.vehicles || []).some(
+    (v) => v.plateRegion === 'ISRAELI'
+  );
+  if (hasIsraeliVehicle) {
+    flags.push({
+      code: 'ISRAELI_VEHICLE_INVOLVED',
+      details:
+        'An Israeli-registered vehicle is involved; verify cross-border liability and insurance coverage.',
+    });
+  }
+
+  return {
+    incidentId: incident._id.toString(),
+    incidentNumber: incident.incidentNumber,
+    incidentAt: incident.incidentAt ?? null,
+    incidentDate: incident.incidentDate,
+    accidentArea: incident.accidentArea ?? null,
+    governorate: incident.governorate ?? null,
+    injuriesReported: incident.injuriesReported ?? null,
+    flags,
+    vehicles: vehiclesResult,
   };
 };
 
@@ -443,4 +724,5 @@ module.exports = {
   addParty,
   addDamagedItem,
   patchReport,
+  getCoverageSuggestions,
 };

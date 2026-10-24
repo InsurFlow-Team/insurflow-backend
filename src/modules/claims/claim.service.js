@@ -26,6 +26,17 @@ const buildTrackingUrl = (token) => {
   return `${baseUrl}/track/${token}`;
 };
 
+const getEligibleClaimantParties = (parties, subjectRef) => {
+  if (!Array.isArray(parties) || !subjectRef) return [];
+  const targetRef = subjectRef.toString();
+  return parties.filter(
+    (p) =>
+      ['POLICYHOLDER', 'AUTHORIZED_REPRESENTATIVE'].includes(p.role) &&
+      p.vehicleRef &&
+      p.vehicleRef.toString() === targetRef
+  );
+};
+
 const assertPolicyCoverage = ({ policy, claimType = 'OWN_DAMAGE', incidentAt, incidentDate }) => {
   if (claimType === 'OWN_DAMAGE') {
     if (!policy.policyKind) {
@@ -312,15 +323,11 @@ const createSubClaim = async (incidentId, body, authUser) => {
   }
 
   // 2. claimantPartyId is an incident party with role POLICYHOLDER or AUTHORIZED_REPRESENTATIVE and vehicleRef equal to subjectRef, else 422 INVALID_CLAIMANT
-  const claimantParty = (incident.parties || []).find(
+  const eligibleClaimants = getEligibleClaimantParties(incident.parties, subjectRef);
+  const claimantParty = eligibleClaimants.find(
     (p) => p._id.toString() === claimantPartyId.toString()
   );
-  if (
-    !claimantParty ||
-    !['POLICYHOLDER', 'AUTHORIZED_REPRESENTATIVE'].includes(claimantParty.role) ||
-    !claimantParty.vehicleRef ||
-    claimantParty.vehicleRef.toString() !== subjectRef.toString()
-  ) {
+  if (!claimantParty) {
     throw new AppError('Invalid claimant', 422, 'INVALID_CLAIMANT');
   }
 
@@ -1698,6 +1705,7 @@ const getPublicClaimStatus = async (trackingToken) => {
 
 module.exports = {
   assertPolicyCoverage,
+  getEligibleClaimantParties,
   buildTrackingUrl,
   resolveClaimData,
   insertClaim,

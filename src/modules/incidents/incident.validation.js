@@ -319,6 +319,13 @@ const createIncidentSchema = Joi.object({
   injuriesReported: Joi.boolean().required().messages({
     'any.required': 'injuriesReported is required',
   }),
+  accidentArea: Joi.string()
+    .valid('PALESTINIAN_AREA', 'ISRAEL', 'UNKNOWN')
+    .allow(null)
+    .optional()
+    .messages({
+      'any.only': 'accidentArea must be one of: PALESTINIAN_AREA, ISRAEL, UNKNOWN',
+    }),
   description: Joi.string().trim().max(1000).allow('', null).optional(),
   latitude: Joi.number().min(-90).max(90).optional(),
   longitude: Joi.number().min(-180).max(180).optional(),
@@ -370,6 +377,12 @@ const patchIncidentReportSchema = Joi.object({
   injuriesReported: Joi.valid(true).optional().messages({
     'any.only': 'injuriesReported may only be set to true',
   }),
+  accidentArea: Joi.string()
+    .valid('PALESTINIAN_AREA', 'ISRAEL')
+    .optional()
+    .messages({
+      'any.only': 'accidentArea in report update must be one of: PALESTINIAN_AREA, ISRAEL',
+    }),
 })
   .min(1)
   .oxor('eKrokaReference', 'policeReportNumber')
