@@ -88,6 +88,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-01',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     adjuster2 = await User.create({
@@ -97,6 +99,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-02',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     otherOrgAdjuster = await User.create({
@@ -106,6 +110,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       role: 'FIELD_ADJUSTER',
       organizationId: org2._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-ORG2',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     otherOrgOfficer = await User.create({

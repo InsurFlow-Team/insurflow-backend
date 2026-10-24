@@ -54,6 +54,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  surveyorLicenseNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    maxlength: 30,
+    default: null,
+  },
+  surveyorLicenseExpiry: {
+    type: String,
+    match: /^\d{4}-\d{2}-\d{2}$/,
+    default: null,
+  },
 }, { timestamps: true });
 
 userSchema.index({ organizationId: 1, employeeCode: 1 }, { unique: true });

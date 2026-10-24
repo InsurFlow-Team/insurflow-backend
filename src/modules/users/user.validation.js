@@ -1,11 +1,43 @@
 const Joi = require('joi');
 const { objectIdPattern } = require('../../middlewares/validate.middleware');
+const { isValidCalendarDay } = require('../../utils/surveyorLicense');
 
 const createUserSchema = Joi.object({
   name: Joi.string().trim().required(),
   employeeCode: Joi.string().trim().required(),
   password: Joi.string().min(8).required(),
   role: Joi.string().valid('CLAIMS_OFFICER', 'FIELD_ADJUSTER').required(),
+  surveyorLicenseNumber: Joi.when('role', {
+    is: 'FIELD_ADJUSTER',
+    then: Joi.string().trim().max(30).required(),
+    otherwise: Joi.forbidden(),
+  }),
+  surveyorLicenseExpiry: Joi.when('role', {
+    is: 'FIELD_ADJUSTER',
+    then: Joi.string()
+      .pattern(/^\d{4}-\d{2}-\d{2}$/)
+      .custom((value, helpers) => {
+        if (!isValidCalendarDay(value)) {
+          return helpers.message({ custom: 'surveyorLicenseExpiry must be a valid calendar day (YYYY-MM-DD)' });
+        }
+        return value;
+      })
+      .required(),
+    otherwise: Joi.forbidden(),
+  }),
+});
+
+const updateSurveyorLicenseSchema = Joi.object({
+  surveyorLicenseNumber: Joi.string().trim().max(30).required(),
+  surveyorLicenseExpiry: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .custom((value, helpers) => {
+      if (!isValidCalendarDay(value)) {
+        return helpers.message({ custom: 'surveyorLicenseExpiry must be a valid calendar day (YYYY-MM-DD)' });
+      }
+      return value;
+    })
+    .required(),
 });
 
 const updateStatusSchema = Joi.object({
@@ -71,5 +103,5 @@ module.exports = {
   getAdjustersQuerySchema,
   listUsersQuerySchema,
   updateFcmTokenSchema,
+  updateSurveyorLicenseSchema,
 };
-

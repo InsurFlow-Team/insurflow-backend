@@ -1,3 +1,4 @@
+const { getLicenseState, LICENSE_STATE } = require('../../utils/surveyorLicense');
 const { getPolicyPeriodViolation } = require('../../utils/policyPeriod');
 const crypto = require('crypto');
 const claimRepository = require('./claim.repository');
@@ -617,6 +618,14 @@ const assignClaim = async (claimId, body, authUser) => {
     throw new AppError('Adjuster not found', 404, 'ADJUSTER_NOT_FOUND');
   }
 
+  const licenseState = getLicenseState(adjuster);
+  if (licenseState === LICENSE_STATE.MISSING) {
+    throw new AppError('Surveyor license is missing', 422, 'SURVEYOR_LICENSE_EXPIRED', 'LICENSE_MISSING');
+  }
+  if (licenseState === LICENSE_STATE.EXPIRED) {
+    throw new AppError('Surveyor license is expired', 422, 'SURVEYOR_LICENSE_EXPIRED', 'LICENSE_EXPIRED');
+  }
+
   // 2. Verify adjuster availability (active claims <= 3 is AVAILABLE, > 3 is UNAVAILABLE unless overrideCapacity is true)
   const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
   const maxActiveClaims = Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3;
@@ -693,6 +702,14 @@ const acceptAssignment = async (claimId, authUser) => {
   // Retrieve adjuster's employeeCode for timeline
   const adjusterUser = await userRepository.findByIdAndOrganization(userId, organizationId);
   const employeeCode = adjusterUser?.employeeCode || 'UNKNOWN';
+
+  const licenseState = getLicenseState(adjusterUser);
+  if (licenseState === LICENSE_STATE.MISSING) {
+    throw new AppError('Surveyor license is missing', 422, 'SURVEYOR_LICENSE_EXPIRED', 'LICENSE_MISSING');
+  }
+  if (licenseState === LICENSE_STATE.EXPIRED) {
+    throw new AppError('Surveyor license is expired', 422, 'SURVEYOR_LICENSE_EXPIRED', 'LICENSE_EXPIRED');
+  }
 
   const timelineEvent = {
     // NOTE: 'Assignment Accepted' is referenced by PUBLIC_TIMELINE_MAP for public tracking. Do not modify without updating PUBLIC_TIMELINE_MAP.

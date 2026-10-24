@@ -66,8 +66,8 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
     officer1 = await User.create({ name: 'O1', employeeCode: 'O-1', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
     officer2 = await User.create({ name: 'O2', employeeCode: 'O-2', password: 'p', role: 'CLAIMS_OFFICER', organizationId: org1._id });
 
-    adjuster1 = await User.create({ name: 'A1', employeeCode: 'A-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
-    adjuster2 = await User.create({ name: 'A2', employeeCode: 'A-2', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
+    adjuster1 = await User.create({ name: 'A1', employeeCode: 'A-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE', surveyorLicenseNumber: 'LIC-A-1', surveyorLicenseExpiry: '2099-12-31' });
+    adjuster2 = await User.create({ name: 'A2', employeeCode: 'A-2', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE', surveyorLicenseNumber: 'LIC-A-2', surveyorLicenseExpiry: '2099-12-31' });
   });
 
   describe('POST /api/v1/claims/:claimId/inspection/submit', () => {

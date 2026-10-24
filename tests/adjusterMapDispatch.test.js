@@ -77,6 +77,8 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-01',
+      surveyorLicenseExpiry: '2099-12-31',
       location: {
         latitude: 31.9038,
         longitude: 35.2034,
@@ -93,6 +95,8 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-02',
+      surveyorLicenseExpiry: '2099-12-31',
       location: {
         latitude: 31.7683,
         longitude: 35.2137,
@@ -108,6 +112,8 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-03',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     // Adjuster in Org 2
@@ -118,6 +124,8 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org2._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-B1',
+      surveyorLicenseExpiry: '2099-12-31',
       location: {
         latitude: 31.9038,
         longitude: 35.2034,

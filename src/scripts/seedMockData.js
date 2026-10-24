@@ -47,6 +47,8 @@ const seedMockData = async () => {
         role: 'FIELD_ADJUSTER',
         organizationId: organization._id,
         status: 'ACTIVE',
+        surveyorLicenseNumber: 'DEMO-FA-001',
+        surveyorLicenseExpiry: '2027-12-31',
       },
       {
         name: 'Second Adjuster',
@@ -55,6 +57,8 @@ const seedMockData = async () => {
         role: 'FIELD_ADJUSTER',
         organizationId: organization._id,
         status: 'ACTIVE',
+        surveyorLicenseNumber: 'DEMO-FA-002',
+        surveyorLicenseExpiry: '2027-12-31',
       },
     ];
 
@@ -67,6 +71,17 @@ const seedMockData = async () => {
         await User.create(u);
         console.log(`Created Demo User: ${u.employeeCode} (${u.role})`);
       } else {
+        if (u.role === 'FIELD_ADJUSTER') {
+          await User.updateOne(
+            { organizationId: organization._id, employeeCode: u.employeeCode, surveyorLicenseNumber: null },
+            {
+              $set: {
+                surveyorLicenseNumber: u.surveyorLicenseNumber,
+                surveyorLicenseExpiry: u.surveyorLicenseExpiry,
+              },
+            }
+          );
+        }
         console.log(`Demo User ${u.employeeCode} already exists. Preserved without changes.`);
       }
     }

@@ -2,12 +2,15 @@ const userRepository = require('./user.repository');
 const claimRepository = require('../claims/claim.repository');
 const { calculateHaversineDistance } = require('../../utils/geo.utils');
 const AppError = require('../../utils/appError');
+const { getLicenseState, LICENSE_STATE } = require('../../utils/surveyorLicense');
 
 const getAdjusters = async (organizationId, options = {}) => {
   const query = typeof options === 'string' ? { status: options } : options;
   const { status, claimId, latitude, longitude } = query;
 
-  const adjusters = await userRepository.findAdjustersWithWorkload(organizationId, status);
+  const adjusters = await userRepository.findAdjustersWithWorkload(organizationId, status, {
+    onlyValidLicense: true,
+  });
 
   let refLat = null;
   let refLon = null;
@@ -51,6 +54,8 @@ const getAdjusters = async (organizationId, options = {}) => {
       latitude: adj.location && typeof adj.location.latitude === 'number' ? adj.location.latitude : null,
       longitude: adj.location && typeof adj.location.longitude === 'number' ? adj.location.longitude : null,
       distanceKm,
+      surveyorLicenseExpiry: adj.surveyorLicenseExpiry || null,
+      licenseExpiringSoon: getLicenseState(adj) === LICENSE_STATE.EXPIRING_SOON,
     };
   });
 
@@ -68,17 +73,28 @@ const getAdjusters = async (organizationId, options = {}) => {
 
 const createUser = async (body, authUser) => {
   try {
+    if (body.role === 'FIELD_ADJUSTER') {
+      const licenseState = getLicenseState(body);
+      if (licenseState === LICENSE_STATE.EXPIRED) {
+        throw new AppError('Surveyor license is expired', 422, 'SURVEYOR_LICENSE_EXPIRED', 'LICENSE_EXPIRED');
+      }
+    }
+
     const newUser = await userRepository.create({
       ...body,
       organizationId: authUser.organizationId,
       status: 'ACTIVE',
     });
+
     return {
       id: newUser._id,
       name: newUser.name,
       employeeCode: newUser.employeeCode,
       role: newUser.role,
       status: newUser.status,
+      surveyorLicenseNumber: newUser.surveyorLicenseNumber || null,
+      surveyorLicenseExpiry: newUser.surveyorLicenseExpiry || null,
+      licenseState: newUser.role === 'FIELD_ADJUSTER' ? getLicenseState(newUser) : null,
       createdAt: newUser.createdAt,
     };
   } catch (err) {
@@ -98,8 +114,15 @@ const listUsers = async (authUser, role, pagination = {}) => {
   );
   const totalPages = Math.ceil(totalCount / limit);
 
+  const formattedUsers = users.map((u) => ({
+    ...u,
+    surveyorLicenseNumber: u.role === 'FIELD_ADJUSTER' ? (u.surveyorLicenseNumber || null) : null,
+    surveyorLicenseExpiry: u.role === 'FIELD_ADJUSTER' ? (u.surveyorLicenseExpiry || null) : null,
+    licenseState: u.role === 'FIELD_ADJUSTER' ? getLicenseState(u) : null,
+  }));
+
   return {
-    users,
+    users: formattedUsers,
     pagination: {
       totalCount,
       page,
@@ -109,13 +132,77 @@ const listUsers = async (authUser, role, pagination = {}) => {
   };
 };
 
-
 const updateUserStatus = async (userId, status, authUser) => {
-  const updated = await userRepository.updateStatus(userId, authUser.organizationId, status);
+  if (status === 'ACTIVE') {
+    const updated = await userRepository.updateStatusToActiveWithLicenseCheck(
+      userId,
+      authUser.organizationId
+    );
+    if (!updated) {
+      const existing = await userRepository.findByIdAndOrganization(
+        userId,
+        authUser.organizationId
+      );
+      if (!existing) {
+        throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+      }
+      const state = getLicenseState(existing);
+      if (state === LICENSE_STATE.MISSING) {
+        throw new AppError(
+          'Surveyor license is missing',
+          422,
+          'SURVEYOR_LICENSE_EXPIRED',
+          'LICENSE_MISSING'
+        );
+      }
+      throw new AppError(
+        'Surveyor license is expired',
+        422,
+        'SURVEYOR_LICENSE_EXPIRED',
+        'LICENSE_EXPIRED'
+      );
+    }
+    return { id: updated._id, status: updated.status };
+  }
+
+  const updated = await userRepository.updateStatus(
+    userId,
+    authUser.organizationId,
+    status
+  );
   if (!updated) {
     throw new AppError('User not found', 404, 'USER_NOT_FOUND');
   }
   return { id: updated._id, status: updated.status };
+};
+
+const updateSurveyorLicense = async (userId, body, authUser) => {
+  const updated = await userRepository.updateSurveyorLicense(
+    userId,
+    authUser.organizationId,
+    body
+  );
+
+  if (!updated) {
+    const existing = await userRepository.findByIdAndOrganization(
+      userId,
+      authUser.organizationId
+    );
+    if (!existing) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+    if (existing.role !== 'FIELD_ADJUSTER') {
+      throw new AppError('User is not a field adjuster', 422, 'NOT_A_FIELD_ADJUSTER');
+    }
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+
+  return {
+    id: updated._id,
+    surveyorLicenseNumber: updated.surveyorLicenseNumber,
+    surveyorLicenseExpiry: updated.surveyorLicenseExpiry,
+    licenseState: getLicenseState(updated),
+  };
 };
 
 const resetUserPassword = async (userId, newPassword, authUser) => {
@@ -167,6 +254,7 @@ module.exports = {
   listUsers,
   updateUser,
   updateUserStatus,
+  updateSurveyorLicense,
   resetUserPassword,
   updateFcmToken,
 };
