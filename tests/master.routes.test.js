@@ -85,6 +85,8 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-001',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     otherOrgAdmin = await User.create({
@@ -204,6 +206,8 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
         employeeCode: 'FA-002',
         password: 'Password123!',
         role: 'FIELD_ADJUSTER',
+        surveyorLicenseNumber: 'LIC-FA-002',
+        surveyorLicenseExpiry: '2099-12-31',
       });
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);

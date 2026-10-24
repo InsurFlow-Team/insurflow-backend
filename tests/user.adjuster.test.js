@@ -66,6 +66,8 @@ describe('GET /api/v1/users/adjusters', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-01',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     adjuster2 = await User.create({
@@ -75,6 +77,8 @@ describe('GET /api/v1/users/adjusters', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-02',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     adjuster3 = await User.create({
@@ -84,6 +88,8 @@ describe('GET /api/v1/users/adjusters', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-03',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     inactiveAdjuster = await User.create({
@@ -93,6 +99,8 @@ describe('GET /api/v1/users/adjusters', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'INACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-INACTIVE',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     otherOrgAdjuster = await User.create({
@@ -102,6 +110,8 @@ describe('GET /api/v1/users/adjusters', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org2._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-OTHER',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     // Assign 4 claims to adjuster 2 (so activeTasksCount > 3, making them unavailable)

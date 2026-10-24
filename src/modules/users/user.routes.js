@@ -12,6 +12,7 @@ const {
   getAdjustersQuerySchema,
   listUsersQuerySchema,
   updateFcmTokenSchema,
+  updateSurveyorLicenseSchema,
 } = require('./user.validation');
 
 const router = express.Router();
@@ -37,5 +38,12 @@ router.get('/', authorizeRole(['ADMIN']), validate(listUsersQuerySchema, 'query'
 router.patch('/:userId', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(updateUserSchema), userController.updateUser);
 router.patch('/:userId/status', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(updateStatusSchema), userController.updateUserStatus);
 router.patch('/:userId/reset-password', authorizeRole(['ADMIN']), validateObjectId('userId'), validate(resetPasswordSchema), userController.resetUserPassword);
+router.patch(
+  '/:userId/surveyor-license',
+  authorizeRole(['ADMIN']),
+  validateObjectId('userId'),
+  validate(updateSurveyorLicenseSchema),
+  userController.updateSurveyorLicense
+);
 
 module.exports = router;

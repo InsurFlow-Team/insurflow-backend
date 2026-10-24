@@ -92,6 +92,8 @@ describe('User Management API (ADMIN only)', () => {
           employeeCode: 'FA-002',
           password: 'Password123',
           role: 'FIELD_ADJUSTER',
+          surveyorLicenseNumber: 'LIC-FA-002',
+          surveyorLicenseExpiry: '2099-12-31',
         });
       
       expect(res.status).toBe(201);

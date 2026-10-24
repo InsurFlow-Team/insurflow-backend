@@ -71,6 +71,8 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-FA-001',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     officerToken = generateToken(officer);

@@ -69,6 +69,8 @@ describe('Two-Step Assignment Flow', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-ADJ-A',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     adjusterB = await User.create({
@@ -78,6 +80,8 @@ describe('Two-Step Assignment Flow', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-ADJ-B',
+      surveyorLicenseExpiry: '2099-12-31',
     });
   });
 

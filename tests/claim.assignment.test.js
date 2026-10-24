@@ -58,8 +58,8 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
 
     admin1 = await User.create({ name: 'ADM', employeeCode: 'ADM-1', password: 'p', role: 'ADMIN', organizationId: org1._id, status: 'ACTIVE' });
 
-    adjusterAvailable = await User.create({ name: 'AA', employeeCode: 'AA-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
-    adjusterBusy = await User.create({ name: 'AB', employeeCode: 'AB-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE' });
+    adjusterAvailable = await User.create({ name: 'AA', employeeCode: 'AA-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE', surveyorLicenseNumber: 'LIC-AA-1', surveyorLicenseExpiry: '2099-12-31' });
+    adjusterBusy = await User.create({ name: 'AB', employeeCode: 'AB-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'ACTIVE', surveyorLicenseNumber: 'LIC-AB-1', surveyorLicenseExpiry: '2099-12-31' });
     adjusterInactive = await User.create({ name: 'AI', employeeCode: 'AI-1', password: 'p', role: 'FIELD_ADJUSTER', organizationId: org1._id, status: 'INACTIVE' });
 
     claimOrg1 = await Claim.create({ organizationId: org1._id,
@@ -284,6 +284,8 @@ describe('POST /api/v1/claims/:claimId/assign', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-AA-2',
+      surveyorLicenseExpiry: '2099-12-31',
     });
 
     const token = generateToken(officer1);

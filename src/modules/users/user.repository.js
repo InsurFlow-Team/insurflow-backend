@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('./user.model');
 const Claim = require('../claims/claim.model');
-
+const { toHebronDate } = require('../../utils/hebronDate');
 
 const findAdjustersByOrganization = async (organizationId) => {
   return await User.find({
@@ -33,7 +33,7 @@ const findAllByOrganization = async (organizationId, role, pagination = {}) => {
   const [totalCount, users] = await Promise.all([
     User.countDocuments(query),
     User.find(query)
-      .select('name employeeCode role status createdAt')
+      .select('name employeeCode role status createdAt surveyorLicenseNumber surveyorLicenseExpiry')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -42,7 +42,6 @@ const findAllByOrganization = async (organizationId, role, pagination = {}) => {
 
   return { totalCount, users };
 };
-
 
 const resetPassword = async (userId, organizationId, newPassword) => {
   const user = await User.findOne({ _id: userId, organizationId });
@@ -56,7 +55,41 @@ const updateStatus = async (userId, organizationId, status) => {
   return await User.findOneAndUpdate(
     { _id: userId, organizationId },
     { $set: { status } },
-    { new: true }
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const updateStatusToActiveWithLicenseCheck = async (userId, organizationId) => {
+  const todayHebron = toHebronDate(new Date());
+  const filter = {
+    _id: userId,
+    organizationId,
+    $or: [
+      { role: { $ne: 'FIELD_ADJUSTER' } },
+      {
+        role: 'FIELD_ADJUSTER',
+        surveyorLicenseNumber: { $type: 'string', $ne: '' },
+        surveyorLicenseExpiry: { $type: 'string', $gte: todayHebron },
+      },
+    ],
+  };
+  return await User.findOneAndUpdate(
+    filter,
+    { $set: { status: 'ACTIVE' } },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const updateSurveyorLicense = async (userId, organizationId, updateData) => {
+  return await User.findOneAndUpdate(
+    { _id: userId, organizationId, role: 'FIELD_ADJUSTER' },
+    {
+      $set: {
+        surveyorLicenseNumber: updateData.surveyorLicenseNumber.trim().toUpperCase(),
+        surveyorLicenseExpiry: updateData.surveyorLicenseExpiry,
+      },
+    },
+    { returnDocument: 'after' }
   ).lean();
 };
 
@@ -80,23 +113,30 @@ const updateFcmToken = async (userId, organizationId, fcmToken) => {
     .lean();
 };
 
-
 /**
  * Aggregates field adjusters in an organization along with their active claim workload in a single query.
  * Eliminates the N+1 query loop.
  */
-const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
+const findAdjustersWithWorkload = async (organizationId, statusFilter, options = {}) => {
   const orgObjectId =
     typeof organizationId === 'string'
       ? new mongoose.Types.ObjectId(organizationId)
       : organizationId;
 
+  const matchConditions = {
+    organizationId: orgObjectId,
+    role: 'FIELD_ADJUSTER',
+  };
+
+  if (options && options.onlyValidLicense) {
+    const todayHebron = toHebronDate(new Date());
+    matchConditions.surveyorLicenseNumber = { $type: 'string', $ne: '' };
+    matchConditions.surveyorLicenseExpiry = { $type: 'string', $gte: todayHebron };
+  }
+
   const pipeline = [
     {
-      $match: {
-        organizationId: orgObjectId,
-        role: 'FIELD_ADJUSTER',
-      },
+      $match: matchConditions,
     },
     {
       $lookup: {
@@ -157,6 +197,8 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter) => {
         availability: 1,
         activeTasksCount: 1,
         capacityLimit: 1,
+        surveyorLicenseNumber: 1,
+        surveyorLicenseExpiry: 1,
         location: {
           $ifNull: [
             '$location',
@@ -187,7 +229,8 @@ module.exports = {
   findAllByOrganization,
   resetPassword,
   updateStatus,
+  updateStatusToActiveWithLicenseCheck,
+  updateSurveyorLicense,
   updateUser,
   updateFcmToken,
 };
-
