@@ -21,9 +21,28 @@ const seedMockData = async () => {
       organization = await Organization.create({
         name: 'Demo Insurance Co',
         code: 'DEMO-INS',
+        settings: {
+          letterhead: {
+            address: 'Al-Irsal St, Ramallah, Palestine',
+            phone: '+97022987654',
+          },
+        },
       });
       console.log('Created Demo Organization');
     }
+
+    // PB-09 (C5): update letterhead on existing mock organization if address is null
+    await Organization.updateOne(
+      { code: 'DEMO-INS', 'settings.letterhead.address': null },
+      {
+        $set: {
+          'settings.letterhead': {
+            address: 'Al-Irsal St, Ramallah, Palestine',
+            phone: '+97022987654',
+          },
+        },
+      }
+    );
 
     // Create demo users only if they don't already exist (preserves passwords and accounts on live DB)
     const demoUsers = [

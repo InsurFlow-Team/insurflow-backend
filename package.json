@@ -26,7 +26,7 @@
     "mongoose": "^9.9.3",
     "morgan": "^1.11.0",
     "multer": "^2.3.0",
-    "pdfmake": "^0.3.11"
+    "pdfmake-rtl": "2.1.2"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

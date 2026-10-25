@@ -215,4 +215,9 @@ router.get(
   claimController.getClaimReport
 );
 
+const letterRoutes = require('../letters/letter.routes');
+
+// Nested letter subresource
+router.use('/:claimId/letters', validateObjectId('claimId'), letterRoutes);
+
 module.exports = router;

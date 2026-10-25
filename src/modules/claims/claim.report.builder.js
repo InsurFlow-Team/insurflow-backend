@@ -1,12 +1,18 @@
-const pdfMake = require('pdfmake');
-const robotoFonts = require('pdfmake/fonts/Roboto');
+const pdfMake = require('pdfmake-rtl');
+const robotoFonts = require('pdfmake-rtl/fonts/Roboto');
+const cairoFonts = require('pdfmake-rtl/fonts/Cairo');
 const config = require('../../config/env');
 const { fromMinor, getCurrencyScale } = require('../../utils/money');
 
 // Register fonts and security access policies once
 pdfMake.addFonts(robotoFonts);
-pdfMake.setUrlAccessPolicy(() => false); // pdfmake never fetches external URLs on its own
-pdfMake.setLocalAccessPolicy(() => true); // allows loading the bundled Roboto TTF files
+pdfMake.addFonts(cairoFonts);
+if (typeof pdfMake.setUrlAccessPolicy === 'function') {
+  pdfMake.setUrlAccessPolicy(() => false); // pdfmake never fetches external URLs on its own
+}
+if (typeof pdfMake.setLocalAccessPolicy === 'function') {
+  pdfMake.setLocalAccessPolicy(() => true); // allows loading the bundled Roboto TTF files
+}
 
 const formatDate = (date) => {
   if (!date) return 'N/A';
@@ -18,6 +24,17 @@ const formatDate = (date) => {
     return 'N/A';
   }
 };
+
+/**
+ * Wraps user text value cell in an array node [{ text }] so pdfmake-rtl's
+ * processRTLTable does not count it as RTL table content and flip English
+ * report table columns, while allowing the text itself to render correctly in Cairo.
+ */
+const userTextValueCell = (val, fallback = 'N/A', extra = {}) => ({
+  text: [{ text: val != null && val !== '' ? String(val) : fallback }],
+  style: 'valueCell',
+  ...extra,
+});
 
 /**
  * Fetches an image from a URL, applying Cloudinary dynamic resizing if applicable,
@@ -262,9 +279,9 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
       timelineRows.push([
         { text: formatDate(event.timestamp), fontSize: 8, fillColor: bg },
         { text: event.action || '-', fontSize: 8, fillColor: bg, bold: true },
-        { text: performer, fontSize: 8, fillColor: bg },
+        { text: [{ text: performer }], fontSize: 8, fillColor: bg },
         { text: transition, fontSize: 8, fillColor: bg },
-        { text: event.notes || '-', fontSize: 8, fillColor: bg },
+        { text: [{ text: event.notes || '-' }], fontSize: 8, fillColor: bg },
       ]);
     });
   } else {
@@ -318,9 +335,9 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
       table: {
         widths: ['25%', '75%'],
         body: [
-          [{ text: 'Customer Name', bold: true, style: 'labelCell' }, { text: claim.customer?.name || 'N/A', style: 'valueCell' }],
+          [{ text: 'Customer Name', bold: true, style: 'labelCell' }, userTextValueCell(claim.customer?.name)],
           [{ text: 'Phone Number', bold: true, style: 'labelCell' }, { text: claim.customer?.phone || 'N/A', style: 'valueCell' }],
-          [{ text: 'Incident Location', bold: true, style: 'labelCell' }, { text: claim.incidentLocation || 'N/A', style: 'valueCell' }],
+          [{ text: 'Incident Location', bold: true, style: 'labelCell' }, userTextValueCell(claim.incidentLocation)],
         ],
       },
       layout: 'lightHorizontalLines',
@@ -355,7 +372,7 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
             ? [
                 [
                   { text: 'Coverage at Intake', bold: true, style: 'labelCell' },
-                  { text: claim.coverageSnapshot.policyType === 'COMPREHENSIVE' ? 'Comprehensive (شامل)' : 'Third-Party (ضد الغير)', style: 'valueCell' },
+                  userTextValueCell(claim.coverageSnapshot.policyType === 'COMPREHENSIVE' ? 'Comprehensive (شامل)' : 'Third-Party (ضد الغير)'),
                   { text: 'Intake Deductible', bold: true, style: 'labelCell' },
                   { text: claim.coverageSnapshot.deductibleAmount !== null && claim.coverageSnapshot.deductibleAmount !== undefined ? `${fromMinor(claim.coverageSnapshot.deductibleAmount, config.currency)}` : 'N/A', style: 'valueCell' },
                 ],
@@ -375,8 +392,8 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
         body: [
           [{ text: 'Accident Type', bold: true, style: 'labelCell' }, { text: claim.accident?.accidentType || claim.incidentType || 'N/A', style: 'valueCell' }],
           [{ text: 'Date & Time', bold: true, style: 'labelCell' }, { text: `${claim.accident?.accidentDate || 'N/A'} at ${claim.accident?.accidentTime || 'N/A'}`, style: 'valueCell' }],
-          [{ text: 'Description', bold: true, style: 'labelCell' }, { text: claim.accident?.description || 'N/A', style: 'valueCell' }],
-          [{ text: 'Damage Description', bold: true, style: 'labelCell' }, { text: claim.accident?.damageDescription || 'N/A', style: 'valueCell' }],
+          [{ text: 'Description', bold: true, style: 'labelCell' }, userTextValueCell(claim.accident?.description)],
+          [{ text: 'Damage Description', bold: true, style: 'labelCell' }, userTextValueCell(claim.accident?.damageDescription)],
         ],
       },
       layout: 'lightHorizontalLines',
@@ -389,7 +406,7 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
       table: {
         widths: ['25%', '75%'],
         body: [
-          [{ text: 'Address', bold: true, style: 'labelCell' }, { text: claim.location?.address || claim.incidentLocation || 'N/A', style: 'valueCell' }],
+          [{ text: 'Address', bold: true, style: 'labelCell' }, userTextValueCell(claim.location?.address || claim.incidentLocation)],
           [
             { text: 'GPS Coordinates', bold: true, style: 'labelCell' },
             {
@@ -423,10 +440,10 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
           [{ text: 'Final Decision', bold: true, style: 'labelCell' }, { text: claim.status, bold: true, color: statusColor, style: 'valueCell' }],
           [
             { text: 'Decided By', bold: true, style: 'labelCell' },
-            { text: `${deciderName}${deciderEmployeeCode ? ` (${deciderEmployeeCode})` : ''}`, style: 'valueCell' },
+            userTextValueCell(`${deciderName}${deciderEmployeeCode ? ` (${deciderEmployeeCode})` : ''}`),
           ],
           [{ text: 'Decided At', bold: true, style: 'labelCell' }, { text: formatDate(decidedAt), style: 'valueCell' }],
-          [{ text: 'Decision Notes', bold: true, style: 'labelCell' }, { text: decisionNotes || 'None', style: 'valueCell' }],
+          [{ text: 'Decision Notes', bold: true, style: 'labelCell' }, userTextValueCell(decisionNotes, 'None')],
         ],
       },
       layout: 'lightHorizontalLines',
@@ -462,7 +479,7 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
 
     financialBody.push(
       [{ text: 'Net Approved Payout', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.netApprovedPayout)} ${currency}`, bold: true, color: '#16a34a', style: 'valueCell' }],
-      [{ text: 'Assessed By', bold: true, style: 'labelCell' }, { text: `${assessorName}${assessorCode}`, style: 'valueCell' }],
+      [{ text: 'Assessed By', bold: true, style: 'labelCell' }, userTextValueCell(`${assessorName}${assessorCode}`)],
       [{ text: 'Assessed At', bold: true, style: 'labelCell' }, { text: formatDate(la.assessedAt), style: 'valueCell' }]
     );
 
@@ -491,10 +508,10 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
           body: [
             [
               { text: 'Closed By', bold: true, style: 'labelCell' },
-              { text: `${closerName}${closerEmployeeCode ? ` (${closerEmployeeCode})` : ''}`, style: 'valueCell' },
+              userTextValueCell(`${closerName}${closerEmployeeCode ? ` (${closerEmployeeCode})` : ''}`),
             ],
             [{ text: 'Closed At', bold: true, style: 'labelCell' }, { text: formatDate(closedAt), style: 'valueCell' }],
-            [{ text: 'Closing Notes', bold: true, style: 'labelCell' }, { text: closingNotes || 'None', style: 'valueCell' }],
+            [{ text: 'Closing Notes', bold: true, style: 'labelCell' }, userTextValueCell(closingNotes, 'None')],
           ],
         },
         layout: 'lightHorizontalLines',
@@ -539,6 +556,7 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
       },
     },
     defaultStyle: {
+      font: 'Cairo',
       fontSize: 9,
       color: '#1f2937',
     },

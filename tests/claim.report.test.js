@@ -672,4 +672,59 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     expect(totalRow).toBeDefined();
     expect(totalRow[1].text).toBe('1500.00 ILS');
   });
+
+  test('keeps report tables left-to-right when cells contain Arabic', async () => {
+    const { buildClaimReportDocDefinition } = require('../src/modules/claims/claim.report.builder');
+    const pdfMake = require('pdfmake-rtl');
+
+    const claimArabic = {
+      claimNumber: 'CLM-APX-2026-ARABIC',
+      status: 'APPROVED',
+      customer: { name: 'أحمد محمود التميمي', phone: '+970599123456' },
+      incidentLocation: 'رام الله - شارع الإرسال',
+      accident: {
+        accidentType: 'COLLISION',
+        accidentDate: '2026-09-15',
+        accidentTime: '10:00',
+        description: 'حادث سير في رام الله',
+        damageDescription: 'صدمة قوية في الصدام الخلفي',
+      },
+      location: {
+        address: 'شارع الإرسال - رام الله',
+        capturedAt: new Date(),
+      },
+      vehicle: { plateNumber: '12-345-67' },
+      timeline: [
+        {
+          timestamp: new Date(),
+          action: 'APPROVED',
+          performedBy: { name: 'عمر مأمور المطالبات' },
+          notes: 'تم اعتماد المطالبة بعد تقرير الخبير',
+        },
+      ],
+    };
+
+    const docDef = await buildClaimReportDocDefinition({
+      claim: claimArabic,
+      organization: { name: 'Apex Insurance Co.', code: 'APX' },
+      vehicle: { plateNumber: '12-345-67', make: 'Hyundai', model: 'Tucson', year: 2022 },
+      policy: { policyNumber: 'POL-APX-2026-0089' },
+    });
+
+    const doc = pdfMake.createPdf(docDef);
+    await doc.getBuffer();
+
+    const tables = docDef.content.filter((item) => item && item.table);
+    expect(tables.length).toBeGreaterThan(0);
+
+    tables.forEach((item) => {
+      expect(item.table._rtl).toBeFalsy();
+    });
+
+    // Customer Information table: label cell first
+    const customerTable = tables[0].table.body;
+    expect(customerTable[0][0].text).toBe('Customer Name');
+    expect(customerTable[1][0].text).toBe('Phone Number');
+    expect(customerTable[2][0].text).toBe('Incident Location');
+  });
 });
