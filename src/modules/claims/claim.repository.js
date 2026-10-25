@@ -326,6 +326,31 @@ const findByTrackingToken = async (trackingToken) => {
     .lean();
 };
 
+
+const addEstimate = async (filter, updateDoc) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updateDoc,
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const approveEstimate = async (claimId, organizationId, version, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    {
+      _id: claimId,
+      organizationId,
+      status: 'UNDER_REVIEW',
+      'estimates.version': version,
+    },
+    {
+      $set: { approvedEstimateVersion: version },
+      $push: { timeline: timelineEvent },
+    },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -350,4 +375,6 @@ module.exports = {
   findForReport,
   findByTrackingToken,
   findByIncidentId,
+  addEstimate,
+  approveEstimate,
 };

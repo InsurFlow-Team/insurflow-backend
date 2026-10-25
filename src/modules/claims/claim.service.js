@@ -18,6 +18,8 @@ const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 const config = require('../../config/env');
 const { toMinor, fromMinor } = require('../../utils/money');
+const garageRepository = require('../garages/garage.repository');
+const { calculateEstimate, formatEstimate } = require('./estimate.calculator');
 const computeEligibilityHint = require('../../utils/computeEligibilityHint');
 
 const buildTrackingUrl = (token) => {
@@ -1265,83 +1267,110 @@ const decideClaim = async (claimId, body, authUser) => {
   const existingClaim = await handleClaimNotFoundOrStateError(claimId, organizationId);
 
   let lossAssessmentDoc = null;
-  if (lossAssessment) {
-    // Deductible resolution hierarchy:
-    // 1. Snapshot deductible if defined
-    // 2. Fallback to live policy query ONLY if snapshot is null / deductible missing
-    // Note: Live-policy fallback serves claims created before coverageSnapshot existed and is removed after the legacy claims are deleted.
-    // 3. 0 if policy or deductible not found
-    let policyDeductible = 0;
-    if (existingClaim.coverageSnapshot && existingClaim.coverageSnapshot.deductibleAmount != null) {
-      policyDeductible = existingClaim.coverageSnapshot.deductibleAmount;
-    } else {
-      const livePolicy = await policyRepository.findByIdAndOrganization(existingClaim.policyId, organizationId);
-      policyDeductible = livePolicy?.deductibleAmount ?? 0;
-    }
+  const approvedVersion = existingClaim.approvedEstimateVersion;
+  const approvedEstimate = approvedVersion != null
+    ? (existingClaim.estimates || []).find((e) => e.version === approvedVersion)
+    : null;
 
-    // Financial calculation in integer minor units (src/utils/money.js)
-    const partsMinor = toMinor(lossAssessment.estimatedPartsCost, config.currency);
-    const laborMinor = toMinor(lossAssessment.laborCost, config.currency);
-    const totalDamageMinor = partsMinor + laborMinor;
+  let partsMinor;
+  let laborMinor;
 
-    let appliedMinor;
-    let deductibleOverrideReason = null;
+  if (approvedEstimate) {
+    partsMinor = approvedEstimate.mapped.estimatedPartsCost;
+    laborMinor = approvedEstimate.mapped.laborCost;
 
-    if (lossAssessment.deductibleApplied !== undefined && lossAssessment.deductibleApplied !== null) {
-      appliedMinor = toMinor(lossAssessment.deductibleApplied, config.currency);
-    } else {
-      appliedMinor = policyDeductible;
-    }
+    if (lossAssessment) {
+      const bodyPartsMinor = toMinor(lossAssessment.estimatedPartsCost, config.currency);
+      const bodyLaborMinor = toMinor(lossAssessment.laborCost, config.currency);
 
-    const overridden = appliedMinor !== policyDeductible;
-    const rawReason = lossAssessment.deductibleOverrideReason;
-    const trimmedReason = typeof rawReason === 'string' ? rawReason.trim() : '';
-
-    if (overridden) {
-      if (!trimmedReason || trimmedReason.length < 10 || trimmedReason.length > 300) {
+      if (bodyPartsMinor !== partsMinor || bodyLaborMinor !== laborMinor) {
         throw new AppError(
-          'deductibleOverrideReason is required (between 10 and 300 characters) when deductible is overridden',
+          'Loss assessment does not match approved estimate',
           422,
-          'OVERRIDE_REASON_REQUIRED'
+          'LOSS_ASSESSMENT_MISMATCH'
         );
       }
-      deductibleOverrideReason = trimmedReason;
-    } else {
-      if (trimmedReason.length > 0) {
-        throw new AppError(
-          'deductibleOverrideReason is not allowed when deductible matches policy',
-          422,
-          'OVERRIDE_REASON_NOT_ALLOWED'
-        );
-      }
-      deductibleOverrideReason = null;
     }
-
-    // Pre-condition: total damage must be strictly positive
-    if (totalDamageMinor <= 0) {
-      throw new AppError('totalDamage must be greater than zero', 400, 'VALIDATION_ERROR');
+  } else {
+    if (!lossAssessment) {
+      throw new AppError('lossAssessment is required when decision is APPROVED', 400, 'VALIDATION_ERROR');
     }
-
-    // Pre-condition: total damage must exceed applied deductible
-    if (totalDamageMinor <= appliedMinor) {
-      throw new AppError('Total damage must be greater than the applied deductible', 422, 'DAMAGE_BELOW_DEDUCTIBLE');
-    }
-
-    const netPayoutMinor = totalDamageMinor - appliedMinor;
-
-    lossAssessmentDoc = {
-      estimatedPartsCost: partsMinor,
-      laborCost: laborMinor,
-      totalDamage: totalDamageMinor,
-      policyDeductible,
-      deductibleApplied: appliedMinor,
-      deductibleOverridden: overridden,
-      deductibleOverrideReason,
-      netApprovedPayout: netPayoutMinor,
-      assessedAt: new Date(),
-      assessedBy: userId,
-    };
+    partsMinor = toMinor(lossAssessment.estimatedPartsCost, config.currency);
+    laborMinor = toMinor(lossAssessment.laborCost, config.currency);
   }
+
+  // Deductible resolution hierarchy:
+  // 1. Snapshot deductible if defined
+  // 2. Fallback to live policy query ONLY if snapshot is null / deductible missing
+  // Note: Live-policy fallback serves claims created before coverageSnapshot existed and is removed after the legacy claims are deleted.
+  // 3. 0 if policy or deductible not found
+  let policyDeductible = 0;
+  if (existingClaim.coverageSnapshot && existingClaim.coverageSnapshot.deductibleAmount != null) {
+    policyDeductible = existingClaim.coverageSnapshot.deductibleAmount;
+  } else {
+    const livePolicy = await policyRepository.findByIdAndOrganization(existingClaim.policyId, organizationId);
+    policyDeductible = livePolicy?.deductibleAmount ?? 0;
+  }
+
+  const totalDamageMinor = partsMinor + laborMinor;
+
+  let appliedMinor;
+  let deductibleOverrideReason = null;
+
+  if (lossAssessment && lossAssessment.deductibleApplied !== undefined && lossAssessment.deductibleApplied !== null) {
+    appliedMinor = toMinor(lossAssessment.deductibleApplied, config.currency);
+  } else {
+    appliedMinor = policyDeductible;
+  }
+
+  const overridden = appliedMinor !== policyDeductible;
+  const rawReason = lossAssessment?.deductibleOverrideReason;
+  const trimmedReason = typeof rawReason === 'string' ? rawReason.trim() : '';
+
+  if (overridden) {
+    if (!trimmedReason || trimmedReason.length < 10 || trimmedReason.length > 300) {
+      throw new AppError(
+        'deductibleOverrideReason is required (between 10 and 300 characters) when deductible is overridden',
+        422,
+        'OVERRIDE_REASON_REQUIRED'
+      );
+    }
+    deductibleOverrideReason = trimmedReason;
+  } else {
+    if (trimmedReason.length > 0) {
+      throw new AppError(
+        'deductibleOverrideReason is not allowed when deductible matches policy',
+        422,
+        'OVERRIDE_REASON_NOT_ALLOWED'
+      );
+    }
+    deductibleOverrideReason = null;
+  }
+
+  // Pre-condition: total damage must be strictly positive
+  if (totalDamageMinor <= 0) {
+    throw new AppError('totalDamage must be greater than zero', 400, 'VALIDATION_ERROR');
+  }
+
+  // Pre-condition: total damage must exceed applied deductible
+  if (totalDamageMinor <= appliedMinor) {
+    throw new AppError('Total damage must be greater than the applied deductible', 422, 'DAMAGE_BELOW_DEDUCTIBLE');
+  }
+
+  const netPayoutMinor = totalDamageMinor - appliedMinor;
+
+  lossAssessmentDoc = {
+    estimatedPartsCost: partsMinor,
+    laborCost: laborMinor,
+    totalDamage: totalDamageMinor,
+    policyDeductible,
+    deductibleApplied: appliedMinor,
+    deductibleOverridden: overridden,
+    deductibleOverrideReason,
+    netApprovedPayout: netPayoutMinor,
+    assessedAt: new Date(),
+    assessedBy: userId,
+  };
 
   let timelineNotes = notes || null;
   if (lossAssessmentDoc && lossAssessmentDoc.deductibleOverridden) {
@@ -1718,6 +1747,290 @@ const getPublicClaimStatus = async (trackingToken) => {
   };
 };
 
+
+// ─── PB-08: Estimate & Quote Services ─────────────────────────────────────────
+
+const createEstimate = async (claimId, body, authUser) => {
+  const { userId, role, organizationId } = authUser;
+  const { source, garageId, vatApplied, lines } = body;
+
+  // C5: Role check for SURVEYOR
+  if (source === 'SURVEYOR') {
+    if (role !== 'FIELD_ADJUSTER') {
+      throw new AppError('Forbidden: Insufficient permissions', 403, 'FORBIDDEN');
+    }
+  }
+
+  // Garage check
+  if (source === 'GARAGE') {
+    if (!garageId) {
+      throw new AppError('garageId is required when source is GARAGE', 400, 'VALIDATION_ERROR');
+    }
+    const garage = await garageRepository.findByIdAndOrganization(garageId, organizationId, { approved: true });
+    if (!garage) {
+      throw new AppError('Garage not found', 404, 'GARAGE_NOT_FOUND');
+    }
+  }
+
+  // D1: Own-damage scope check
+  if (lines.some((l) => l.lineType === 'DIMINISHED_VALUE' || l.lineType === 'LOSS_OF_USE')) {
+    throw new AppError('Line type not allowed in own-damage claim', 422, 'LINE_TYPE_NOT_ALLOWED');
+  }
+
+  // Tenant-scoped claim lookup
+  const existingClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!existingClaim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // Ownership & Status checks per R2, R10, R11
+  const TERMINAL_STATUSES = ['APPROVED', 'REJECTED', 'CLOSED'];
+  if (TERMINAL_STATUSES.includes(existingClaim.status)) {
+    throw new AppError('Claim is in terminal status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  if (role === 'FIELD_ADJUSTER') {
+    const assignedId = existingClaim.assignedTo?._id?.toString() ?? existingClaim.assignedTo?.toString();
+    if (assignedId !== userId.toString()) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (existingClaim.status !== 'IN_PROGRESS') {
+      throw new AppError('Claim is not in IN_PROGRESS status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+  } else {
+    // CLAIMS_OFFICER or ADMIN
+    const allowedStatuses = ['IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW'];
+    if (!allowedStatuses.includes(existingClaim.status)) {
+      throw new AppError('Claim is not in an allowed status for garage quote', 409, 'INVALID_STATUS_TRANSITION');
+    }
+  }
+
+  // Resolve VAT rate from Organization settings
+  const org = await Organization.findById(organizationId).lean();
+  const vatRatePercent = org?.settings?.vatRatePercent ?? 16;
+
+  // Pure estimate calculation
+  const calculated = calculateEstimate(lines, vatApplied !== false, vatRatePercent, config.currency);
+
+  const allowedStatuses = source === 'SURVEYOR'
+    ? ['IN_PROGRESS']
+    : (role === 'FIELD_ADJUSTER' ? ['IN_PROGRESS'] : ['IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW']);
+
+  const buildFilter = (cnt) => ({
+    _id: claimId,
+    organizationId,
+    status: { $in: allowedStatuses },
+    ...(cnt === 0 ? { estimatesCount: { $in: [0, null] } } : { estimatesCount: cnt }),
+    ...(role === 'FIELD_ADJUSTER' && { assignedTo: userId }),
+  });
+
+  const currentCount = existingClaim.estimatesCount || 0;
+  const version = currentCount + 1;
+
+  const estimateDoc = {
+    version,
+    source,
+    garageId: source === 'GARAGE' ? garageId : null,
+    vatApplied: vatApplied !== false,
+    vatRatePercent,
+    lines: calculated.lines,
+    totals: calculated.totals,
+    mapped: calculated.mapped,
+    createdBy: userId,
+    createdByRole: role,
+    createdAt: new Date(),
+  };
+
+  const timelineEvent = {
+    action: 'Estimate Added',
+    previousStatus: existingClaim.status,
+    newStatus: existingClaim.status,
+    notes: `Estimate version ${version} (${source})`,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updateDoc = {
+    $push: { estimates: estimateDoc, timeline: timelineEvent },
+    $inc: { estimatesCount: 1 },
+  };
+
+  let updatedClaim = await claimRepository.addEstimate(buildFilter(currentCount), updateDoc);
+
+  if (!updatedClaim) {
+    // Retry once (A1)
+    const retryClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!retryClaim) throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    if (!allowedStatuses.includes(retryClaim.status)) {
+      throw new AppError('Claim is not in an allowed status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    if (role === 'FIELD_ADJUSTER') {
+      const assignedId = retryClaim.assignedTo?._id?.toString() ?? retryClaim.assignedTo?.toString();
+      if (assignedId !== userId.toString()) throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+
+    const retryCount = retryClaim.estimatesCount || 0;
+    estimateDoc.version = retryCount + 1;
+    timelineEvent.notes = `Estimate version ${estimateDoc.version} (${source})`;
+
+    updatedClaim = await claimRepository.addEstimate(buildFilter(retryCount), updateDoc);
+    if (!updatedClaim) {
+      throw new AppError('Estimate version conflict due to concurrent submission', 409, 'ESTIMATE_VERSION_CONFLICT');
+    }
+  }
+
+  const savedEstimate = (updatedClaim.estimates || []).find((e) => e.version === estimateDoc.version);
+  return formatEstimate(savedEstimate || estimateDoc, config.currency);
+};
+
+const getEstimates = async (claimId, authUser) => {
+  const { userId, role, organizationId } = authUser;
+
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  if (role === 'FIELD_ADJUSTER') {
+    const assignedId = claim.assignedTo?._id?.toString() ?? claim.assignedTo?.toString();
+    if (assignedId !== userId.toString()) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+  }
+
+  const sortedEstimates = [...(claim.estimates || [])].sort((a, b) => b.version - a.version);
+  const formatted = sortedEstimates.map((e) => formatEstimate(e, config.currency));
+
+  return {
+    approvedEstimateVersion: claim.approvedEstimateVersion ?? null,
+    estimates: formatted,
+  };
+};
+
+const compareEstimates = async (claimId, query, authUser) => {
+  const { userId, role, organizationId } = authUser;
+
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  if (role === 'FIELD_ADJUSTER') {
+    const assignedId = claim.assignedTo?._id?.toString() ?? claim.assignedTo?.toString();
+    if (assignedId !== userId.toString()) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+  }
+
+  const estimates = claim.estimates || [];
+
+  let surveyor;
+  if (query.surveyorVersion) {
+    surveyor = estimates.find((e) => e.source === 'SURVEYOR' && e.version === Number(query.surveyorVersion));
+  } else {
+    surveyor = estimates.filter((e) => e.source === 'SURVEYOR').sort((a, b) => b.version - a.version)[0];
+  }
+
+  if (!surveyor) {
+    throw new AppError('Surveyor estimate not found', 404, 'ESTIMATE_NOT_FOUND');
+  }
+
+  let garage;
+  if (query.garageVersion) {
+    garage = estimates.find((e) => e.source === 'GARAGE' && e.version === Number(query.garageVersion));
+  } else {
+    garage = estimates.filter((e) => e.source === 'GARAGE').sort((a, b) => b.version - a.version)[0];
+  }
+
+  if (!garage) {
+    throw new AppError('Garage quote not found', 404, 'ESTIMATE_NOT_FOUND');
+  }
+
+  const formattedSurveyor = formatEstimate(surveyor, config.currency);
+  const formattedGarage = formatEstimate(garage, config.currency);
+
+  const diffMinor = (field) => (garage.totals[field] || 0) - (surveyor.totals[field] || 0);
+
+  const difference = {
+    partsNet: fromMinor(diffMinor('partsNet'), config.currency),
+    labor: fromMinor(diffMinor('labor'), config.currency),
+    paint: fromMinor(diffMinor('paint'), config.currency),
+    surveyorFee: fromMinor(diffMinor('surveyorFee'), config.currency),
+    towing: fromMinor(diffMinor('towing'), config.currency),
+    repairSubtotal: fromMinor(diffMinor('repairSubtotal'), config.currency),
+    vat: fromMinor(diffMinor('vat'), config.currency),
+    repairTotal: fromMinor(diffMinor('repairTotal'), config.currency),
+    expenses: fromMinor(diffMinor('expenses'), config.currency),
+  };
+
+  const surveyorRepairTotalMinor = surveyor.totals.repairTotal || 0;
+  const garageRepairTotalMinor = garage.totals.repairTotal || 0;
+  let differencePercent = 0;
+  if (surveyorRepairTotalMinor !== 0) {
+    const pct = ((garageRepairTotalMinor - surveyorRepairTotalMinor) / surveyorRepairTotalMinor) * 100;
+    differencePercent = Math.round(pct * 100) / 100;
+  }
+
+  return {
+    surveyor: {
+      version: formattedSurveyor.version,
+      totals: formattedSurveyor.totals,
+    },
+    garage: {
+      version: formattedGarage.version,
+      totals: formattedGarage.totals,
+    },
+    difference,
+    differencePercent,
+  };
+};
+
+const approveEstimate = async (claimId, version, authUser) => {
+  const { userId, role, organizationId } = authUser;
+
+  if (!['CLAIMS_OFFICER', 'ADMIN'].includes(role)) {
+    throw new AppError('Forbidden: Insufficient permissions', 403, 'FORBIDDEN');
+  }
+
+  const timelineEvent = {
+    action: 'Estimate Approved',
+    previousStatus: 'UNDER_REVIEW',
+    newStatus: 'UNDER_REVIEW',
+    notes: `Approved estimate version ${version}`,
+    performedBy: userId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updatedClaim = await claimRepository.approveEstimate(
+    claimId,
+    organizationId,
+    Number(version),
+    timelineEvent
+  );
+
+  if (!updatedClaim) {
+    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!existing) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (existing.status !== 'UNDER_REVIEW') {
+      throw new AppError('Claim is not in UNDER_REVIEW status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    const exists = (existing.estimates || []).some((e) => e.version === Number(version));
+    if (!exists) {
+      throw new AppError('Estimate not found', 404, 'ESTIMATE_NOT_FOUND');
+    }
+    throw new AppError('Invalid status transition', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return {
+    claimId: updatedClaim._id,
+    approvedEstimateVersion: updatedClaim.approvedEstimateVersion,
+  };
+};
+
 module.exports = {
   assertPolicyCoverage,
   getEligibleClaimantParties,
@@ -1745,4 +2058,8 @@ module.exports = {
   getClaimStats,
   getClaimReport,
   getPublicClaimStatus,
+  createEstimate,
+  getEstimates,
+  compareEstimates,
+  approveEstimate,
 };

@@ -13,6 +13,18 @@ const organizationSchema = new mongoose.Schema({
     trim: true,
     uppercase: true,
   },
+  settings: {
+    vatRatePercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 16,
+      validate: {
+        validator: Number.isInteger,
+        message: 'vatRatePercent must be an integer between 0 and 100',
+      },
+    },
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Organization', organizationSchema);

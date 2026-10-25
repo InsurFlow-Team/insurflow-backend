@@ -19,6 +19,9 @@ const {
   closeClaimSchema,
   uploadEvidenceSchema,
   getClaimStatsQuerySchema,
+  createEstimateSchema,
+  compareEstimatesQuerySchema,
+  approveEstimateParamsSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -150,6 +153,40 @@ router.post(
   validateObjectId('claimId'),
   validate(requestCorrectionSchema),
   claimController.requestCorrection
+);
+
+// POST /api/v1/claims/:claimId/estimates — Create an estimate or garage quote
+router.post(
+  '/:claimId/estimates',
+  authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(createEstimateSchema),
+  claimController.createEstimate
+);
+
+// GET /api/v1/claims/:claimId/estimates/compare — Compare surveyor and garage estimates
+router.get(
+  '/:claimId/estimates/compare',
+  authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(compareEstimatesQuerySchema, 'query'),
+  claimController.compareEstimates
+);
+
+// GET /api/v1/claims/:claimId/estimates — List all estimate versions
+router.get(
+  '/:claimId/estimates',
+  authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.getEstimates
+);
+
+// POST /api/v1/claims/:claimId/estimates/:version/approve — Approve an estimate version
+router.post(
+  '/:claimId/estimates/:version/approve',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validate(approveEstimateParamsSchema, 'params'),
+  claimController.approveEstimate
 );
 
 // POST /api/v1/claims/:claimId/decision — Approve or reject a claim

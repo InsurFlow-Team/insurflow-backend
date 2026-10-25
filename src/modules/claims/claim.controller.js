@@ -175,6 +175,31 @@ const getClaimReport = async (req, res) => {
   return res.status(200).send(buffer);
 };
 
+
+const createEstimate = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.createEstimate(claimId, req.body, req.user);
+  return res.status(201).json(successResponse('Estimate created successfully', result));
+};
+
+const getEstimates = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.getEstimates(claimId, req.user);
+  return res.status(200).json(successResponse('Estimates retrieved successfully', result));
+};
+
+const compareEstimates = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.compareEstimates(claimId, req.query, req.user);
+  return res.status(200).json(successResponse('Estimates comparison retrieved successfully', result));
+};
+
+const approveEstimate = async (req, res) => {
+  const { claimId, version } = req.params;
+  const result = await claimService.approveEstimate(claimId, version, req.user);
+  return res.status(200).json(successResponse('Estimate approved successfully', result));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -195,5 +220,9 @@ module.exports = {
   closeClaim: asyncWrapper(closeClaim),
   getClaimStats: asyncWrapper(getClaimStats),
   getClaimReport: asyncWrapper(getClaimReport),
+  createEstimate: asyncWrapper(createEstimate),
+  getEstimates: asyncWrapper(getEstimates),
+  compareEstimates: asyncWrapper(compareEstimates),
+  approveEstimate: asyncWrapper(approveEstimate),
 };
 
