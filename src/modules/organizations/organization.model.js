@@ -24,6 +24,17 @@ const organizationSchema = new mongoose.Schema({
         message: 'vatRatePercent must be an integer between 0 and 100',
       },
     },
+    letterhead: {
+      address: {
+        type: String,
+        maxlength: 200,
+        default: null,
+      },
+      phone: {
+        type: String,
+        default: null,
+      },
+    },
   },
 }, { timestamps: true });
 
