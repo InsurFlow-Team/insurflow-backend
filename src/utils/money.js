@@ -81,9 +81,28 @@ const fromMinor = (minor, currency) => {
   return minor / factor;
 };
 
+/**
+ * Joi custom validator that checks if a major unit number conforms to the allowed decimal scale of config.currency.
+ *
+ * @param {number} value
+ * @param {object} helpers
+ * @returns {number}
+ */
+const validateCurrencyDecimals = (value, helpers) => {
+  if (typeof value !== 'number') return value;
+  const config = require('../config/env');
+  const scale = getCurrencyScale(config.currency);
+  const factor = 10 ** scale;
+  if (Math.round(value * factor) / factor !== value) {
+    return helpers.message(`"{#label}" must have at most ${scale} decimal places`);
+  }
+  return value;
+};
+
 module.exports = {
   CURRENCY_SCALE,
   getCurrencyScale,
   toMinor,
   fromMinor,
+  validateCurrencyDecimals,
 };
