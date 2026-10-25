@@ -39,6 +39,137 @@ const timelineEventSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ─── Estimate Sub-document Schemas ───────────────────────────────────────────
+const estimateLineSchema = new mongoose.Schema(
+  {
+    lineType: {
+      type: String,
+      enum: ['PART', 'LABOR', 'PAINT', 'SURVEYOR_FEE', 'TOWING'],
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 200,
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 0.01,
+      max: 999,
+    },
+    unitPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'unitPrice must be an integer (minor units)',
+      },
+    },
+    partCondition: {
+      type: String,
+      enum: ['NEW_ORIGINAL', 'NEW_AFTERMARKET', 'USED'],
+      default: null,
+    },
+    depreciationPercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
+    gross: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'gross must be an integer (minor units)',
+      },
+    },
+    depreciation: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'depreciation must be an integer (minor units)',
+      },
+    },
+    net: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'net must be an integer (minor units)',
+      },
+    },
+  },
+  { _id: false }
+);
+
+const estimateSchema = new mongoose.Schema(
+  {
+    version: {
+      type: Number,
+      required: true,
+    },
+    source: {
+      type: String,
+      enum: ['SURVEYOR', 'GARAGE'],
+      required: true,
+    },
+    garageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Garage',
+      default: null,
+    },
+    vatApplied: {
+      type: Boolean,
+      default: true,
+    },
+    vatRatePercent: {
+      type: Number,
+      required: true,
+    },
+    lines: {
+      type: [estimateLineSchema],
+      required: true,
+    },
+    totals: {
+      partsNet: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      labor: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      paint: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      surveyorFee: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      towing: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      repairSubtotal: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      vat: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      repairTotal: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      expenses: { type: Number, required: true, min: 0, validate: Number.isInteger },
+    },
+    mapped: {
+      estimatedPartsCost: { type: Number, required: true, min: 0, validate: Number.isInteger },
+      laborCost: { type: Number, required: true, min: 0, validate: Number.isInteger },
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    createdByRole: {
+      type: String,
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 // ─── Claim Schema ─────────────────────────────────────────────────────────────
 const claimSchema = new mongoose.Schema(
   {
@@ -419,6 +550,20 @@ const claimSchema = new mongoose.Schema(
         { _id: false }
       ),
       default: null,
+    },
+
+    // ── Estimates (PB-08) ─────────────────────────────────────────────
+    estimatesCount: {
+      type: Number,
+      default: 0,
+    },
+    approvedEstimateVersion: {
+      type: Number,
+      default: null,
+    },
+    estimates: {
+      type: [estimateSchema],
+      default: [],
     },
 
     // ── Audit Timeline ───────────────────────────────────────────────

@@ -226,6 +226,109 @@ const lossAssessmentInputSchema = Joi.object({
  * Validation schema for POST /claims/:claimId/decision
  * Transitions: UNDER_REVIEW → APPROVED | REJECTED
  */
+
+const laborHoursValidator = (value, helpers) => {
+  if (typeof value !== 'number') return value;
+  if (Math.round(value * 100) / 100 !== value) {
+    return helpers.message(`"{#label}" must have at most 2 decimal places`);
+  }
+  return value;
+};
+
+const estimateLineInputSchema = Joi.object({
+  lineType: Joi.string()
+    .valid('PART', 'LABOR', 'PAINT', 'SURVEYOR_FEE', 'TOWING', 'DIMINISHED_VALUE', 'LOSS_OF_USE')
+    .required()
+    .messages({
+      'any.only': 'lineType must be a valid claim line type',
+      'any.required': 'lineType is required',
+    }),
+  description: Joi.string().trim().min(1).max(200).required().messages({
+    'string.empty': 'description is required',
+    'string.max': 'description cannot exceed 200 characters',
+    'any.required': 'description is required',
+  }),
+  quantity: Joi.when('lineType', {
+    is: 'LABOR',
+    then: Joi.number().strict().min(0.01).max(999).custom(laborHoursValidator).required().messages({
+      'number.base': 'quantity for LABOR must be a valid number',
+      'number.min': 'quantity for LABOR must be at least 0.01',
+      'number.max': 'quantity cannot exceed 999',
+      'any.required': 'quantity is required',
+    }),
+    otherwise: Joi.number().integer().min(1).max(999).required().messages({
+      'number.base': 'quantity must be an integer',
+      'number.min': 'quantity must be at least 1',
+      'number.max': 'quantity cannot exceed 999',
+      'any.required': 'quantity is required',
+    }),
+  }),
+  unitPrice: Joi.number().strict().min(0).max(config.maxFinancialAmount).custom(twoDecimalValidator).required().messages({
+    'number.base': 'unitPrice must be a valid number',
+    'number.min': 'unitPrice cannot be negative',
+    'any.required': 'unitPrice is required',
+  }),
+  partCondition: Joi.when('lineType', {
+    is: 'PART',
+    then: Joi.string().valid('NEW_ORIGINAL', 'NEW_AFTERMARKET', 'USED').required().messages({
+      'any.only': 'partCondition must be NEW_ORIGINAL, NEW_AFTERMARKET, or USED',
+      'any.required': 'partCondition is required for PART lines',
+    }),
+    otherwise: Joi.forbidden().messages({
+      'any.unknown': 'partCondition is only allowed for PART lines',
+    }),
+  }),
+  depreciationPercent: Joi.when('lineType', {
+    is: 'PART',
+    then: Joi.when('partCondition', {
+      is: 'USED',
+      then: Joi.number().integer().valid(0).default(0).messages({
+        'any.only': 'depreciationPercent must be 0 for USED parts',
+      }),
+      otherwise: Joi.number().integer().min(0).max(100).default(0).messages({
+        'number.min': 'depreciationPercent cannot be negative',
+        'number.max': 'depreciationPercent cannot exceed 100',
+      }),
+    }),
+    otherwise: Joi.forbidden().messages({
+      'any.unknown': 'depreciationPercent is only allowed for PART lines',
+    }),
+  }),
+});
+
+const createEstimateSchema = Joi.object({
+  source: Joi.string().valid('SURVEYOR', 'GARAGE').required().messages({
+    'any.only': 'source must be either SURVEYOR or GARAGE',
+    'any.required': 'source is required',
+  }),
+  garageId: Joi.when('source', {
+    is: 'GARAGE',
+    then: Joi.string().trim().pattern(objectIdPattern).required().messages({
+      'string.pattern.base': 'garageId must be a valid MongoDB ObjectId',
+      'any.required': 'garageId is required when source is GARAGE',
+    }),
+    otherwise: Joi.forbidden().messages({
+      'any.unknown': 'garageId is only allowed when source is GARAGE',
+    }),
+  }),
+  vatApplied: Joi.boolean().optional().default(true),
+  lines: Joi.array().min(1).max(100).items(estimateLineInputSchema).required().messages({
+    'array.min': 'lines must contain at least 1 item',
+    'array.max': 'lines cannot exceed 100 items',
+    'any.required': 'lines is required',
+  }),
+});
+
+const compareEstimatesQuerySchema = Joi.object({
+  surveyorVersion: Joi.number().integer().min(1).optional(),
+  garageVersion: Joi.number().integer().min(1).optional(),
+});
+
+const approveEstimateParamsSchema = Joi.object({
+  claimId: Joi.string().trim().pattern(objectIdPattern).required(),
+  version: Joi.number().integer().min(1).required(),
+});
+
 const decisionSchema = Joi.object({
   decision: Joi.string()
     .valid('APPROVED', 'REJECTED')
@@ -241,9 +344,7 @@ const decisionSchema = Joi.object({
     then: Joi.valid(null).optional().messages({
       'any.only': 'lossAssessment is not allowed when decision is REJECTED',
     }),
-    otherwise: lossAssessmentInputSchema.required().messages({
-      'any.required': 'lossAssessment is required when decision is APPROVED',
-    }),
+    otherwise: lossAssessmentInputSchema.optional(),
   }),
 });
 
@@ -352,6 +453,9 @@ module.exports = {
   closeClaimSchema,
   uploadEvidenceSchema,
   getClaimStatsQuerySchema,
+  createEstimateSchema,
+  compareEstimatesQuerySchema,
+  approveEstimateParamsSchema,
 };
 
 
