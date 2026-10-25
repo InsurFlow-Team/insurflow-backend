@@ -17,6 +17,7 @@ const { PUBLIC_STATUS_MAP, PUBLIC_STATUS_RANK, PUBLIC_TIMELINE_TEXT } = require(
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 const config = require('../../config/env');
+const { toMinor, fromMinor } = require('../../utils/money');
 const computeEligibilityHint = require('../../utils/computeEligibilityHint');
 
 const buildTrackingUrl = (token) => {
@@ -115,6 +116,7 @@ const resolveClaimData = async (
     policy.deductibleAmount !== undefined &&
     policy.deductibleAmount !== null
   ) {
+    // Both policy and coverageSnapshot store monetary amounts in minor units
     coverageSnapshot = {
       policyKind: policy.policyKind ?? null,
       policyType: policy.policyType,
@@ -234,8 +236,8 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
           policyKind: claim.coverageSnapshot.policyKind ?? null,
           policyType: claim.coverageSnapshot.policyType,
           coveredPerils: claim.coverageSnapshot.coveredPerils,
-          deductibleAmount: claim.coverageSnapshot.deductibleAmount,
-          sumInsured: claim.coverageSnapshot.sumInsured ?? null,
+          deductibleAmount: claim.coverageSnapshot.deductibleAmount != null ? fromMinor(claim.coverageSnapshot.deductibleAmount, config.currency) : null,
+          sumInsured: claim.coverageSnapshot.sumInsured != null ? fromMinor(claim.coverageSnapshot.sumInsured, config.currency) : null,
           capturedAt: claim.coverageSnapshot.capturedAt,
         }
       : null,
@@ -582,8 +584,8 @@ const getClaimById = async (claimId, authUser) => {
           policyKind: claim.coverageSnapshot.policyKind ?? null,
           policyType: claim.coverageSnapshot.policyType ?? null,
           coveredPerils: claim.coverageSnapshot.coveredPerils ?? [],
-          deductibleAmount: claim.coverageSnapshot.deductibleAmount ?? null,
-          sumInsured: claim.coverageSnapshot.sumInsured ?? null,
+          deductibleAmount: claim.coverageSnapshot.deductibleAmount != null ? fromMinor(claim.coverageSnapshot.deductibleAmount, config.currency) : null,
+          sumInsured: claim.coverageSnapshot.sumInsured != null ? fromMinor(claim.coverageSnapshot.sumInsured, config.currency) : null,
           capturedAt: claim.coverageSnapshot.capturedAt ?? null,
         }
       : null,
@@ -591,14 +593,14 @@ const getClaimById = async (claimId, authUser) => {
     // ── 14. Loss Assessment (financial adjudication) ─────────────
     lossAssessment: claim.lossAssessment
       ? {
-          estimatedPartsCost: claim.lossAssessment.estimatedPartsCost,
-          laborCost: claim.lossAssessment.laborCost,
-          totalDamage: claim.lossAssessment.totalDamage,
-          policyDeductible: claim.lossAssessment.policyDeductible,
-          deductibleApplied: claim.lossAssessment.deductibleApplied,
+          estimatedPartsCost: claim.lossAssessment.estimatedPartsCost != null ? fromMinor(claim.lossAssessment.estimatedPartsCost, config.currency) : null,
+          laborCost: claim.lossAssessment.laborCost != null ? fromMinor(claim.lossAssessment.laborCost, config.currency) : null,
+          totalDamage: claim.lossAssessment.totalDamage != null ? fromMinor(claim.lossAssessment.totalDamage, config.currency) : null,
+          policyDeductible: claim.lossAssessment.policyDeductible != null ? fromMinor(claim.lossAssessment.policyDeductible, config.currency) : null,
+          deductibleApplied: claim.lossAssessment.deductibleApplied != null ? fromMinor(claim.lossAssessment.deductibleApplied, config.currency) : null,
           deductibleOverridden: claim.lossAssessment.deductibleOverridden ?? false,
           deductibleOverrideReason: claim.lossAssessment.deductibleOverrideReason ?? null,
-          netApprovedPayout: claim.lossAssessment.netApprovedPayout,
+          netApprovedPayout: claim.lossAssessment.netApprovedPayout != null ? fromMinor(claim.lossAssessment.netApprovedPayout, config.currency) : null,
           currency: config.currency,
           assessedAt: claim.lossAssessment.assessedAt,
           assessedBy: formatUser(claim.lossAssessment.assessedBy),
@@ -1277,26 +1279,21 @@ const decideClaim = async (claimId, body, authUser) => {
       policyDeductible = livePolicy?.deductibleAmount ?? 0;
     }
 
-    // Financial calculation in integer cents to prevent floating point inaccuracies
-    const partsCents = Math.round(lossAssessment.estimatedPartsCost * 100);
-    const laborCents = Math.round(lossAssessment.laborCost * 100);
-    const totalDamageCents = partsCents + laborCents;
-    const totalDamage = totalDamageCents / 100;
-    const policyDeductibleCents = Math.round(policyDeductible * 100);
+    // Financial calculation in integer minor units (src/utils/money.js)
+    const partsMinor = toMinor(lossAssessment.estimatedPartsCost, config.currency);
+    const laborMinor = toMinor(lossAssessment.laborCost, config.currency);
+    const totalDamageMinor = partsMinor + laborMinor;
 
-    let appliedCents;
-    let deductibleApplied;
+    let appliedMinor;
     let deductibleOverrideReason = null;
 
     if (lossAssessment.deductibleApplied !== undefined && lossAssessment.deductibleApplied !== null) {
-      appliedCents = Math.round(lossAssessment.deductibleApplied * 100);
-      deductibleApplied = appliedCents / 100;
+      appliedMinor = toMinor(lossAssessment.deductibleApplied, config.currency);
     } else {
-      appliedCents = policyDeductibleCents;
-      deductibleApplied = policyDeductible;
+      appliedMinor = policyDeductible;
     }
 
-    const overridden = appliedCents !== policyDeductibleCents;
+    const overridden = appliedMinor !== policyDeductible;
     const rawReason = lossAssessment.deductibleOverrideReason;
     const trimmedReason = typeof rawReason === 'string' ? rawReason.trim() : '';
 
@@ -1321,27 +1318,26 @@ const decideClaim = async (claimId, body, authUser) => {
     }
 
     // Pre-condition: total damage must be strictly positive
-    if (totalDamageCents <= 0) {
+    if (totalDamageMinor <= 0) {
       throw new AppError('totalDamage must be greater than zero', 400, 'VALIDATION_ERROR');
     }
 
     // Pre-condition: total damage must exceed applied deductible
-    if (totalDamageCents <= appliedCents) {
+    if (totalDamageMinor <= appliedMinor) {
       throw new AppError('Total damage must be greater than the applied deductible', 422, 'DAMAGE_BELOW_DEDUCTIBLE');
     }
 
-    const netPayoutCents = totalDamageCents - appliedCents;
-    const netApprovedPayout = netPayoutCents / 100;
+    const netPayoutMinor = totalDamageMinor - appliedMinor;
 
     lossAssessmentDoc = {
-      estimatedPartsCost: lossAssessment.estimatedPartsCost,
-      laborCost: lossAssessment.laborCost,
-      totalDamage,
+      estimatedPartsCost: partsMinor,
+      laborCost: laborMinor,
+      totalDamage: totalDamageMinor,
       policyDeductible,
-      deductibleApplied,
+      deductibleApplied: appliedMinor,
       deductibleOverridden: overridden,
       deductibleOverrideReason,
-      netApprovedPayout,
+      netApprovedPayout: netPayoutMinor,
       assessedAt: new Date(),
       assessedBy: userId,
     };
@@ -1349,7 +1345,9 @@ const decideClaim = async (claimId, body, authUser) => {
 
   let timelineNotes = notes || null;
   if (lossAssessmentDoc && lossAssessmentDoc.deductibleOverridden) {
-    const overrideNote = `[DEDUCTIBLE OVERRIDE] policy deductible ${lossAssessmentDoc.policyDeductible}, applied ${lossAssessmentDoc.deductibleApplied}. Reason: ${lossAssessmentDoc.deductibleOverrideReason}`;
+    const majorPolicyDeductible = fromMinor(lossAssessmentDoc.policyDeductible, config.currency);
+    const majorAppliedDeductible = fromMinor(lossAssessmentDoc.deductibleApplied, config.currency);
+    const overrideNote = `[DEDUCTIBLE OVERRIDE] policy deductible ${majorPolicyDeductible}, applied ${majorAppliedDeductible}. Reason: ${lossAssessmentDoc.deductibleOverrideReason}`;
     timelineNotes = timelineNotes ? `${timelineNotes} ${overrideNote}` : overrideNote;
   }
 
@@ -1398,14 +1396,14 @@ const decideClaim = async (claimId, body, authUser) => {
     decisionNotes: updatedClaim.decisionNotes,
     lossAssessment: updatedClaim.lossAssessment
       ? {
-          estimatedPartsCost: updatedClaim.lossAssessment.estimatedPartsCost,
-          laborCost: updatedClaim.lossAssessment.laborCost,
-          totalDamage: updatedClaim.lossAssessment.totalDamage,
-          policyDeductible: updatedClaim.lossAssessment.policyDeductible,
-          deductibleApplied: updatedClaim.lossAssessment.deductibleApplied,
+          estimatedPartsCost: updatedClaim.lossAssessment.estimatedPartsCost != null ? fromMinor(updatedClaim.lossAssessment.estimatedPartsCost, config.currency) : null,
+          laborCost: updatedClaim.lossAssessment.laborCost != null ? fromMinor(updatedClaim.lossAssessment.laborCost, config.currency) : null,
+          totalDamage: updatedClaim.lossAssessment.totalDamage != null ? fromMinor(updatedClaim.lossAssessment.totalDamage, config.currency) : null,
+          policyDeductible: updatedClaim.lossAssessment.policyDeductible != null ? fromMinor(updatedClaim.lossAssessment.policyDeductible, config.currency) : null,
+          deductibleApplied: updatedClaim.lossAssessment.deductibleApplied != null ? fromMinor(updatedClaim.lossAssessment.deductibleApplied, config.currency) : null,
           deductibleOverridden: updatedClaim.lossAssessment.deductibleOverridden ?? false,
           deductibleOverrideReason: updatedClaim.lossAssessment.deductibleOverrideReason ?? null,
-          netApprovedPayout: updatedClaim.lossAssessment.netApprovedPayout,
+          netApprovedPayout: updatedClaim.lossAssessment.netApprovedPayout != null ? fromMinor(updatedClaim.lossAssessment.netApprovedPayout, config.currency) : null,
           currency: config.currency,
           assessedAt: updatedClaim.lossAssessment.assessedAt,
           assessedBy: updatedClaim.lossAssessment.assessedBy,

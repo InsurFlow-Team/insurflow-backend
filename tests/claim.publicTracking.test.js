@@ -307,12 +307,12 @@ describe('Public Claim Tracking (Feature 23)', () => {
         decisionNotes: 'Internal decision notes',
         closingNotes: 'Internal closing notes',
         lossAssessment: {
-          estimatedPartsCost: 5000,
-          laborCost: 2000,
-          totalDamage: 7000,
-          policyDeductible: 500,
-          deductibleApplied: 500,
-          netApprovedPayout: 6500,
+          estimatedPartsCost: 500000,
+          laborCost: 200000,
+          totalDamage: 700000,
+          policyDeductible: 50000,
+          deductibleApplied: 50000,
+          netApprovedPayout: 650000,
           assessedBy: officer1._id,
         },
       });

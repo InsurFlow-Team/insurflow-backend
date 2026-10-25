@@ -59,7 +59,7 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION', 'THEFT'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2026-01-01'),
       expiryDate: new Date('2027-12-31'),
       organizationId: org1._id,
@@ -109,7 +109,7 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
       coverageSnapshot: {
         policyType: 'COMPREHENSIVE',
         coveredPerils: ['COLLISION', 'THEFT'],
-        deductibleAmount: 500,
+        deductibleAmount: 50000,
         capturedAt: new Date(),
       },
     });
@@ -148,8 +148,8 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
     // DB Verification
     const dbClaim = await Claim.findById(claimUnderReview._id);
     expect(dbClaim.status).toBe('APPROVED');
-    expect(dbClaim.lossAssessment.totalDamage).toBe(2000);
-    expect(dbClaim.lossAssessment.netApprovedPayout).toBe(1500);
+    expect(dbClaim.lossAssessment.totalDamage).toBe(200000);
+    expect(dbClaim.lossAssessment.netApprovedPayout).toBe(150000);
     expect(dbClaim.lossAssessment.assessedBy.toString()).toBe(officer1._id.toString());
   });
 
@@ -662,7 +662,7 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
 
     // Verify snapshot in DB is completely untouched
     const dbClaim = await Claim.findById(claimUnderReview._id);
-    expect(dbClaim.coverageSnapshot.deductibleAmount).toBe(500);
+    expect(dbClaim.coverageSnapshot.deductibleAmount).toBe(50000);
     expect(dbClaim.coverageSnapshot.policyType).toBe('COMPREHENSIVE');
     expect(dbClaim.lossAssessment).toBeNull();
   });
@@ -701,5 +701,35 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
     expect(reportRes.status).toBe(200);
     expect(reportRes.header['content-type']).toBe('application/pdf');
     expect(reportRes.body.length).toBeGreaterThan(1000);
+  });
+  it('stores lossAssessment as integer minor units and returns major units', async () => {
+    const token = generateToken(officer1);
+    const res = await request(app)
+      .post(`/api/v1/claims/${claimUnderReview._id}/decision`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        decision: 'APPROVED',
+        lossAssessment: {
+          estimatedPartsCost: 1200,
+          laborCost: 800,
+          deductibleApplied: 500,
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.lossAssessment.estimatedPartsCost).toBe(1200);
+    expect(res.body.data.lossAssessment.laborCost).toBe(800);
+    expect(res.body.data.lossAssessment.totalDamage).toBe(2000);
+    expect(res.body.data.lossAssessment.policyDeductible).toBe(500);
+    expect(res.body.data.lossAssessment.deductibleApplied).toBe(500);
+    expect(res.body.data.lossAssessment.netApprovedPayout).toBe(1500);
+
+    const dbClaim = await Claim.findById(claimUnderReview._id).lean();
+    expect(dbClaim.lossAssessment.estimatedPartsCost).toBe(120000);
+    expect(dbClaim.lossAssessment.laborCost).toBe(80000);
+    expect(dbClaim.lossAssessment.totalDamage).toBe(200000);
+    expect(dbClaim.lossAssessment.policyDeductible).toBe(50000);
+    expect(dbClaim.lossAssessment.deductibleApplied).toBe(50000);
+    expect(dbClaim.lossAssessment.netApprovedPayout).toBe(150000);
   });
 });

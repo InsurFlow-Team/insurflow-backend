@@ -83,7 +83,7 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2027-12-31T00:00:00Z'),
       organizationId: org._id,
@@ -95,7 +95,7 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
       policyKind: 'UNIFIED_COMPULSORY',
       coveredPerils: [],
       deductibleAmount: 0,
-      propertyDamageLimit: 100000,
+      propertyDamageLimit: 10000000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2027-12-31T00:00:00Z'),
       organizationId: org._id,
@@ -107,7 +107,7 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
     await mongoServer.stop();
   });
 
-  const createUnderReviewClaim = async (policy, deductibleAmount = 500) => {
+  const createUnderReviewClaim = async (policy, deductibleAmount = 50000) => {
     return await Claim.create({
       organizationId: org._id,
       policyId: policy._id,
@@ -120,7 +120,7 @@ describe('Stage 4A — Financial Adjudication & Deductible Rules (POST /claims/:
       coverageSnapshot: {
         policyType: policy.policyType || 'COMPREHENSIVE',
         coveredPerils: policy.coveredPerils || ['COLLISION'],
-        deductibleAmount,
+        deductibleAmount: deductibleAmount === 500 ? 50000 : deductibleAmount,
         capturedAt: new Date(),
       },
     });

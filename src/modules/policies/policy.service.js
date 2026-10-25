@@ -3,6 +3,8 @@ const policyRepository = require('./policy.repository');
 const vehicleRepository = require('../vehicles/vehicle.repository');
 const AppError = require('../../utils/appError');
 const computeEligibilityHint = require('../../utils/computeEligibilityHint');
+const { fromMinor } = require('../../utils/money');
+const config = require('../../config/env');
 
 /**
  * Verify policy eligibility before claim intake.
@@ -158,7 +160,7 @@ const verifyPolicy = async (body, authUser) => {
       effectiveTo: policy.expiryDate ? new Date(policy.expiryDate).toISOString().split('T')[0] : null,
       deductible:
         policy.deductibleAmount !== undefined && policy.deductibleAmount !== null
-          ? policy.deductibleAmount
+          ? fromMinor(policy.deductibleAmount, config.currency)
           : null,
       incidents,
     };
@@ -183,10 +185,10 @@ const verifyPolicy = async (body, authUser) => {
       coveredPerils: policy.coveredPerils ?? [],
       deductibleAmount:
         policy.deductibleAmount !== undefined && policy.deductibleAmount !== null
-          ? policy.deductibleAmount
+          ? fromMinor(policy.deductibleAmount, config.currency)
           : null,
-      sumInsured: policy.sumInsured ?? null,
-      propertyDamageLimit: policy.propertyDamageLimit ?? null,
+      sumInsured: policy.sumInsured != null ? fromMinor(policy.sumInsured, config.currency) : null,
+      propertyDamageLimit: policy.propertyDamageLimit != null ? fromMinor(policy.propertyDamageLimit, config.currency) : null,
       vehicleUse: policy.vehicleUse ?? null,
     },
     coverage,

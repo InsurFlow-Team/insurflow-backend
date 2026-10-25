@@ -1,6 +1,7 @@
 const pdfMake = require('pdfmake');
 const robotoFonts = require('pdfmake/fonts/Roboto');
 const config = require('../../config/env');
+const { fromMinor, getCurrencyScale } = require('../../utils/money');
 
 // Register fonts and security access policies once
 pdfMake.addFonts(robotoFonts);
@@ -356,7 +357,7 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
                   { text: 'Coverage at Intake', bold: true, style: 'labelCell' },
                   { text: claim.coverageSnapshot.policyType === 'COMPREHENSIVE' ? 'Comprehensive (شامل)' : 'Third-Party (ضد الغير)', style: 'valueCell' },
                   { text: 'Intake Deductible', bold: true, style: 'labelCell' },
-                  { text: claim.coverageSnapshot.deductibleAmount !== null && claim.coverageSnapshot.deductibleAmount !== undefined ? `${claim.coverageSnapshot.deductibleAmount}` : 'N/A', style: 'valueCell' },
+                  { text: claim.coverageSnapshot.deductibleAmount !== null && claim.coverageSnapshot.deductibleAmount !== undefined ? `${fromMinor(claim.coverageSnapshot.deductibleAmount, config.currency)}` : 'N/A', style: 'valueCell' },
                 ],
               ]
             : []),
@@ -436,16 +437,18 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
   // ── 8. Loss Assessment Financial Table (Only if present) ──
   if (claim.lossAssessment) {
     const la = claim.lossAssessment;
-    const currency = config.currency || 'ILS';
+    const currency = config.currency;
+    const scale = getCurrencyScale(config.currency);
+    const formatAmount = (minorVal) => minorVal != null ? fromMinor(minorVal, config.currency).toFixed(scale) : (0).toFixed(scale);
     const assessorName = la.assessedBy?.name || deciderName || 'Claims Officer';
     const assessorCode = la.assessedBy?.employeeCode ? ` (${la.assessedBy.employeeCode})` : '';
 
     const financialBody = [
-      [{ text: 'Estimated Parts Cost', bold: true, style: 'labelCell' }, { text: `${la.estimatedPartsCost != null ? la.estimatedPartsCost.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
-      [{ text: 'Labor Cost', bold: true, style: 'labelCell' }, { text: `${la.laborCost != null ? la.laborCost.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
-      [{ text: 'Total Assessed Damage', bold: true, style: 'labelCell' }, { text: `${la.totalDamage != null ? la.totalDamage.toFixed(2) : '0.00'} ${currency}`, bold: true, style: 'valueCell' }],
-      [{ text: 'Policy Deductible', bold: true, style: 'labelCell' }, { text: `${la.policyDeductible != null ? la.policyDeductible.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
-      [{ text: 'Deductible Applied', bold: true, style: 'labelCell' }, { text: `${la.deductibleApplied != null ? la.deductibleApplied.toFixed(2) : '0.00'} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Estimated Parts Cost', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.estimatedPartsCost)} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Labor Cost', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.laborCost)} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Total Assessed Damage', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.totalDamage)} ${currency}`, bold: true, style: 'valueCell' }],
+      [{ text: 'Policy Deductible', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.policyDeductible)} ${currency}`, style: 'valueCell' }],
+      [{ text: 'Deductible Applied', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.deductibleApplied)} ${currency}`, style: 'valueCell' }],
       [{ text: 'Deductible Overridden', bold: true, style: 'labelCell' }, { text: la.deductibleOverridden ? 'Yes' : 'No', style: 'valueCell' }],
     ];
 
@@ -458,7 +461,7 @@ const buildClaimReportDocDefinition = async ({ claim, organization, vehicle, pol
     }
 
     financialBody.push(
-      [{ text: 'Net Approved Payout', bold: true, style: 'labelCell' }, { text: `${la.netApprovedPayout != null ? la.netApprovedPayout.toFixed(2) : '0.00'} ${currency}`, bold: true, color: '#16a34a', style: 'valueCell' }],
+      [{ text: 'Net Approved Payout', bold: true, style: 'labelCell' }, { text: `${formatAmount(la.netApprovedPayout)} ${currency}`, bold: true, color: '#16a34a', style: 'valueCell' }],
       [{ text: 'Assessed By', bold: true, style: 'labelCell' }, { text: `${assessorName}${assessorCode}`, style: 'valueCell' }],
       [{ text: 'Assessed At', bold: true, style: 'labelCell' }, { text: formatDate(la.assessedAt), style: 'valueCell' }]
     );

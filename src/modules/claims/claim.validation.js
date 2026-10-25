@@ -1,6 +1,7 @@
 const Joi = require('joi');
 const config = require('../../config/env');
 const { objectIdPattern } = require('../../middlewares/validate.middleware');
+const { getCurrencyScale } = require('../../utils/money');
 
 /**
  * Validation schema for POST /claims
@@ -167,8 +168,10 @@ const requestCorrectionSchema = Joi.object({
 
 const twoDecimalValidator = (value, helpers) => {
   if (typeof value !== 'number') return value;
-  if (Math.round(value * 100) / 100 !== value) {
-    return helpers.message('"{#label}" must have at most 2 decimal places');
+  const scale = getCurrencyScale(config.currency);
+  const factor = 10 ** scale;
+  if (Math.round(value * factor) / factor !== value) {
+    return helpers.message(`"{#label}" must have at most ${scale} decimal places`);
   }
   return value;
 };
