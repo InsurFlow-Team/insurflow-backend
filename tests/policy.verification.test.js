@@ -68,7 +68,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
@@ -101,7 +101,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'CANCELLED',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 250,
+      deductibleAmount: 25000,
       startDate: new Date('2025-06-01T00:00:00Z'),
       expiryDate: new Date('2026-06-01T00:00:00Z'),
       organizationId: org1._id,
@@ -113,7 +113,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org2._id,
@@ -125,7 +125,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
@@ -137,7 +137,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2020-01-01T00:00:00Z'),
       expiryDate: new Date('2021-01-01T00:00:00Z'),
       organizationId: org1._id,
@@ -176,7 +176,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T00:00:00Z'),
       organizationId: org1._id,
@@ -649,7 +649,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
           organizationId: org1._id,
           policyType: 'COMPREHENSIVE',
           coveredPerils: [],
-          deductibleAmount: 500,
+          deductibleAmount: 50000,
         })
       );
       throw new Error('Should have failed validation');
@@ -689,7 +689,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
           organizationId: org1._id,
           policyType: 'COMPREHENSIVE',
           coveredPerils: ['FLOOD'],
-          deductibleAmount: 500,
+          deductibleAmount: 50000,
         })
       );
       throw new Error('Should have failed validation');
@@ -719,7 +719,7 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       organizationId: org1._id,
     });
 
@@ -1055,13 +1055,13 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
         policyNumber: 'POL-V-EXP-COMP',
 
         policyKind: 'COMPLEMENTARY',
-        sumInsured: 50000,
+        sumInsured: 5000000,
         status: 'EXPIRED',
         startDate: new Date('2022-01-01T00:00:00Z'),
         expiryDate: new Date('2023-12-31T23:59:59Z'),
         policyType: 'COMPREHENSIVE',
         coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
-        deductibleAmount: 500,
+        deductibleAmount: 50000,
         organizationId: org1._id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -1117,8 +1117,8 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
         policyNumber: 'POL-DUAL-COMPLE',
         policyKind: 'COMPLEMENTARY',
         policyType: 'COMPREHENSIVE',
-        sumInsured: 50000,
-        deductibleAmount: 500,
+        sumInsured: 5000000,
+        deductibleAmount: 50000,
         organizationId: org1._id,
       });
 
@@ -1189,9 +1189,9 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
         policyNumber: 'POL-BLOCK-TEST',
         policyKind: 'COMPLEMENTARY',
         policyType: 'COMPREHENSIVE',
-        sumInsured: 60000,
+        sumInsured: 6000000,
         vehicleUse: 'COMMERCIAL',
-        deductibleAmount: 400,
+        deductibleAmount: 40000,
         organizationId: org1._id,
       });
 
@@ -1208,5 +1208,33 @@ describe('Policy Verification API — POST /api/v1/policies/verify', () => {
         vehicleUse: 'COMMERCIAL',
       });
     });
+  });
+  it('returns policy amounts in major units when stored in minor units', async () => {
+    await Policy.collection.insertOne({
+      _id: new mongoose.Types.ObjectId(),
+      policyNumber: 'POL-MINOR-UNIT-VERIFY',
+      policyKind: 'COMPLEMENTARY',
+      policyType: 'COMPREHENSIVE',
+      coveredPerils: ['COLLISION'],
+      status: 'ACTIVE',
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      expiryDate: new Date('2027-12-31T00:00:00Z'),
+      deductibleAmount: 50000,
+      sumInsured: 5000000,
+      moneyUnit: 'MINOR',
+      organizationId: org1._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ policyNumber: 'POL-MINOR-UNIT-VERIFY' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.policy.deductibleAmount).toBe(500);
+    expect(res.body.data.policy.sumInsured).toBe(50000);
+    expect(res.body.data.coverage.deductible).toBe(500);
   });
 });

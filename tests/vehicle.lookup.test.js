@@ -253,7 +253,7 @@ describe('Vehicle Lookup API', () => {
         startDate: new Date('2024-01-01T00:00:00Z'),
         expiryDate: new Date('2024-12-31T00:00:00Z'),
         organizationId: org1._id,
-        propertyDamageLimit: 100000,
+        propertyDamageLimit: 10000000,
         deductibleAmount: 0,
       });
 
@@ -264,8 +264,8 @@ describe('Vehicle Lookup API', () => {
         startDate: new Date('2024-01-01T00:00:00Z'),
         expiryDate: new Date('2024-12-31T00:00:00Z'),
         organizationId: org1._id,
-        sumInsured: 50000,
-        deductibleAmount: 500,
+        sumInsured: 5000000,
+        deductibleAmount: 50000,
       });
 
       await Vehicle.create({

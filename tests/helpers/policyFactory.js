@@ -21,20 +21,21 @@ const buildPolicyPayload = (overrides = {}) => {
     defaultPolicyType = null;
     defaultCoveredPerils = [];
     defaultSumInsured = null;
-    defaultPropertyDamageLimit = 100000;
+    defaultPropertyDamageLimit = 10000000;
     defaultDeductibleAmount = 0;
   } else {
     // COMPLEMENTARY
     defaultPolicyType = 'COMPREHENSIVE';
     defaultCoveredPerils = ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'];
-    defaultSumInsured = 50000;
+    defaultSumInsured = 5000000;
     defaultPropertyDamageLimit = null;
-    defaultDeductibleAmount = 500;
+    defaultDeductibleAmount = 50000;
   }
 
   const defaults = {
     policyNumber: `POL-AUTO-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
     policyKind,
+    moneyUnit: 'MINOR',
     status: 'ACTIVE',
     startDate: new Date('2025-01-01T00:00:00.000Z'),
     expiryDate: new Date('2026-12-31T23:59:59.999Z'),

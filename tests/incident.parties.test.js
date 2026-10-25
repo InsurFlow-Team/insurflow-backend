@@ -89,7 +89,7 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
       expiryDate: new Date('2027-12-31'),
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
     });
 
     customer = await Customer.create({

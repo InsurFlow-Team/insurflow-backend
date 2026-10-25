@@ -78,10 +78,19 @@ const policySchema = new mongoose.Schema(
       },
       default: [],
     },
+    moneyUnit: {
+      type: String,
+      enum: ['MINOR'],
+      default: 'MINOR',
+    },
     deductibleAmount: {
       type: Number,
       required: [true, 'deductibleAmount is required'],
       min: [0, 'deductibleAmount cannot be negative'],
+      validate: {
+        validator: Number.isInteger,
+        message: 'deductibleAmount must be an integer (minor units)',
+      },
     },
     sumInsured: {
       type: Number,
@@ -90,7 +99,7 @@ const policySchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           if (this.policyKind === 'COMPLEMENTARY') {
-            return typeof v === 'number' && v >= 0;
+            return typeof v === 'number' && Number.isInteger(v) && v >= 0;
           }
           if (this.policyKind === 'UNIFIED_COMPULSORY') {
             return v === null || v === undefined;
@@ -107,7 +116,7 @@ const policySchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           if (this.policyKind === 'UNIFIED_COMPULSORY') {
-            return typeof v === 'number' && v >= 0;
+            return typeof v === 'number' && Number.isInteger(v) && v >= 0;
           }
           if (this.policyKind === 'COMPLEMENTARY') {
             return v === null || v === undefined;

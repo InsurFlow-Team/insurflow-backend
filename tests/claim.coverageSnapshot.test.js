@@ -63,7 +63,7 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       status: 'ACTIVE',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2027-12-31T00:00:00Z'),
       organizationId: org._id,
@@ -74,7 +74,7 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
       status: 'ACTIVE',
       policyType: 'THIRD_PARTY',
       coveredPerils: [],
-      deductibleAmount: 0,
+      deductibleAmount: 50000,
       startDate: new Date('2025-01-01T00:00:00Z'),
       expiryDate: new Date('2027-12-31T00:00:00Z'),
       organizationId: org._id,
@@ -127,14 +127,14 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
     expect(claimDoc.coverageSnapshot).toBeDefined();
     expect(claimDoc.coverageSnapshot.policyKind).toBe('COMPLEMENTARY');
     expect(claimDoc.coverageSnapshot.policyType).toBe('COMPREHENSIVE');
-    expect(claimDoc.coverageSnapshot.sumInsured).toBe(50000);
+    expect(claimDoc.coverageSnapshot.sumInsured).toBe(5000000);
     expect(claimDoc.coverageSnapshot.coveredPerils).toEqual([
       'COLLISION',
       'THEFT',
       'FIRE',
       'NATURAL_DISASTER',
     ]);
-    expect(claimDoc.coverageSnapshot.deductibleAmount).toBe(500);
+    expect(claimDoc.coverageSnapshot.deductibleAmount).toBe(50000);
     expect(claimDoc.coverageSnapshot.capturedAt).toBeDefined();
 
     // Verify GET /claims/:id response envelope
@@ -189,7 +189,7 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
     // 2. Tamper with the policy document directly in DB
     await Policy.updateOne(
       { _id: comprehensivePolicy._id },
-      { $set: { coveredPerils: ['THEFT'], deductibleAmount: 0, sumInsured: 1000 } }
+      { $set: { coveredPerils: ['THEFT'], deductibleAmount: 0, sumInsured: 100000 } }
     );
 
     // 3. Fetch claim — snapshot must remain pristine with intake conditions
@@ -217,8 +217,8 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
           policyType: 'COMPREHENSIVE',
           policyKind: 'COMPLEMENTARY',
           coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
-          deductibleAmount: 500,
-          sumInsured: 50000,
+          deductibleAmount: 50000,
+          sumInsured: 5000000,
         },
       }
     );

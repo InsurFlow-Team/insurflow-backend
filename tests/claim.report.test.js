@@ -533,14 +533,14 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
       incidentLocation: 'Test Loc',
       vehicle: { plateNumber: vehicle1.plateNumber, vehicleId: vehicle1._id, policyId: policy1._id },
       lossAssessment: {
-        estimatedPartsCost: 3000,
-        laborCost: 1500,
-        totalDamage: 4500,
-        policyDeductible: 500,
+        estimatedPartsCost: 300000,
+        laborCost: 150000,
+        totalDamage: 450000,
+        policyDeductible: 50000,
         deductibleApplied: 0,
         deductibleOverridden: true,
         deductibleOverrideReason: 'VIP customer courtesy waiver',
-        netApprovedPayout: 4500,
+        netApprovedPayout: 450000,
         assessedAt: new Date(),
         assessedBy: officer1._id,
       },
@@ -568,14 +568,14 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
       vehicle: { plateNumber: 'A-123' },
       timeline: [],
       lossAssessment: {
-        estimatedPartsCost: 1000,
-        laborCost: 500,
-        totalDamage: 1500,
-        policyDeductible: 200,
+        estimatedPartsCost: 100000,
+        laborCost: 50000,
+        totalDamage: 150000,
+        policyDeductible: 20000,
         deductibleApplied: 0,
         deductibleOverridden: true,
         deductibleOverrideReason: 'Special waiver',
-        netApprovedPayout: 1500,
+        netApprovedPayout: 150000,
       },
     };
 
@@ -623,5 +623,53 @@ describe('GET /api/v1/claims/:claimId/report — Final Claim Report (PDF)', () =
     const notOverriddenRow = notOverriddenTable.find((row) => row[0].text === 'Deductible Overridden');
     expect(notOverriddenRow).toBeDefined();
     expect(notOverriddenRow[1].text).toBe('No');
+  });
+  test('prints money from minor units with the currency decimals', async () => {
+    const { buildClaimReportDocDefinition } = require('../src/modules/claims/claim.report.builder');
+
+    const claimMinorUnits = {
+      claimNumber: 'CLM-MINOR-PDF-1',
+      status: 'APPROVED',
+      customer: { name: 'Test Minor' },
+      vehicle: { plateNumber: 'M-123' },
+      timeline: [],
+      coverageSnapshot: {
+        policyType: 'COMPREHENSIVE',
+        deductibleAmount: 50000,
+      },
+      lossAssessment: {
+        estimatedPartsCost: 100000,
+        laborCost: 50000,
+        totalDamage: 150000,
+        policyDeductible: 50000,
+        deductibleApplied: 50000,
+        deductibleOverridden: false,
+        deductibleOverrideReason: null,
+        netApprovedPayout: 100000,
+      },
+    };
+
+    const docDef = await buildClaimReportDocDefinition({
+      claim: claimMinorUnits,
+      organization: { name: 'Org1' },
+      vehicle: null,
+      policy: null,
+    });
+
+    const financialSection = docDef.content.find(
+      (item) => item.text === '8. Financial Loss Assessment'
+    );
+    expect(financialSection).toBeDefined();
+
+    const financialTableIndex = docDef.content.indexOf(financialSection) + 1;
+    const financialTable = docDef.content[financialTableIndex].table.body;
+
+    const partsRow = financialTable.find((row) => row[0].text === 'Estimated Parts Cost');
+    expect(partsRow).toBeDefined();
+    expect(partsRow[1].text).toBe('1000.00 ILS');
+
+    const totalRow = financialTable.find((row) => row[0].text === 'Total Assessed Damage');
+    expect(totalRow).toBeDefined();
+    expect(totalRow[1].text).toBe('1500.00 ILS');
   });
 });

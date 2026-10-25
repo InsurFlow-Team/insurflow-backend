@@ -103,7 +103,7 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       expiryDate: new Date('2027-12-31'),
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION', 'THEFT', 'FIRE', 'NATURAL_DISASTER'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
     });
 
     customer = await Customer.create({

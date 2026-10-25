@@ -68,6 +68,11 @@ const claimSchema = new mongoose.Schema(
       enum: ['OWN_DAMAGE', 'THIRD_PARTY_PD'],
       default: 'OWN_DAMAGE',
     },
+    moneyUnit: {
+      type: String,
+      enum: ['MINOR'],
+      default: 'MINOR',
+    },
     trackingToken: {
       type: String,
     },
@@ -117,11 +122,23 @@ const claimSchema = new mongoose.Schema(
             type: Number,
             min: 0,
             default: null,
+            validate: {
+              validator: function (v) {
+                return v === null || v === undefined || Number.isInteger(v);
+              },
+              message: 'deductibleAmount must be an integer (minor units)',
+            },
           },
           sumInsured: {
             type: Number,
             min: 0,
             default: null,
+            validate: {
+              validator: function (v) {
+                return v === null || v === undefined || Number.isInteger(v);
+              },
+              message: 'sumInsured must be an integer (minor units)',
+            },
           },
           capturedAt: {
             type: Date,
@@ -331,26 +348,46 @@ const claimSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 0,
+            validate: {
+              validator: Number.isInteger,
+              message: 'estimatedPartsCost must be an integer (minor units)',
+            },
           },
           laborCost: {
             type: Number,
             required: true,
             min: 0,
+            validate: {
+              validator: Number.isInteger,
+              message: 'laborCost must be an integer (minor units)',
+            },
           },
           totalDamage: {
             type: Number,
             required: true,
             min: 0,
+            validate: {
+              validator: Number.isInteger,
+              message: 'totalDamage must be an integer (minor units)',
+            },
           },
           policyDeductible: {
             type: Number,
             required: true,
             min: 0,
+            validate: {
+              validator: Number.isInteger,
+              message: 'policyDeductible must be an integer (minor units)',
+            },
           },
           deductibleApplied: {
             type: Number,
             required: true,
             min: 0,
+            validate: {
+              validator: Number.isInteger,
+              message: 'deductibleApplied must be an integer (minor units)',
+            },
           },
           deductibleOverridden: {
             type: Boolean,
@@ -364,6 +401,10 @@ const claimSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 0,
+            validate: {
+              validator: Number.isInteger,
+              message: 'netApprovedPayout must be an integer (minor units)',
+            },
           },
           assessedAt: {
             type: Date,

@@ -124,8 +124,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
       policyKind: 'COMPLEMENTARY',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      sumInsured: 50000,
-      deductibleAmount: 500,
+      sumInsured: 5000000,
+      deductibleAmount: 50000,
       startDate: new Date('2026-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T23:59:59Z'),
     });
@@ -215,8 +215,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
         policyKind: 'COMPLEMENTARY',
         policyType: 'THIRD_PARTY',
         coveredPerils: ['COLLISION'],
-        sumInsured: 50000,
-        deductibleAmount: 500,
+        sumInsured: 5000000,
+        deductibleAmount: 50000,
         startDate: new Date('2026-01-01T00:00:00Z'),
         expiryDate: new Date('2026-12-31T23:59:59Z'),
       })
@@ -716,8 +716,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
       policyKind: 'COMPLEMENTARY',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      sumInsured: 75000,
-      deductibleAmount: 250,
+      sumInsured: 7500000,
+      deductibleAmount: 25000,
       startDate: new Date('2026-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T23:59:59Z'),
     });
@@ -750,9 +750,9 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
     const claimDoc = await Claim.findById(res.body.data.id).lean();
     expect(claimDoc.coverageSnapshot).toMatchObject({
       policyKind: 'COMPLEMENTARY',
-      sumInsured: 75000,
+      sumInsured: 7500000,
       policyType: 'COMPREHENSIVE',
-      deductibleAmount: 250,
+      deductibleAmount: 25000,
     });
   });
 
@@ -763,8 +763,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
       policyKind: 'COMPLEMENTARY',
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      sumInsured: 50000,
-      deductibleAmount: 500,
+      sumInsured: 5000000,
+      deductibleAmount: 50000,
       startDate: new Date('2026-01-01T00:00:00Z'),
       expiryDate: new Date('2026-12-31T23:59:59Z'),
     });
@@ -872,5 +872,20 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
     expect(res.body.errors[0].code).toBe('CLAIM_NOT_FOUND');
     expect(res.body.errors[0].reason).toBeUndefined();
     expect(Object.keys(res.body.errors[0]).sort()).toEqual(['code', 'details'].sort());
+  });
+  it('rejects a non-integer money value at schema level', async () => {
+    await expect(
+      Policy.create({
+        organizationId: org._id,
+        policyNumber: 'POL-FLOAT-TEST',
+        policyKind: 'COMPLEMENTARY',
+        policyType: 'COMPREHENSIVE',
+        coveredPerils: ['COLLISION'],
+        sumInsured: 50000.5,
+        deductibleAmount: 500,
+        startDate: new Date('2026-01-01T00:00:00Z'),
+        expiryDate: new Date('2026-12-31T23:59:59Z'),
+      })
+    ).rejects.toThrow();
   });
 });

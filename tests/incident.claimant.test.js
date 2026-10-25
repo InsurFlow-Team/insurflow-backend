@@ -110,7 +110,7 @@ describe('PB-02b Claimant & Subject Vehicle on Sub-Claims & PII Masking', () => 
       expiryDate: new Date('2027-12-31'),
       policyType: 'COMPREHENSIVE',
       coveredPerils: ['COLLISION'],
-      deductibleAmount: 500,
+      deductibleAmount: 50000,
     });
 
     vehicle = await Vehicle.create({
