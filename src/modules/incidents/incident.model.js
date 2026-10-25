@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Counter = require('../../utils/counter.model');
 const Organization = require('../organizations/organization.model');
+const { GOVERNORATES } = require('../../utils/governorates');
 
 const incidentVehicleSchema = new mongoose.Schema(
   {
@@ -195,24 +196,7 @@ const incidentSchema = new mongoose.Schema(
     },
     governorate: {
       type: String,
-      enum: [
-        'JENIN',
-        'TUBAS',
-        'TULKARM',
-        'NABLUS',
-        'QALQILYA',
-        'SALFIT',
-        'RAMALLAH_AL_BIREH',
-        'JERICHO',
-        'JERUSALEM',
-        'BETHLEHEM',
-        'HEBRON',
-        'NORTH_GAZA',
-        'GAZA',
-        'DEIR_AL_BALAH',
-        'KHAN_YUNIS',
-        'RAFAH',
-      ],
+      enum: GOVERNORATES,
       default: null,
     },
     reportSource: {

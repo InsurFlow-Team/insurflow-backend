@@ -5,6 +5,9 @@ const Customer = require('../modules/customers/customer.model');
 const Policy = require('../modules/policies/policy.model');
 const Vehicle = require('../modules/vehicles/vehicle.model');
 const User = require('../modules/users/user.model');
+const Garage = require('../modules/garages/garage.model');
+const { toMinor } = require('../utils/money');
+const { normalizeGarageName } = require('../modules/garages/garage.service');
 
 const seedMockData = async () => {
   try {
@@ -218,6 +221,49 @@ const seedMockData = async () => {
     }
     console.log('Seeded Mock Vehicles');
 
+    // Create mock garages (idempotent upsert on { organizationId, normalizedName })
+    const garagesData = [
+      {
+        name: 'Al-Manara Auto Repair',
+        governorate: 'RAMALLAH_AL_BIREH',
+        city: 'Ramallah',
+        phone: '+970599111222',
+        laborRate: toMinor(80, config.currency),
+        approved: true,
+        organizationId: organization._id,
+      },
+      {
+        name: 'Nablus Central Garage',
+        governorate: 'NABLUS',
+        city: 'Nablus',
+        phone: '+970599333444',
+        laborRate: toMinor(75, config.currency),
+        approved: true,
+        organizationId: organization._id,
+      },
+      {
+        name: 'Hebron Modern Workshop',
+        governorate: 'HEBRON',
+        city: 'Hebron',
+        phone: '+970599555666',
+        laborRate: toMinor(70, config.currency),
+        approved: true,
+        organizationId: organization._id,
+      },
+    ].map((g) => ({
+      ...g,
+      normalizedName: normalizeGarageName(g.name),
+    }));
+
+    for (const g of garagesData) {
+      await Garage.findOneAndUpdate(
+        { organizationId: organization._id, normalizedName: g.normalizedName },
+        { $set: g },
+        { upsert: true, returnDocument: 'after' }
+      );
+    }
+    console.log('Seeded Mock Garages');
+
     console.log('Seed completed successfully.');
   } catch (error) {
     console.error('Error during seeding:', error);
@@ -233,4 +279,3 @@ if (require.main === module) {
 }
 
 module.exports = seedMockData;
-

@@ -1,5 +1,6 @@
 const Joi = require('joi');
 const { objectIdPattern } = require('../../middlewares/validate.middleware');
+const { GOVERNORATES } = require('../../utils/governorates');
 
 const vehicleItemSchema = Joi.object({
   vehicleRole: Joi.string()
@@ -277,24 +278,7 @@ const createIncidentSchema = Joi.object({
       'any.required': 'incidentAt is required',
     }),
   governorate: Joi.string()
-    .valid(
-      'JENIN',
-      'TUBAS',
-      'TULKARM',
-      'NABLUS',
-      'QALQILYA',
-      'SALFIT',
-      'RAMALLAH_AL_BIREH',
-      'JERICHO',
-      'JERUSALEM',
-      'BETHLEHEM',
-      'HEBRON',
-      'NORTH_GAZA',
-      'GAZA',
-      'DEIR_AL_BALAH',
-      'KHAN_YUNIS',
-      'RAFAH'
-    )
+    .valid(...GOVERNORATES)
     .required()
     .messages({
       'any.only': 'Invalid governorate',
