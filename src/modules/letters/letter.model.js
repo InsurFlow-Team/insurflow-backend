@@ -21,7 +21,7 @@ const letterSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['APPROVAL', 'REJECTION'],
+      enum: ['APPROVAL', 'REJECTION', 'REPAIR_AUTHORIZATION'],
       required: true,
     },
     supersedesLetterId: {

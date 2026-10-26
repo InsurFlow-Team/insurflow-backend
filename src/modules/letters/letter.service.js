@@ -5,6 +5,7 @@ const Claim = require('../claims/claim.model');
 const Organization = require('../organizations/organization.model');
 const Customer = require('../customers/customer.model');
 const Vehicle = require('../vehicles/vehicle.model');
+const User = require('../users/user.model');
 const incidentRepository = require('../incidents/incident.repository');
 const Counter = require('../../utils/counter.model');
 const AppError = require('../../utils/appError');
@@ -132,7 +133,8 @@ const issueLetter = async (claimId, body, authUser) => {
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
   }
 
-  // 3. Preconditions (Rule R5)
+  // 3. Preconditions (Rule R5 & PB-10 R9)
+  let targetRepairOrder = null;
   if (body.type === 'APPROVAL') {
     if (!['APPROVED', 'CLOSED'].includes(claim.status) || !claim.lossAssessment) {
       throw new AppError(
@@ -149,6 +151,16 @@ const issueLetter = async (claimId, body, authUser) => {
         'INVALID_STATUS_TRANSITION'
       );
     }
+  } else if (body.type === 'REPAIR_AUTHORIZATION') {
+    const eligibleOrders = (claim.repairOrders || []).filter((o) => o.status !== 'CANCELLED');
+    if (eligibleOrders.length === 0) {
+      throw new AppError(
+        'Repair authorization letter requires an active or delivered repair order.',
+        409,
+        'INVALID_STATUS_TRANSITION'
+      );
+    }
+    targetRepairOrder = eligibleOrders[eligibleOrders.length - 1];
   }
 
   // 4. Supersede validation (Rule R4, Assumption A5)
@@ -188,7 +200,11 @@ const issueLetter = async (claimId, body, authUser) => {
 
   const { letterNumber, issueDate } = await getNextLetterNumber(organizationId, orgCode, issuedAt);
 
-  // 6. Frozen snapshot compilation (Rule R3)
+  // C4: Read the issuing user's name from database scoped to organizationId
+  const issuingUser = await User.findOne({ _id: userId, organizationId }).select('name').lean();
+  const issuerName = issuingUser?.name || authUser.name || (role === 'ADMIN' ? 'Admin' : 'Claims Officer');
+
+  // 6. Frozen snapshot compilation (Rule R3 & PB-10 R9)
   const snapshot = {
     letterhead: {
       organizationName: orgName,
@@ -198,7 +214,7 @@ const issueLetter = async (claimId, body, authUser) => {
     letterNumber,
     issueDate,
     type: body.type,
-    addresseeName,
+    addresseeName: body.type === 'REPAIR_AUTHORIZATION' ? targetRepairOrder.garage.name : addresseeName,
     claimNumber: claim.claimNumber,
     plateNumber,
     incidentDate,
@@ -212,8 +228,17 @@ const issueLetter = async (claimId, body, authUser) => {
         : null,
     currency: config.currency,
     reason: body.type === 'REJECTION' ? body.reason : null,
+    ...(body.type === 'REPAIR_AUTHORIZATION' && {
+      orderNumber: targetRepairOrder.orderNumber,
+      garageName: targetRepairOrder.garage.name,
+      garageCity: targetRepairOrder.garage.city,
+      garagePhone: targetRepairOrder.garage.phone,
+      insuredName: addresseeName,
+      authorizedAmount: targetRepairOrder.authorizedAmount,
+      deductibleToCollect: targetRepairOrder.deductibleToCollect,
+    }),
     issuer: {
-      name: authUser.name || (role === 'ADMIN' ? 'Admin' : 'Claims Officer'),
+      name: issuerName,
       role,
     },
   };

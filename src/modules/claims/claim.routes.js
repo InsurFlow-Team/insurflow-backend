@@ -22,6 +22,9 @@ const {
   createEstimateSchema,
   compareEstimatesQuerySchema,
   approveEstimateParamsSchema,
+  createRepairOrderSchema,
+  updateRepairOrderStatusSchema,
+  repairOrderParamsSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -213,6 +216,33 @@ router.get(
   authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
   validateObjectId('claimId'),
   claimController.getClaimReport
+);
+
+// ── Repair Orders Endpoints (PB-10) ──────────────────────────────────────────
+// POST /api/v1/claims/:claimId/repair-orders — Create a repair order
+router.post(
+  '/:claimId/repair-orders',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(createRepairOrderSchema),
+  claimController.createRepairOrder
+);
+
+// GET /api/v1/claims/:claimId/repair-orders — List repair orders
+router.get(
+  '/:claimId/repair-orders',
+  authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.getRepairOrders
+);
+
+// PATCH /api/v1/claims/:claimId/repair-orders/:orderNumber/status — Update status
+router.patch(
+  '/:claimId/repair-orders/:orderNumber/status',
+  authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
+  validate(repairOrderParamsSchema, 'params'),
+  validate(updateRepairOrderStatusSchema),
+  claimController.updateRepairOrderStatus
 );
 
 const letterRoutes = require('../letters/letter.routes');

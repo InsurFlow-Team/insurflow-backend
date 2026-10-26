@@ -351,6 +351,27 @@ const approveEstimate = async (claimId, organizationId, version, timelineEvent) 
   ).lean();
 };
 
+const atomicCreateRepairOrder = async (filter, orderDoc, timelineEvent) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    {
+      $push: {
+        repairOrders: orderDoc,
+        timeline: timelineEvent,
+      },
+    },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const atomicUpdateRepairOrderStatus = async (filter, updateDoc) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updateDoc,
+    { returnDocument: 'after' }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -377,4 +398,6 @@ module.exports = {
   findByIncidentId,
   addEstimate,
   approveEstimate,
+  atomicCreateRepairOrder,
+  atomicUpdateRepairOrderStatus,
 };

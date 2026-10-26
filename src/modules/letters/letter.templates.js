@@ -58,6 +58,20 @@ const buildHeaderBlock = (letterhead = {}, letterNumber = '', issueDate = '') =>
 };
 
 /**
+ * Shared signature builder (C3)
+ */
+const buildSignatureElement = (orgName = '') => {
+  const orgPart = orgName ? `، ${orgName}` : '';
+  return {
+    text: `دائرة المطالبات${orgPart}`,
+    fontSize: 10.5,
+    bold: true,
+    alignment: 'left',
+    margin: [0, 12, 0, 0],
+  };
+};
+
+/**
  * Builds the APPROVAL document definition.
  */
 const buildApprovalDocDefinition = (snapshot = {}) => {
@@ -141,13 +155,7 @@ const buildApprovalDocDefinition = (snapshot = {}) => {
         fontSize: 10,
         margin: [0, 8, 0, 24],
       },
-      {
-        text: `دائرة المطالبات${orgPart}`,
-        fontSize: 10.5,
-        bold: true,
-        alignment: 'left',
-        margin: [0, 12, 0, 0],
-      },
+      buildSignatureElement(orgName),
     ],
     defaultStyle: {
       font: 'Cairo',
@@ -231,13 +239,100 @@ const buildRejectionDocDefinition = (snapshot = {}) => {
         fontSize: 10,
         margin: [0, 8, 0, 24],
       },
+      buildSignatureElement(orgName),
+    ],
+    defaultStyle: {
+      font: 'Cairo',
+      fontSize: 10,
+      color: '#1f2937',
+    },
+  };
+};
+
+/**
+ * Builds the REPAIR_AUTHORIZATION document definition (PB-10 R10).
+ */
+const buildRepairAuthorizationDocDefinition = (snapshot = {}) => {
+  const currency = snapshot.currency || 'ILS';
+  const scale = getCurrencyScale(currency);
+  const formatAmount = (val) =>
+    val != null ? `${fromMinor(val, currency).toFixed(scale)} ${currency}` : '';
+
+  const orgName = snapshot.letterhead?.organizationName || '';
+
+  const tableBody = [
+    [
+      { text: 'رقم أمر الإصلاح', bold: true, fontSize: 9.5 },
+      { text: snapshot.orderNumber || '', fontSize: 9.5 },
+    ],
+    [
+      { text: 'رقم المطالبة', bold: true, fontSize: 9.5 },
+      { text: snapshot.claimNumber || '', fontSize: 9.5 },
+    ],
+    [
+      { text: 'رقم المركبة', bold: true, fontSize: 9.5 },
+      { text: snapshot.plateNumber || '', fontSize: 9.5 },
+    ],
+    [
+      { text: 'اسم المؤمن له', bold: true, fontSize: 9.5 },
+      { text: snapshot.insuredName || '', fontSize: 9.5 },
+    ],
+    [
+      { text: 'المبلغ المفوض به على الشركة', bold: true, fontSize: 9.5 },
+      { text: formatAmount(snapshot.authorizedAmount), bold: true, color: '#16a34a', fontSize: 9.5 },
+    ],
+    [
+      { text: 'التحمل المستحق على المؤمن له', bold: true, fontSize: 9.5 },
+      { text: formatAmount(snapshot.deductibleToCollect), fontSize: 9.5 },
+    ],
+  ];
+
+  const claimNumberPart = snapshot.claimNumber ? ` رقم ${snapshot.claimNumber}` : '';
+  const garageNamePart = snapshot.garageName ? ` ${snapshot.garageName}` : '';
+
+  return {
+    pageSize: 'A4',
+    pageMargins: [45, 45, 45, 45],
+    rtl: true,
+    content: [
+      ...buildHeaderBlock(snapshot.letterhead, snapshot.letterNumber, snapshot.issueDate),
       {
-        text: `دائرة المطالبات${orgPart}`,
+        text: `تفويض إصلاح المركبة، المطالبة${claimNumberPart}`,
+        fontSize: 13,
+        bold: true,
+        alignment: 'center',
+        margin: [0, 8, 0, 16],
+      },
+      {
+        text: `السادة${garageNamePart} المحترمين`,
         fontSize: 10.5,
         bold: true,
-        alignment: 'left',
-        margin: [0, 12, 0, 0],
+        margin: [0, 0, 0, 8],
       },
+      {
+        text: 'تحية طيبة وبعد،',
+        fontSize: 10,
+        margin: [0, 0, 0, 10],
+      },
+      {
+        text: 'نفوضكم بإصلاح المركبة المذكورة أدناه وفق التقدير المعتمد، على ألا تتجاوز التكلفة على الشركة المبلغ المفوض به:',
+        fontSize: 10,
+        margin: [0, 0, 0, 12],
+      },
+      {
+        table: {
+          widths: ['35%', '65%'],
+          body: tableBody,
+        },
+        layout: 'lightHorizontalLines',
+        margin: [0, 4, 0, 16],
+      },
+      {
+        text: 'يرجى إبلاغنا قبل البدء بأي أعمال إضافية غير مشمولة بالتقدير المعتمد. وتفضلوا بقبول فائق الاحترام،',
+        fontSize: 10,
+        margin: [0, 8, 0, 24],
+      },
+      buildSignatureElement(orgName),
     ],
     defaultStyle: {
       font: 'Cairo',
@@ -257,6 +352,9 @@ const buildLetterDocDefinition = (snapshot) => {
   if (snapshot.type === 'REJECTION') {
     return buildRejectionDocDefinition(snapshot);
   }
+  if (snapshot.type === 'REPAIR_AUTHORIZATION') {
+    return buildRepairAuthorizationDocDefinition(snapshot);
+  }
   throw new Error(`Unsupported letter type: ${snapshot.type}`);
 };
 
@@ -264,5 +362,7 @@ module.exports = {
   buildLetterDocDefinition,
   buildApprovalDocDefinition,
   buildRejectionDocDefinition,
+  buildRepairAuthorizationDocDefinition,
   buildHeaderBlock,
+  buildSignatureElement,
 };

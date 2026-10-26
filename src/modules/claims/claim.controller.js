@@ -200,6 +200,24 @@ const approveEstimate = async (req, res) => {
   return res.status(200).json(successResponse('Estimate approved successfully', result));
 };
 
+const createRepairOrder = async (req, res) => {
+  const { claimId } = req.params;
+  const order = await claimService.createRepairOrder(claimId, req.body, req.user);
+  return res.status(201).json(successResponse('Repair order created successfully', order));
+};
+
+const updateRepairOrderStatus = async (req, res) => {
+  const { claimId, orderNumber } = req.params;
+  const order = await claimService.updateRepairOrderStatus(claimId, orderNumber, req.body, req.user);
+  return res.status(200).json(successResponse('Repair order status updated successfully', order));
+};
+
+const getRepairOrders = async (req, res) => {
+  const { claimId } = req.params;
+  const orders = await claimService.getRepairOrders(claimId, req.user);
+  return res.status(200).json(successResponse('Repair orders retrieved successfully', orders));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -224,5 +242,8 @@ module.exports = {
   getEstimates: asyncWrapper(getEstimates),
   compareEstimates: asyncWrapper(compareEstimates),
   approveEstimate: asyncWrapper(approveEstimate),
+  createRepairOrder: asyncWrapper(createRepairOrder),
+  updateRepairOrderStatus: asyncWrapper(updateRepairOrderStatus),
+  getRepairOrders: asyncWrapper(getRepairOrders),
 };
 
