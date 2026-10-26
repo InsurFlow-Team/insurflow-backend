@@ -170,6 +170,104 @@ const estimateSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ─── Repair Order Sub-document Schemas (PB-10) ───────────────────────────────
+const repairOrderStatusHistorySchema = new mongoose.Schema(
+  {
+    from: {
+      type: String,
+      required: true,
+    },
+    to: {
+      type: String,
+      required: true,
+    },
+    notes: {
+      type: String,
+      default: null,
+    },
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    role: {
+      type: String,
+      required: true,
+    },
+    at: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+const repairOrderSchema = new mongoose.Schema(
+  {
+    orderNumber: {
+      type: String,
+      required: true,
+    },
+    garageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Garage',
+      required: true,
+    },
+    garage: {
+      name: { type: String, required: true },
+      city: { type: String, required: true },
+      phone: { type: String, required: true },
+    },
+    authorizedAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'authorizedAmount must be an integer (minor units)',
+      },
+    },
+    deductibleToCollect: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'deductibleToCollect must be an integer (minor units)',
+      },
+    },
+    repairTotal: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'repairTotal must be an integer (minor units)',
+      },
+    },
+    status: {
+      type: String,
+      enum: ['AUTHORIZED', 'IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY', 'DELIVERED', 'CANCELLED'],
+      default: 'AUTHORIZED',
+      required: true,
+    },
+    statusHistory: {
+      type: [repairOrderStatusHistorySchema],
+      default: [],
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 // ─── Claim Schema ─────────────────────────────────────────────────────────────
 const claimSchema = new mongoose.Schema(
   {
@@ -566,6 +664,12 @@ const claimSchema = new mongoose.Schema(
       default: [],
     },
 
+    // ── Repair Orders (PB-10) ─────────────────────────────────────────
+    repairOrders: {
+      type: [repairOrderSchema],
+      default: [],
+    },
+
     // ── Audit Timeline ───────────────────────────────────────────────
     timeline: {
       type: [timelineEventSchema],
@@ -577,6 +681,7 @@ const claimSchema = new mongoose.Schema(
 
 // ─── Indexes ──────────────────────────────────────────────────────────────────
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
+claimSchema.index({ organizationId: 1, 'repairOrders.orderNumber': 1 });
 claimSchema.index({ organizationId: 1, createdAt: -1, status: 1 });
 claimSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
 claimSchema.index({ organizationId: 1, policyId: 1 });

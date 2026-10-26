@@ -439,6 +439,75 @@ const declineAssignmentSchema = Joi.object({
     }),
 });
 
+/**
+ * PB-10 Repair Order Validation Schemas
+ */
+const createRepairOrderSchema = Joi.object({
+  garageId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+    }),
+  notes: Joi.string()
+    .trim()
+    .max(300)
+    .allow('', null)
+    .optional()
+    .messages({
+      'string.max': 'notes cannot exceed 300 characters',
+    }),
+});
+
+const updateRepairOrderStatusSchema = Joi.object({
+  status: Joi.string()
+    .valid('IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY', 'DELIVERED', 'CANCELLED')
+    .required()
+    .messages({
+      'any.required': 'status is required',
+      'any.only': 'status must be one of: IN_REPAIR, SUPPLEMENT_REQUESTED, READY, DELIVERED, CANCELLED',
+    }),
+  notes: Joi.when('status', {
+    is: Joi.valid('CANCELLED', 'SUPPLEMENT_REQUESTED'),
+    then: Joi.string()
+      .trim()
+      .min(10)
+      .max(300)
+      .required()
+      .messages({
+        'any.required': 'notes is required for CANCELLED and SUPPLEMENT_REQUESTED',
+        'string.empty': 'notes cannot be empty',
+        'string.min': 'notes must be at least 10 characters long',
+        'string.max': 'notes cannot exceed 300 characters',
+      }),
+    otherwise: Joi.string()
+      .trim()
+      .max(300)
+      .allow('', null)
+      .optional()
+      .messages({
+        'string.max': 'notes cannot exceed 300 characters',
+      }),
+  }),
+});
+
+const repairOrderParamsSchema = Joi.object({
+  claimId: Joi.string()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+    }),
+  orderNumber: Joi.string()
+    .trim()
+    .required()
+    .messages({
+      'any.required': 'orderNumber is required',
+      'string.empty': 'orderNumber cannot be empty',
+    }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -456,6 +525,9 @@ module.exports = {
   createEstimateSchema,
   compareEstimatesQuerySchema,
   approveEstimateParamsSchema,
+  createRepairOrderSchema,
+  updateRepairOrderStatusSchema,
+  repairOrderParamsSchema,
 };
 
 

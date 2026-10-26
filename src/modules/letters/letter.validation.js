@@ -1,9 +1,9 @@
 const Joi = require('joi');
 
 const issueLetterSchema = Joi.object({
-  type: Joi.string().valid('APPROVAL', 'REJECTION').required().messages({
+  type: Joi.string().valid('APPROVAL', 'REJECTION', 'REPAIR_AUTHORIZATION').required().messages({
     'any.required': 'Letter type is required',
-    'any.only': 'Letter type must be either APPROVAL or REJECTION',
+    'any.only': 'Letter type must be APPROVAL, REJECTION, or REPAIR_AUTHORIZATION',
   }),
   reason: Joi.when('type', {
     is: 'REJECTION',
@@ -14,7 +14,7 @@ const issueLetterSchema = Joi.object({
       'string.max': 'reason cannot exceed 500 characters',
     }),
     otherwise: Joi.forbidden().messages({
-      'any.unknown': 'reason is not allowed for APPROVAL letters',
+      'any.unknown': 'reason is not allowed for this letter type',
     }),
   }),
   supersedesLetterNumber: Joi.string().trim().optional(),

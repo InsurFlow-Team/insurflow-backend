@@ -21,6 +21,8 @@ const { toMinor, fromMinor } = require('../../utils/money');
 const garageRepository = require('../garages/garage.repository');
 const { calculateEstimate, formatEstimate } = require('./estimate.calculator');
 const computeEligibilityHint = require('../../utils/computeEligibilityHint');
+const { toHebronDate } = require('../../utils/hebronDate');
+const Counter = require('../../utils/counter.model');
 
 const buildTrackingUrl = (token) => {
   if (!token || !config.publicFrontendUrl) {
@@ -2031,6 +2033,292 @@ const approveEstimate = async (claimId, version, authUser) => {
   };
 };
 
+/**
+ * ─── PB-10 Repair Orders Implementation ──────────────────────────────────────
+ */
+
+const REPAIR_ORDER_TRANSITIONS = Object.freeze({
+  AUTHORIZED: ['IN_REPAIR', 'CANCELLED'],
+  IN_REPAIR: ['SUPPLEMENT_REQUESTED', 'READY', 'CANCELLED'],
+  SUPPLEMENT_REQUESTED: ['IN_REPAIR', 'CANCELLED'],
+  READY: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELLED: [],
+});
+
+const getNextRepairOrderNumber = async (organizationId, orgCode, createdAt) => {
+  const issueDateStr = toHebronDate(createdAt);
+  const year = issueDateStr.split('-')[0];
+
+  const counter = await Counter.findOneAndUpdate(
+    { _id: `repair-order:${organizationId}:${year}` },
+    { $inc: { seq: 1 } },
+    { returnDocument: 'after', upsert: true }
+  );
+
+  const seqPadded = String(counter.seq).padStart(4, '0');
+  return `RO-${orgCode}-${year}-${seqPadded}`;
+};
+
+const formatRepairOrder = (ro, currency = config.currency) => {
+  return {
+    orderNumber: ro.orderNumber,
+    garageId: ro.garageId?._id ? ro.garageId._id.toString() : ro.garageId?.toString(),
+    garage: {
+      name: ro.garage?.name,
+      city: ro.garage?.city,
+      phone: ro.garage?.phone,
+    },
+    authorizedAmount: fromMinor(ro.authorizedAmount, currency),
+    deductibleToCollect: fromMinor(ro.deductibleToCollect, currency),
+    repairTotal: fromMinor(ro.repairTotal, currency),
+    status: ro.status,
+    statusHistory: (ro.statusHistory || []).map((h) => ({
+      from: h.from,
+      to: h.to,
+      notes: h.notes,
+      performedBy: h.performedBy?._id ? h.performedBy._id.toString() : h.performedBy?.toString(),
+      role: h.role,
+      at: h.at,
+    })),
+    createdBy: ro.createdBy?._id ? ro.createdBy._id.toString() : ro.createdBy?.toString(),
+    createdAt: ro.createdAt,
+  };
+};
+
+const createRepairOrder = async (claimId, body, authUser) => {
+  const { organizationId, role, userId } = authUser;
+
+  // 1. Claim existence & tenancy
+  const claim = await Claim.findOne({ _id: claimId, organizationId }).lean();
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // 2. Claim status gate: must be APPROVED with lossAssessment
+  if (claim.status !== 'APPROVED' || !claim.lossAssessment || claim.lossAssessment.netApprovedPayout == null) {
+    throw new AppError(
+      'Repair order is only available for APPROVED claims with loss assessment',
+      409,
+      'INVALID_STATUS_TRANSITION'
+    );
+  }
+
+  // 3. Existing active or delivered order gate
+  const hasBlockingOrder = (claim.repairOrders || []).some((o) =>
+    ['AUTHORIZED', 'IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY', 'DELIVERED'].includes(o.status)
+  );
+  if (hasBlockingOrder) {
+    throw new AppError(
+      'An active or delivered repair order already exists on this claim',
+      409,
+      'REPAIR_ORDER_EXISTS'
+    );
+  }
+
+  // 4. Resolve garage
+  let targetGarageId = body.garageId;
+  if (!targetGarageId) {
+    const garageEstimates = (claim.estimates || [])
+      .filter((e) => e.source === 'GARAGE')
+      .sort((a, b) => b.version - a.version);
+
+    if (garageEstimates.length === 0 || !garageEstimates[0].garageId) {
+      throw new AppError('garageId is required when the claim has no garage quote', 400, 'VALIDATION_ERROR');
+    }
+    targetGarageId = garageEstimates[0].garageId;
+  }
+
+  const garage = await garageRepository.findByIdAndOrganization(targetGarageId, organizationId, { approved: true });
+  if (!garage) {
+    throw new AppError('Garage not found', 404, 'GARAGE_NOT_FOUND');
+  }
+
+  // 5. Build order and timeline documents
+  const org = await Organization.findById(organizationId).lean();
+  const orgCode = org?.code || 'ORG';
+  const now = new Date();
+
+  const orderNumber = await getNextRepairOrderNumber(organizationId, orgCode, now);
+
+  const orderDoc = {
+    orderNumber,
+    garageId: garage._id,
+    garage: {
+      name: garage.name,
+      city: garage.city,
+      phone: garage.phone,
+    },
+    authorizedAmount: claim.lossAssessment.netApprovedPayout,
+    deductibleToCollect: claim.lossAssessment.deductibleApplied,
+    repairTotal: claim.lossAssessment.totalDamage,
+    status: 'AUTHORIZED',
+    statusHistory: [],
+    createdBy: userId,
+    createdAt: now,
+  };
+
+  const timelineEvent = {
+    action: 'Repair Order Created',
+    performedBy: userId,
+    role,
+    timestamp: now,
+    previousStatus: 'APPROVED',
+    newStatus: 'APPROVED',
+    notes: body.notes || null,
+  };
+
+  // 6. Atomic create filter
+  const createFilter = {
+    _id: claimId,
+    organizationId,
+    status: 'APPROVED',
+    'lossAssessment.netApprovedPayout': { $exists: true },
+    repairOrders: {
+      $not: {
+        $elemMatch: {
+          status: { $in: ['AUTHORIZED', 'IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY', 'DELIVERED'] },
+        },
+      },
+    },
+  };
+
+  const updatedClaim = await claimRepository.atomicCreateRepairOrder(createFilter, orderDoc, timelineEvent);
+  if (!updatedClaim) {
+    // C1: Re-read claim scoped to organizationId to explain miss
+    const retryClaim = await Claim.findOne({ _id: claimId, organizationId }).lean();
+    if (!retryClaim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (retryClaim.status !== 'APPROVED' || !retryClaim.lossAssessment || retryClaim.lossAssessment.netApprovedPayout == null) {
+      throw new AppError('Claim is not in APPROVED status with loss assessment', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    const blocking = (retryClaim.repairOrders || []).some((o) =>
+      ['AUTHORIZED', 'IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY', 'DELIVERED'].includes(o.status)
+    );
+    if (blocking) {
+      throw new AppError('An active or delivered repair order already exists on this claim', 409, 'REPAIR_ORDER_EXISTS');
+    }
+    throw new AppError('Invalid status transition', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  return formatRepairOrder(orderDoc);
+};
+
+const updateRepairOrderStatus = async (claimId, orderNumber, body, authUser) => {
+  const { organizationId, role, userId } = authUser;
+
+  // 1. Claim existence & tenancy
+  const claim = await Claim.findOne({ _id: claimId, organizationId }).lean();
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // 2. C2 Check order for FIELD_ADJUSTER: assignment first, then allowed target statuses
+  if (role === 'FIELD_ADJUSTER') {
+    const assignedId = claim.assignedTo?._id?.toString() ?? claim.assignedTo?.toString();
+    if (assignedId !== userId.toString()) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (!['IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY'].includes(body.status)) {
+      throw new AppError('Forbidden: Insufficient permissions', 403, 'FORBIDDEN');
+    }
+  }
+
+  // 3. Find order on claim
+  const order = (claim.repairOrders || []).find((o) => o.orderNumber === orderNumber);
+  if (!order) {
+    throw new AppError('Repair order not found', 404, 'REPAIR_ORDER_NOT_FOUND');
+  }
+
+  // 4. State transition table check
+  if (claim.status !== 'APPROVED') {
+    throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const allowedTransitions = REPAIR_ORDER_TRANSITIONS[order.status] || [];
+  if (!allowedTransitions.includes(body.status)) {
+    throw new AppError('Invalid status transition', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  // 5. Atomic transition update
+  const now = new Date();
+  const transitionFilter = {
+    _id: claimId,
+    organizationId,
+    status: 'APPROVED',
+    repairOrders: {
+      $elemMatch: {
+        orderNumber,
+        status: order.status,
+      },
+    },
+  };
+
+  const transitionUpdate = {
+    $set: {
+      'repairOrders.$.status': body.status,
+    },
+    $push: {
+      'repairOrders.$.statusHistory': {
+        from: order.status,
+        to: body.status,
+        notes: body.notes || null,
+        performedBy: userId,
+        role,
+        at: now,
+      },
+      timeline: {
+        action: `Repair Order ${body.status}`,
+        performedBy: userId,
+        role,
+        timestamp: now,
+        previousStatus: 'APPROVED',
+        newStatus: 'APPROVED',
+        notes: body.notes || null,
+      },
+    },
+  };
+
+  const updatedClaim = await claimRepository.atomicUpdateRepairOrderStatus(transitionFilter, transitionUpdate);
+  if (!updatedClaim) {
+    // C1: Re-read claim scoped to organizationId to explain miss
+    const retryClaim = await Claim.findOne({ _id: claimId, organizationId }).lean();
+    if (!retryClaim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    const retryOrder = (retryClaim.repairOrders || []).find((o) => o.orderNumber === orderNumber);
+    if (!retryOrder) {
+      throw new AppError('Repair order not found', 404, 'REPAIR_ORDER_NOT_FOUND');
+    }
+    throw new AppError('Invalid status transition', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const updatedOrder = (updatedClaim.repairOrders || []).find((o) => o.orderNumber === orderNumber);
+  return formatRepairOrder(updatedOrder);
+};
+
+const getRepairOrders = async (claimId, authUser) => {
+  const { organizationId, role, userId } = authUser;
+
+  const claim = await Claim.findOne({ _id: claimId, organizationId }).lean();
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  if (role === 'FIELD_ADJUSTER') {
+    const assignedId = claim.assignedTo?._id?.toString() ?? claim.assignedTo?.toString();
+    if (assignedId !== userId.toString()) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+  }
+
+  const orders = [...(claim.repairOrders || [])];
+  orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return orders.map((o) => formatRepairOrder(o));
+};
+
 module.exports = {
   assertPolicyCoverage,
   getEligibleClaimantParties,
@@ -2062,4 +2350,10 @@ module.exports = {
   getEstimates,
   compareEstimates,
   approveEstimate,
+  createRepairOrder,
+  updateRepairOrderStatus,
+  getRepairOrders,
+  getNextRepairOrderNumber,
+  formatRepairOrder,
+  REPAIR_ORDER_TRANSITIONS,
 };
