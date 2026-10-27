@@ -26,6 +26,10 @@ const seedMockData = async () => {
             address: 'Al-Irsal St, Ramallah, Palestine',
             phone: '+97022987654',
           },
+          reserveDefaults: {
+            OWN_DAMAGE: { indemnity: 500000, expense: 50000 },
+            THIRD_PARTY_PD: { indemnity: 500000, expense: 50000 },
+          },
         },
       });
       console.log('Created Demo Organization');
@@ -39,6 +43,19 @@ const seedMockData = async () => {
           'settings.letterhead': {
             address: 'Al-Irsal St, Ramallah, Palestine',
             phone: '+97022987654',
+          },
+        },
+      }
+    );
+
+    // PB-13 (C4): set reserveDefaults on existing mock organization only if raw document lacks it
+    await Organization.updateOne(
+      { code: 'DEMO-INS', 'settings.reserveDefaults': { $exists: false } },
+      {
+        $set: {
+          'settings.reserveDefaults': {
+            OWN_DAMAGE: { indemnity: 500000, expense: 50000 },
+            THIRD_PARTY_PD: { indemnity: 500000, expense: 50000 },
           },
         },
       }

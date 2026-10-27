@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { getLicenseState, LICENSE_STATE } = require('../../utils/surveyorLicense');
 const { getPolicyPeriodViolation } = require('../../utils/policyPeriod');
 const crypto = require('crypto');
@@ -149,6 +150,12 @@ const resolveClaimData = async (
 };
 
 const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', authUser, subClaimRefs = {}) => {
+  const org = await Organization.findById(authUser.organizationId).select('settings.reserveDefaults').lean();
+  const typeDefaults = org?.settings?.reserveDefaults?.[claimType] || { indemnity: 500000, expense: 50000 };
+  const indemnityMinor = typeDefaults?.indemnity ?? 500000;
+  const expenseMinor = typeDefaults?.expense ?? 50000;
+  const now = new Date();
+
   const claimData = {
     incidentId: incident._id,
     incidentNumber: incident.incidentNumber,
@@ -179,6 +186,33 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
     incidentLocation: incident.incidentLocation,
     incidentCoordinates: incident.incidentCoordinates || null,
 
+    reserve: {
+      indemnity: indemnityMinor,
+      expense: expenseMinor,
+      history: [
+        {
+          category: 'INDEMNITY',
+          previousAmount: null,
+          newAmount: indemnityMinor,
+          source: 'INITIAL',
+          reason: null,
+          performedBy: authUser.userId,
+          role: authUser.role,
+          at: now,
+        },
+        {
+          category: 'EXPENSE',
+          previousAmount: null,
+          newAmount: expenseMinor,
+          source: 'INITIAL',
+          reason: null,
+          performedBy: authUser.userId,
+          role: authUser.role,
+          at: now,
+        },
+      ],
+    },
+
     timeline: [
       {
         action: 'Claim Created',
@@ -187,7 +221,7 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
         notes: null,
         performedBy: authUser.userId,
         role: authUser.role,
-        timestamp: new Date(),
+        timestamp: now,
       },
     ],
   };
@@ -1552,7 +1586,7 @@ const getClaimStats = async (authUser, query = {}) => {
   }
 
   // ADMIN / CLAIMS_OFFICER: Organization-wide claims aggregation and adjusters workload query run concurrently
-  const [statusCounts, adjusters, totalIncidents] = await Promise.all([
+  const [statusCounts, adjusters, totalIncidents, reserveMinor] = await Promise.all([
     claimRepository.getClaimStats({
       organizationId,
       fromDate,
@@ -1560,6 +1594,7 @@ const getClaimStats = async (authUser, query = {}) => {
     }),
     userRepository.findAdjustersWithWorkload(organizationId),
     incidentRepository.countByOrganization(organizationId, { fromDate, toDate }),
+    claimRepository.getOutstandingReserve(organizationId),
   ]);
 
 
@@ -1605,6 +1640,11 @@ const getClaimStats = async (authUser, query = {}) => {
       available,
       nearCapacity,
       atCapacity,
+    },
+    outstandingReserve: {
+      indemnity: fromMinor(reserveMinor.indemnity, config.currency) || 0,
+      expense: fromMinor(reserveMinor.expense, config.currency) || 0,
+      total: fromMinor(reserveMinor.indemnity + reserveMinor.expense, config.currency) || 0,
     },
   };
 };
@@ -2319,6 +2359,132 @@ const getRepairOrders = async (claimId, authUser) => {
   return orders.map((o) => formatRepairOrder(o));
 };
 
+const formatReserve = (reserve) => {
+  const indemnity = reserve?.indemnity != null ? fromMinor(reserve.indemnity, config.currency) : null;
+  const expense = reserve?.expense != null ? fromMinor(reserve.expense, config.currency) : null;
+  const total = (indemnity != null || expense != null)
+    ? (indemnity ?? 0) + (expense ?? 0)
+    : null;
+
+  const history = (reserve?.history || [])
+    .slice()
+    .reverse()
+    .map((h) => ({
+      category: h.category,
+      previousAmount: h.previousAmount != null ? fromMinor(h.previousAmount, config.currency) : null,
+      newAmount: fromMinor(h.newAmount, config.currency),
+      source: h.source,
+      reason: h.reason ?? null,
+      performedBy: h.performedBy && typeof h.performedBy === 'object' && h.performedBy._id
+        ? {
+            id: h.performedBy._id.toString(),
+            name: h.performedBy.name ?? null,
+            employeeCode: h.performedBy.employeeCode ?? null,
+          }
+        : (h.performedBy ? { id: h.performedBy.toString ? h.performedBy.toString() : h.performedBy, name: null, employeeCode: null } : null),
+      role: h.role,
+      at: h.at,
+    }));
+
+  return {
+    indemnity,
+    expense,
+    total,
+    currency: config.currency,
+    history,
+  };
+};
+
+const adjustReserve = async (claimId, body, authUser) => {
+  const { category, expectedAmount, newAmount, reason } = body;
+  const { organizationId, userId, role } = authUser;
+
+  // C1: Read the claim first (scoped to organizationId)
+  const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!existing) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // Refuse REJECTED or CLOSED before write
+  if (existing.status === 'REJECTED' || existing.status === 'CLOSED') {
+    throw new AppError(`Cannot adjust reserve on a ${existing.status} claim`, 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const catKey = category.toLowerCase();
+  const expectedMinor = expectedAmount === null ? null : toMinor(expectedAmount, config.currency);
+  const newMinor = toMinor(newAmount, config.currency);
+  const currentStatus = existing.status;
+
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: currentStatus,
+    [`reserve.${catKey}`]: expectedMinor === null ? { $in: [null] } : expectedMinor,
+  };
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const historyEntry = {
+    category,
+    previousAmount: expectedMinor,
+    newAmount: newMinor,
+    source: 'MANUAL',
+    reason,
+    performedBy: userObjectId,
+    role,
+    at: new Date(),
+  };
+
+  const timelineEvent = {
+    action: 'Reserve Adjusted',
+    previousStatus: currentStatus,
+    newStatus: currentStatus,
+    notes: `${category} ${expectedAmount ?? 'null'} to ${newAmount}: ${reason}`,
+    performedBy: userObjectId,
+    role,
+    timestamp: new Date(),
+  };
+
+  const updateDoc = {
+    $set: {
+      [`reserve.${catKey}`]: newMinor,
+    },
+    $push: {
+      'reserve.history': historyEntry,
+      timeline: timelineEvent,
+    },
+  };
+
+  const updatedClaim = await claimRepository.adjustReserve(filter, updateDoc);
+
+  if (!updatedClaim) {
+    // Re-read on miss
+    const reRead = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!reRead) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (reRead.status === 'REJECTED' || reRead.status === 'CLOSED') {
+      throw new AppError(`Cannot adjust reserve on a ${reRead.status} claim`, 409, 'INVALID_STATUS_TRANSITION');
+    }
+    throw new AppError('Reserve amount has been modified by another transaction', 409, 'RESERVE_CHANGED');
+  }
+
+  return formatReserve(updatedClaim.reserve);
+};
+
+const getClaimReserve = async (claimId, authUser) => {
+  const { organizationId, role } = authUser;
+  if (!['ADMIN', 'CLAIMS_OFFICER'].includes(role)) {
+    throw new AppError('Forbidden', 403, 'FORBIDDEN_RESOURCE');
+  }
+
+  const claim = await claimRepository.findReserveById(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  return formatReserve(claim.reserve);
+};
+
 module.exports = {
   assertPolicyCoverage,
   getEligibleClaimantParties,
@@ -2356,4 +2522,7 @@ module.exports = {
   getNextRepairOrderNumber,
   formatRepairOrder,
   REPAIR_ORDER_TRANSITIONS,
+  adjustReserve,
+  getClaimReserve,
+  formatReserve,
 };

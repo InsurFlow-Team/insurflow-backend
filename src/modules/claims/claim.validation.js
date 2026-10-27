@@ -508,6 +508,55 @@ const repairOrderParamsSchema = Joi.object({
     }),
 });
 
+const adjustReserveSchema = Joi.object({
+  category: Joi.string()
+    .valid('INDEMNITY', 'EXPENSE')
+    .required()
+    .messages({
+      'any.only': 'category must be one of: INDEMNITY, EXPENSE',
+      'any.required': 'category is required',
+    }),
+  expectedAmount: Joi.number()
+    .strict()
+    .min(0)
+    .max(config.maxFinancialAmount)
+    .custom(twoDecimalValidator)
+    .allow(null)
+    .required()
+    .messages({
+      'number.base': 'expectedAmount must be a number or null',
+      'number.min': 'expectedAmount cannot be negative',
+      'number.max': `expectedAmount cannot exceed ${config.maxFinancialAmount}`,
+      'any.required': 'expectedAmount is required',
+    }),
+  newAmount: Joi.number()
+    .strict()
+    .min(0)
+    .max(config.maxFinancialAmount)
+    .custom(twoDecimalValidator)
+    .invalid(Joi.ref('expectedAmount'))
+    .required()
+    .messages({
+      'number.base': 'newAmount must be a number',
+      'number.min': 'newAmount cannot be negative',
+      'number.max': `newAmount cannot exceed ${config.maxFinancialAmount}`,
+      'any.invalid': 'newAmount must be different from expectedAmount',
+      'any.required': 'newAmount is required',
+    }),
+  reason: Joi.string()
+    .trim()
+    .min(10)
+    .max(300)
+    .required()
+    .messages({
+      'string.base': 'reason must be a string',
+      'string.empty': 'reason is required',
+      'string.min': 'reason must be at least 10 characters long',
+      'string.max': 'reason cannot exceed 300 characters',
+      'any.required': 'reason is required',
+    }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -528,6 +577,7 @@ module.exports = {
   createRepairOrderSchema,
   updateRepairOrderStatusSchema,
   repairOrderParamsSchema,
+  adjustReserveSchema,
 };
 
 

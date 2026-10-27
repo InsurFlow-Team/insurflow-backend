@@ -199,37 +199,235 @@ const requestCorrection = async (claimId, organizationId, timelineEvent) => {
 };
 
 const makeDecision = async (claimId, organizationId, decision, decisionNotes, timelineEvent, lossAssessmentDoc = null) => {
-  const updateFields = {
-    status: decision,
-    decisionNotes,
-  };
-  if (lossAssessmentDoc) {
-    updateFields.lossAssessment = lossAssessmentDoc;
+  const userObjectId = new mongoose.Types.ObjectId(timelineEvent.performedBy);
+
+  let pipeline;
+  if (decision === 'REJECTED') {
+    pipeline = [
+      {
+        $set: {
+          status: { $literal: 'REJECTED' },
+          decisionNotes: { $literal: decisionNotes || null },
+          'reserve.indemnity': { $literal: 0 },
+          'reserve.expense': { $literal: 0 },
+          'reserve.history': {
+            $concatArrays: [
+              { $ifNull: ['$reserve.history', []] },
+              [
+                {
+                  category: { $literal: 'INDEMNITY' },
+                  previousAmount: { $ifNull: ['$reserve.indemnity', null] },
+                  newAmount: { $literal: 0 },
+                  source: { $literal: 'STATUS_ZERO' },
+                  reason: { $literal: decisionNotes || null },
+                  performedBy: { $literal: userObjectId },
+                  role: { $literal: timelineEvent.role },
+                  at: { $literal: timelineEvent.timestamp || new Date() },
+                },
+                {
+                  category: { $literal: 'EXPENSE' },
+                  previousAmount: { $ifNull: ['$reserve.expense', null] },
+                  newAmount: { $literal: 0 },
+                  source: { $literal: 'STATUS_ZERO' },
+                  reason: { $literal: decisionNotes || null },
+                  performedBy: { $literal: userObjectId },
+                  role: { $literal: timelineEvent.role },
+                  at: { $literal: timelineEvent.timestamp || new Date() },
+                },
+              ],
+            ],
+          },
+          timeline: {
+            $concatArrays: [
+              { $ifNull: ['$timeline', []] },
+              [
+                {
+                  action: { $literal: timelineEvent.action },
+                  previousStatus: { $literal: timelineEvent.previousStatus },
+                  newStatus: { $literal: timelineEvent.newStatus },
+                  notes: { $literal: timelineEvent.notes || null },
+                  performedBy: { $literal: userObjectId },
+                  role: { $literal: timelineEvent.role },
+                  timestamp: { $literal: timelineEvent.timestamp || new Date() },
+                },
+              ],
+            ],
+          },
+        },
+      },
+    ];
+  } else {
+    // APPROVED
+    const safeLossAssessment = lossAssessmentDoc
+      ? {
+          ...lossAssessmentDoc,
+          ...(lossAssessmentDoc.assessedBy
+            ? { assessedBy: new mongoose.Types.ObjectId(lossAssessmentDoc.assessedBy) }
+            : {}),
+        }
+      : null;
+
+    pipeline = [
+      {
+        $set: {
+          status: { $literal: 'APPROVED' },
+          decisionNotes: { $literal: decisionNotes || null },
+          lossAssessment: { $literal: safeLossAssessment },
+          'reserve.indemnity': { $literal: lossAssessmentDoc.netApprovedPayout },
+          'reserve.history': {
+            $concatArrays: [
+              { $ifNull: ['$reserve.history', []] },
+              [
+                {
+                  category: { $literal: 'INDEMNITY' },
+                  previousAmount: { $ifNull: ['$reserve.indemnity', null] },
+                  newAmount: { $literal: lossAssessmentDoc.netApprovedPayout },
+                  source: { $literal: 'DECISION' },
+                  reason: { $literal: decisionNotes || null },
+                  performedBy: { $literal: userObjectId },
+                  role: { $literal: timelineEvent.role },
+                  at: { $literal: timelineEvent.timestamp || new Date() },
+                },
+              ],
+            ],
+          },
+          timeline: {
+            $concatArrays: [
+              { $ifNull: ['$timeline', []] },
+              [
+                {
+                  action: { $literal: timelineEvent.action },
+                  previousStatus: { $literal: timelineEvent.previousStatus },
+                  newStatus: { $literal: timelineEvent.newStatus },
+                  notes: { $literal: timelineEvent.notes || null },
+                  performedBy: { $literal: userObjectId },
+                  role: { $literal: timelineEvent.role },
+                  timestamp: { $literal: timelineEvent.timestamp || new Date() },
+                },
+              ],
+            ],
+          },
+        },
+      },
+    ];
   }
+
   return await Claim.findOneAndUpdate(
     { _id: claimId, organizationId, status: 'UNDER_REVIEW' },
-    {
-      $set: updateFields,
-      $push: { timeline: timelineEvent },
-    },
-    { returnDocument: 'after' }
+    pipeline,
+    { returnDocument: 'after', updatePipeline: true }
   ).lean();
 };
 
 const closeClaim = async (claimId, organizationId, closedBy, closingNotes, timelineEvent) => {
-  return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'APPROVED' },
+  const userObjectId = new mongoose.Types.ObjectId(closedBy);
+  const pipeline = [
     {
       $set: {
-        status: 'CLOSED',
-        closedBy,
-        closedAt: timelineEvent.timestamp || new Date(),
-        closingNotes,
+        status: { $literal: 'CLOSED' },
+        closedBy: { $literal: userObjectId },
+        closedAt: { $literal: timelineEvent.timestamp || new Date() },
+        closingNotes: { $literal: closingNotes || null },
+        'reserve.indemnity': { $literal: 0 },
+        'reserve.expense': { $literal: 0 },
+        'reserve.history': {
+          $concatArrays: [
+            { $ifNull: ['$reserve.history', []] },
+            [
+              {
+                category: { $literal: 'INDEMNITY' },
+                previousAmount: { $ifNull: ['$reserve.indemnity', null] },
+                newAmount: { $literal: 0 },
+                source: { $literal: 'STATUS_ZERO' },
+                reason: { $literal: closingNotes || null },
+                performedBy: { $literal: userObjectId },
+                role: { $literal: timelineEvent.role || 'ADMIN' },
+                at: { $literal: timelineEvent.timestamp || new Date() },
+              },
+              {
+                category: { $literal: 'EXPENSE' },
+                previousAmount: { $ifNull: ['$reserve.expense', null] },
+                newAmount: { $literal: 0 },
+                source: { $literal: 'STATUS_ZERO' },
+                reason: { $literal: closingNotes || null },
+                performedBy: { $literal: userObjectId },
+                role: { $literal: timelineEvent.role || 'ADMIN' },
+                at: { $literal: timelineEvent.timestamp || new Date() },
+              },
+            ],
+          ],
+        },
+        timeline: {
+          $concatArrays: [
+            { $ifNull: ['$timeline', []] },
+            [
+              {
+                action: { $literal: timelineEvent.action },
+                previousStatus: { $literal: timelineEvent.previousStatus },
+                newStatus: { $literal: timelineEvent.newStatus },
+                notes: { $literal: timelineEvent.notes || null },
+                performedBy: { $literal: userObjectId },
+                role: { $literal: timelineEvent.role || 'ADMIN' },
+                timestamp: { $literal: timelineEvent.timestamp || new Date() },
+              },
+            ],
+          ],
+        },
       },
-      $push: { timeline: timelineEvent },
     },
-    { returnDocument: 'after' }
+  ];
+
+  return await Claim.findOneAndUpdate(
+    { _id: claimId, organizationId, status: 'APPROVED' },
+    pipeline,
+    { returnDocument: 'after', updatePipeline: true }
   ).lean();
+};
+
+const adjustReserve = async (filter, updateDoc) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updateDoc,
+    { returnDocument: 'after' }
+  )
+    .populate('reserve.history.performedBy', 'name employeeCode')
+    .lean();
+};
+
+const findReserveById = async (claimId, organizationId) => {
+  return await Claim.findOne({ _id: claimId, organizationId })
+    .select('reserve')
+    .populate('reserve.history.performedBy', 'name employeeCode')
+    .lean();
+};
+
+const getOutstandingReserve = async (organizationId) => {
+  const orgObjectId =
+    typeof organizationId === 'string'
+      ? new mongoose.Types.ObjectId(organizationId)
+      : organizationId;
+
+  const match = {
+    organizationId: orgObjectId,
+    status: { $nin: ['REJECTED', 'CLOSED'] },
+  };
+
+  const results = await Claim.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        totalIndemnity: { $sum: '$reserve.indemnity' },
+        totalExpense: { $sum: '$reserve.expense' },
+      },
+    },
+  ]);
+
+  const row = results[0] || { totalIndemnity: 0, totalExpense: 0 };
+  return {
+    indemnity: row.totalIndemnity,
+    expense: row.totalExpense,
+  };
 };
 
 /**
@@ -400,4 +598,7 @@ module.exports = {
   approveEstimate,
   atomicCreateRepairOrder,
   atomicUpdateRepairOrderStatus,
+  adjustReserve,
+  findReserveById,
+  getOutstandingReserve,
 };

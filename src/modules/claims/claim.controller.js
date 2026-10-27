@@ -218,6 +218,18 @@ const getRepairOrders = async (req, res) => {
   return res.status(200).json(successResponse('Repair orders retrieved successfully', orders));
 };
 
+const adjustReserve = async (req, res) => {
+  const { claimId } = req.params;
+  const reserve = await claimService.adjustReserve(claimId, req.body, req.user);
+  return res.status(200).json(successResponse('Reserve adjusted successfully', reserve));
+};
+
+const getClaimReserve = async (req, res) => {
+  const { claimId } = req.params;
+  const reserve = await claimService.getClaimReserve(claimId, req.user);
+  return res.status(200).json(successResponse('Claim reserve retrieved successfully', reserve));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -245,5 +257,7 @@ module.exports = {
   createRepairOrder: asyncWrapper(createRepairOrder),
   updateRepairOrderStatus: asyncWrapper(updateRepairOrderStatus),
   getRepairOrders: asyncWrapper(getRepairOrders),
+  adjustReserve: asyncWrapper(adjustReserve),
+  getClaimReserve: asyncWrapper(getClaimReserve),
 };
 
