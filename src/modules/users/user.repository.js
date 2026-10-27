@@ -220,6 +220,15 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter, options =
   return await User.aggregate(pipeline);
 };
 
+
+const updatePaymentPermission = async (userId, organizationId, canRecordPayments) => {
+  return await User.findOneAndUpdate(
+    { _id: userId, organizationId },
+    { $set: { canRecordPayments } },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
 module.exports = {
   findAdjustersByOrganization,
   findAdjustersWithWorkload,
@@ -233,4 +242,5 @@ module.exports = {
   updateSurveyorLicense,
   updateUser,
   updateFcmToken,
+  updatePaymentPermission,
 };

@@ -697,6 +697,7 @@ describe('PB-13: Outstanding Reserve per Claim, Indemnity and Expense', () => {
 
   it('CLOSED claim zeroes indemnity and expense with STATUS_ZERO history entries', async () => {
     const claim = await createClaimWithReserve(org1._id, officer1._id, 'APPROVED', 250000, 50000);
+    await Claim.findByIdAndUpdate(claim._id, { lossAssessment: { netApprovedPayout: 250000 }, 'paidTotals.indemnity': 250000 });
 
     const res = await request(app)
       .post(`/api/v1/claims/${claim._id}/close`)
@@ -892,6 +893,7 @@ describe('PB-13: Outstanding Reserve per Claim, Indemnity and Expense', () => {
     expect(decHist.performedBy.toString()).toBe(officer1._id.toString());
 
     // Close claim and check STATUS_ZERO performedBy
+    await Claim.findByIdAndUpdate(claim._id, { 'paidTotals.indemnity': 250000 });
     await request(app)
       .post(`/api/v1/claims/${claim._id}/close`)
       .set('Authorization', `Bearer ${admin1Token}`)

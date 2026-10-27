@@ -248,6 +248,32 @@ const updateFcmToken = async (fcmToken, authUser) => {
   };
 };
 
+
+const updatePaymentPermission = async (userId, body, authUser) => {
+  const existing = await userRepository.findByIdAndOrganization(userId, authUser.organizationId);
+  if (!existing) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  if (existing.role === 'FIELD_ADJUSTER') {
+    throw new AppError(
+      'Field adjusters are not eligible for payment permission',
+      422,
+      'NOT_ELIGIBLE_FOR_PAYMENT_PERMISSION'
+    );
+  }
+
+  const updated = await userRepository.updatePaymentPermission(
+    userId,
+    authUser.organizationId,
+    body.canRecordPayments
+  );
+
+  return {
+    id: updated._id,
+    canRecordPayments: updated.canRecordPayments,
+  };
+};
+
 module.exports = {
   getAdjusters,
   createUser,
@@ -257,4 +283,5 @@ module.exports = {
   updateSurveyorLicense,
   resetUserPassword,
   updateFcmToken,
+  updatePaymentPermission,
 };

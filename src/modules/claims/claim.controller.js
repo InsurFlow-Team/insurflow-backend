@@ -256,6 +256,25 @@ const getDischargePdf = async (req, res) => {
   return res.status(200).send(buffer);
 };
 
+
+const recordPayment = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.recordPayment(claimId, req.body, req.user);
+  return res.status(201).json(successResponse('Payment recorded successfully', result));
+};
+
+const reversePayment = async (req, res) => {
+  const { claimId, paymentNumber } = req.params;
+  const result = await claimService.reversePayment(claimId, paymentNumber, req.body, req.user);
+  return res.status(200).json(successResponse('Payment reversed successfully', result));
+};
+
+const getPayments = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.getPayments(claimId, req.user);
+  return res.status(200).json(successResponse('Payments retrieved successfully', result));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -289,5 +308,8 @@ module.exports = {
   signDischarge: asyncWrapper(signDischarge),
   getDischarges: asyncWrapper(getDischarges),
   getDischargePdf: asyncWrapper(getDischargePdf),
+  recordPayment: asyncWrapper(recordPayment),
+  reversePayment: asyncWrapper(reversePayment),
+  getPayments: asyncWrapper(getPayments),
 };
 

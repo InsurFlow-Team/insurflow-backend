@@ -13,6 +13,7 @@ const {
   listUsersQuerySchema,
   updateFcmTokenSchema,
   updateSurveyorLicenseSchema,
+  updatePaymentPermissionSchema,
 } = require('./user.validation');
 
 const router = express.Router();
@@ -44,6 +45,14 @@ router.patch(
   validateObjectId('userId'),
   validate(updateSurveyorLicenseSchema),
   userController.updateSurveyorLicense
+);
+
+router.patch(
+  '/:userId/payment-permission',
+  authorizeRole(['ADMIN']),
+  validateObjectId('userId'),
+  validate(updatePaymentPermissionSchema),
+  userController.updatePaymentPermission
 );
 
 module.exports = router;

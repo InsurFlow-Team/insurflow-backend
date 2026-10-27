@@ -329,6 +329,7 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
       expect(decisionRes.body.data.status).toBe('APPROVED');
 
       // Step 11: Admin Closes Claim -> CLOSED
+      await Claim.findByIdAndUpdate(claimId, { 'paidTotals.indemnity': 30000 });
       const closeRes = await request(app)
         .post(`/api/v1/claims/${claimId}/close`)
         .set('Authorization', `Bearer ${adminToken}`)

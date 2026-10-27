@@ -377,8 +377,21 @@ const closeClaim = async (claimId, organizationId, closedBy, closingNotes, timel
     },
   ];
 
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: 'APPROVED',
+    'lossAssessment.netApprovedPayout': { $type: 'number' },
+    $expr: {
+      $gte: [
+        { $ifNull: ['$paidTotals.indemnity', 0] },
+        '$lossAssessment.netApprovedPayout',
+      ],
+    },
+  };
+
   return await Claim.findOneAndUpdate(
-    { _id: claimId, organizationId, status: 'APPROVED' },
+    filter,
     pipeline,
     { returnDocument: 'after', updatePipeline: true }
   ).lean();
@@ -599,6 +612,29 @@ const findDischargeByNumber = async (claimId, organizationId, dischargeNumber) =
   ).lean();
 };
 
+
+const atomicRecordPayment = async (filter, updateDoc) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updateDoc,
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const atomicReversePayment = async (filter, updateDoc) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updateDoc,
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const findPaymentsByClaimId = async (claimId, organizationId) => {
+  return await Claim.findOne({ _id: claimId, organizationId })
+    .select('payments paidTotals lossAssessment status reversedPaymentNumbers')
+    .lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -634,4 +670,7 @@ module.exports = {
   atomicSignDischarge,
   findDischargesByClaimId,
   findDischargeByNumber,
+  atomicRecordPayment,
+  atomicReversePayment,
+  findPaymentsByClaimId,
 };

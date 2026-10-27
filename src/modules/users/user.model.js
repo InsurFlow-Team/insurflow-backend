@@ -66,6 +66,10 @@ const userSchema = new mongoose.Schema({
     match: /^\d{4}-\d{2}-\d{2}$/,
     default: null,
   },
+  canRecordPayments: {
+    type: Boolean,
+    default: false,
+  },
 }, { timestamps: true });
 
 userSchema.index({ organizationId: 1, employeeCode: 1 }, { unique: true });

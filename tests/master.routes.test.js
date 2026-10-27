@@ -627,6 +627,7 @@ describe('Master Route Suite — 100% Comprehensive Coverage of All 31 Express R
   // ROUTE 30: POST /api/v1/claims/:claimId/close
   // --------------------------------------------------------------------------
   it('Route 30 [POST /api/v1/claims/:claimId/close]: Admin closes approved claim (APPROVED -> CLOSED)', async () => {
+    await mongoose.model('Claim').findByIdAndUpdate(createdClaimId, { 'paidTotals.indemnity': 30000 });
     const res = await request(app)
       .post(`/api/v1/claims/${createdClaimId}/close`)
       .set('Authorization', `Bearer ${adminToken}`)

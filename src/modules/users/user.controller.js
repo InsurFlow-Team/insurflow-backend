@@ -60,6 +60,13 @@ const updateSurveyorLicense = async (req, res) => {
   return res.status(200).json(successResponse('Surveyor license updated successfully', result));
 };
 
+
+const updatePaymentPermission = async (req, res) => {
+  const { userId } = req.params;
+  const result = await userService.updatePaymentPermission(userId, req.body, req.user);
+  return res.status(200).json(successResponse('Payment permission updated successfully', result));
+};
+
 module.exports = {
   getAdjusters: asyncWrapper(getAdjusters),
   createUser: asyncWrapper(createUser),
@@ -69,4 +76,5 @@ module.exports = {
   resetUserPassword: asyncWrapper(resetUserPassword),
   updateFcmToken: asyncWrapper(updateFcmToken),
   updateSurveyorLicense: asyncWrapper(updateSurveyorLicense),
+  updatePaymentPermission: asyncWrapper(updatePaymentPermission),
 };
