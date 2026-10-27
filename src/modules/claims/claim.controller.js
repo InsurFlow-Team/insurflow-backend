@@ -230,6 +230,32 @@ const getClaimReserve = async (req, res) => {
   return res.status(200).json(successResponse('Claim reserve retrieved successfully', reserve));
 };
 
+const createDischarge = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.createDischarge(claimId, req.user);
+  return res.status(201).json(successResponse('Discharge created successfully', result));
+};
+
+const signDischarge = async (req, res) => {
+  const { claimId, dischargeNumber } = req.params;
+  const result = await claimService.signDischarge(claimId, dischargeNumber, req.file, req.user);
+  return res.status(200).json(successResponse('Discharge signed successfully', result));
+};
+
+const getDischarges = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.getDischarges(claimId, req.user);
+  return res.status(200).json(successResponse('Discharges retrieved successfully', result));
+};
+
+const getDischargePdf = async (req, res) => {
+  const { claimId, dischargeNumber } = req.params;
+  const { buffer } = await claimService.getDischargePdf(claimId, dischargeNumber, req.user);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${dischargeNumber}.pdf"`);
+  return res.status(200).send(buffer);
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -259,5 +285,9 @@ module.exports = {
   getRepairOrders: asyncWrapper(getRepairOrders),
   adjustReserve: asyncWrapper(adjustReserve),
   getClaimReserve: asyncWrapper(getClaimReserve),
+  createDischarge: asyncWrapper(createDischarge),
+  signDischarge: asyncWrapper(signDischarge),
+  getDischarges: asyncWrapper(getDischarges),
+  getDischargePdf: asyncWrapper(getDischargePdf),
 };
 

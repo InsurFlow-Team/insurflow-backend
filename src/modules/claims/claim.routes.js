@@ -26,6 +26,7 @@ const {
   updateRepairOrderStatusSchema,
   repairOrderParamsSchema,
   adjustReserveSchema,
+  dischargeParamsSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -261,6 +262,40 @@ router.patch(
   validate(repairOrderParamsSchema, 'params'),
   validate(updateRepairOrderStatusSchema),
   claimController.updateRepairOrderStatus
+);
+
+// ── Discharge Endpoints (PB-15) ──────────────────────────────────────────────
+// POST /api/v1/claims/:claimId/discharges — Generate final discharge
+router.post(
+  '/:claimId/discharges',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.createDischarge
+);
+
+// POST /api/v1/claims/:claimId/discharges/:dischargeNumber/signed-scan — Upload signed scan
+router.post(
+  '/:claimId/discharges/:dischargeNumber/signed-scan',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validate(dischargeParamsSchema, 'params'),
+  upload.single('file'),
+  claimController.signDischarge
+);
+
+// GET /api/v1/claims/:claimId/discharges — List discharges (newest first)
+router.get(
+  '/:claimId/discharges',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.getDischarges
+);
+
+// GET /api/v1/claims/:claimId/discharges/:dischargeNumber/pdf — Download discharge PDF
+router.get(
+  '/:claimId/discharges/:dischargeNumber/pdf',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validate(dischargeParamsSchema, 'params'),
+  claimController.getDischargePdf
 );
 
 const letterRoutes = require('../letters/letter.routes');

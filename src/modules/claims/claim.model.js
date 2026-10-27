@@ -353,6 +353,132 @@ const reserveSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ─── Discharge Sub-document Schemas (PB-15) ──────────────────────────────────
+const dischargeSignedScanSchema = new mongoose.Schema(
+  {
+    url: {
+      type: String,
+      required: true,
+    },
+    publicId: {
+      type: String,
+      required: true,
+    },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+const dischargeSnapshotSchema = new mongoose.Schema(
+  {
+    letterhead: {
+      organizationName: { type: String, default: '' },
+      address: { type: String, default: '' },
+      phone: { type: String, default: '' },
+    },
+    dischargeNumber: {
+      type: String,
+      required: true,
+    },
+    issueDate: {
+      type: String,
+      default: '',
+    },
+    claimNumber: {
+      type: String,
+      required: true,
+    },
+    plateNumber: {
+      type: String,
+      default: '',
+    },
+    incidentDate: {
+      type: String,
+      default: '',
+    },
+    claimantName: {
+      type: String,
+      required: true,
+    },
+    claimantIdNumber: {
+      type: String,
+      default: '',
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'amount must be an integer (minor units)',
+      },
+    },
+    currency: {
+      type: String,
+      required: true,
+    },
+    organizationName: {
+      type: String,
+      default: '',
+    },
+  },
+  { _id: false }
+);
+
+const dischargeSchema = new mongoose.Schema(
+  {
+    dischargeNumber: {
+      type: String,
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'amount must be an integer (minor units)',
+      },
+    },
+    status: {
+      type: String,
+      enum: ['DRAFT', 'SIGNED', 'SUPERSEDED'],
+      default: 'DRAFT',
+      required: true,
+    },
+    snapshot: {
+      type: dischargeSnapshotSchema,
+      required: true,
+    },
+    signedScan: {
+      type: dischargeSignedScanSchema,
+      default: null,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    signedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
 // ─── Claim Schema ─────────────────────────────────────────────────────────────
 const claimSchema = new mongoose.Schema(
   {
@@ -770,6 +896,10 @@ const claimSchema = new mongoose.Schema(
       type: [timelineEventSchema],
       default: [],
     },
+    discharges: {
+      type: [dischargeSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
@@ -777,6 +907,7 @@ const claimSchema = new mongoose.Schema(
 // ─── Indexes ──────────────────────────────────────────────────────────────────
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
 claimSchema.index({ organizationId: 1, 'repairOrders.orderNumber': 1 });
+claimSchema.index({ organizationId: 1, 'discharges.dischargeNumber': 1 });
 claimSchema.index({ organizationId: 1, createdAt: -1, status: 1 });
 claimSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
 claimSchema.index({ organizationId: 1, policyId: 1 });

@@ -24,6 +24,9 @@ const { calculateEstimate, formatEstimate } = require('./estimate.calculator');
 const computeEligibilityHint = require('../../utils/computeEligibilityHint');
 const { toHebronDate } = require('../../utils/hebronDate');
 const Counter = require('../../utils/counter.model');
+const cloudinary = require('../../config/cloudinary');
+const { resolveAddressee, resolveIncidentDate } = require('../letters/letter.service');
+const { generateDischargePdf } = require('../letters/letter.pdf');
 
 const buildTrackingUrl = (token) => {
   if (!token || !config.publicFrontendUrl) {
@@ -2485,6 +2488,390 @@ const getClaimReserve = async (claimId, authUser) => {
   return formatReserve(claim.reserve);
 };
 
+/**
+ * Helper to determine whether an approved claim has a SIGNED discharge
+ * that covers the given indemnity payment amount (PB-15 R8).
+ */
+const isDischargeCovering = (claim, indemnityAmountMinor) => {
+  if (!claim || !Array.isArray(claim.discharges)) {
+    return false;
+  }
+  if (
+    typeof indemnityAmountMinor !== 'number' ||
+    !Number.isInteger(indemnityAmountMinor) ||
+    indemnityAmountMinor <= 0
+  ) {
+    return false;
+  }
+  return claim.discharges.some(
+    (d) => d.status === 'SIGNED' && typeof d.amount === 'number' && d.amount >= indemnityAmountMinor
+  );
+};
+
+/**
+ * Creates a new discharge document for an APPROVED claim (PB-15 R2).
+ */
+const createDischarge = async (claimId, authUser) => {
+  const { organizationId, role, userId } = authUser;
+
+  // 1. Fetch claim scoped to tenant
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // 2. Preconditions: Claim must be APPROVED with lossAssessment
+  if (
+    claim.status !== 'APPROVED' ||
+    !claim.lossAssessment ||
+    claim.lossAssessment.netApprovedPayout == null
+  ) {
+    throw new AppError(
+      'Discharge can only be created for APPROVED claims with loss assessment',
+      409,
+      'INVALID_STATUS_TRANSITION'
+    );
+  }
+
+  const currentAmount = claim.lossAssessment.netApprovedPayout;
+
+  // 3. Precondition: Refuse if DRAFT or SIGNED discharge exists with same amount
+  const hasExistingActiveSameAmount = (claim.discharges || []).some(
+    (d) => ['DRAFT', 'SIGNED'].includes(d.status) && d.amount === currentAmount
+  );
+  if (hasExistingActiveSameAmount) {
+    throw new AppError(
+      'A draft or signed discharge already exists for this amount',
+      409,
+      'DISCHARGE_EXISTS'
+    );
+  }
+
+  // 4. Resolve domain data for snapshot
+  const claimantName = await resolveAddressee(claim, organizationId);
+  const incidentDate = (await resolveIncidentDate(claim, organizationId)) || '';
+
+  let claimantIdNumber = '';
+  if (claim.claimantPartyId && claim.incidentId) {
+    const incident = await incidentRepository.findByIdAndOrganization(claim.incidentId, organizationId);
+    const party = (incident?.parties || []).find(
+      (p) => p._id.toString() === claim.claimantPartyId.toString()
+    );
+    if (party?.idNumber) {
+      claimantIdNumber = party.idNumber;
+    }
+  }
+
+  const org = await Organization.findById(organizationId).lean();
+  const orgCode = org?.code || 'ORG';
+  const orgName = org?.name || 'InsurFlow Insurance';
+
+  const issueDate = toHebronDate(new Date());
+  const year = issueDate.split('-')[0];
+
+  const counter = await Counter.findOneAndUpdate(
+    { _id: `discharge:${organizationId}:${year}` },
+    { $inc: { seq: 1 } },
+    { returnDocument: 'after', upsert: true }
+  );
+  const seqPadded = String(counter.seq).padStart(4, '0');
+  const dischargeNumber = `DSC-${orgCode}-${year}-${seqPadded}`;
+
+  const snapshot = {
+    letterhead: {
+      organizationName: orgName,
+      address: org?.settings?.letterhead?.address || '',
+      phone: org?.settings?.letterhead?.phone || '',
+    },
+    dischargeNumber,
+    issueDate,
+    claimNumber: claim.claimNumber,
+    plateNumber: claim.vehicle?.plateNumber || '',
+    incidentDate,
+    claimantName,
+    claimantIdNumber,
+    amount: currentAmount,
+    currency: config.currency,
+    organizationName: orgName,
+  };
+
+  const createdBy = new mongoose.Types.ObjectId(userId);
+  const newDischarge = {
+    dischargeNumber,
+    amount: currentAmount,
+    status: 'DRAFT',
+    snapshot,
+    signedScan: null,
+    createdBy,
+    createdAt: new Date(),
+    signedAt: null,
+  };
+
+  // 5. C1 & C2 pipeline construction
+  const supersedeEvent = {
+    action: 'Discharge Superseded',
+    previousStatus: 'APPROVED',
+    newStatus: 'APPROVED',
+    notes: dischargeNumber,
+    performedBy: createdBy,
+    role,
+    timestamp: new Date(),
+  };
+
+  const createEvent = {
+    action: 'Discharge Created',
+    previousStatus: 'APPROVED',
+    newStatus: 'APPROVED',
+    notes: dischargeNumber,
+    performedBy: createdBy,
+    role,
+    timestamp: new Date(),
+  };
+
+  const timelineEventsExpr = {
+    $cond: [
+      {
+        $gt: [
+          {
+            $size: {
+              $filter: {
+                input: { $ifNull: ['$discharges', []] },
+                as: 'd',
+                cond: {
+                  $and: [
+                    { $in: ['$$d.status', [{ $literal: 'DRAFT' }, { $literal: 'SIGNED' }]] },
+                    { $ne: ['$$d.amount', { $literal: currentAmount }] },
+                  ],
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      [{ $literal: supersedeEvent }, { $literal: createEvent }],
+      [{ $literal: createEvent }],
+    ],
+  };
+
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: 'APPROVED',
+    'lossAssessment.netApprovedPayout': currentAmount,
+    discharges: {
+      $not: {
+        $elemMatch: {
+          status: { $in: ['DRAFT', 'SIGNED'] },
+          amount: currentAmount,
+        },
+      },
+    },
+  };
+
+  const updatePipeline = [
+    {
+      $set: {
+        discharges: {
+          $concatArrays: [
+            {
+              $map: {
+                input: { $ifNull: ['$discharges', []] },
+                as: 'd',
+                in: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $in: ['$$d.status', [{ $literal: 'DRAFT' }, { $literal: 'SIGNED' }]] },
+                        { $ne: ['$$d.amount', { $literal: currentAmount }] },
+                      ],
+                    },
+                    {
+                      $mergeObjects: [
+                        '$$d',
+                        { status: { $literal: 'SUPERSEDED' } },
+                      ],
+                    },
+                    '$$d',
+                  ],
+                },
+              },
+            },
+            [{ $literal: newDischarge }],
+          ],
+        },
+        timeline: {
+          $concatArrays: [
+            { $ifNull: ['$timeline', []] },
+            timelineEventsExpr,
+          ],
+        },
+      },
+    },
+  ];
+
+  const updatedClaim = await claimRepository.atomicCreateDischarge(filter, updatePipeline);
+
+  if (!updatedClaim) {
+    // C4. Re-read and answer in exact order
+    const checkClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!checkClaim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (
+      checkClaim.status !== 'APPROVED' ||
+      !checkClaim.lossAssessment ||
+      checkClaim.lossAssessment.netApprovedPayout !== currentAmount
+    ) {
+      throw new AppError('Invalid status transition', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    throw new AppError('A draft or signed discharge already exists for this amount', 409, 'DISCHARGE_EXISTS');
+  }
+
+  return {
+    dischargeNumber: newDischarge.dischargeNumber,
+    amount: fromMinor(newDischarge.amount, config.currency),
+    status: newDischarge.status,
+    snapshot: newDischarge.snapshot,
+    signedScan: null,
+    createdBy: newDischarge.createdBy,
+    createdAt: newDischarge.createdAt,
+    signedAt: null,
+  };
+};
+
+/**
+ * Uploads a signed scan and transitions the discharge to SIGNED (PB-15 R3).
+ */
+const signDischarge = async (claimId, dischargeNumber, file, authUser) => {
+  const { organizationId, role, userId } = authUser;
+
+  if (!file) {
+    throw new AppError('An image file is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const folder = `sawn/${organizationId}/discharges`;
+  const uploadResult = await uploadToCloudinary(file.buffer, folder);
+
+  const signedAt = new Date();
+  const performedBy = new mongoose.Types.ObjectId(userId);
+
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: 'APPROVED',
+    discharges: {
+      $elemMatch: {
+        dischargeNumber,
+        status: 'DRAFT',
+      },
+    },
+  };
+
+  const updateDoc = {
+    $set: {
+      'discharges.$.status': 'SIGNED',
+      'discharges.$.signedScan': {
+        url: uploadResult.url,
+        publicId: uploadResult.publicId,
+        uploadedBy: performedBy,
+        uploadedAt: signedAt,
+      },
+      'discharges.$.signedAt': signedAt,
+    },
+    $push: {
+      timeline: {
+        action: 'Discharge Signed',
+        previousStatus: 'APPROVED',
+        newStatus: 'APPROVED',
+        notes: dischargeNumber,
+        performedBy,
+        role,
+        timestamp: signedAt,
+      },
+    },
+  };
+
+  const updatedClaim = await claimRepository.atomicSignDischarge(filter, updateDoc);
+
+  if (!updatedClaim) {
+    try {
+      await cloudinary.uploader.destroy(uploadResult.publicId, { resource_type: 'image' });
+    } catch (cleanupErr) {
+      console.error('Failed to cleanup Cloudinary upload on sign miss:', cleanupErr);
+    }
+
+    const checkClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!checkClaim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (checkClaim.status !== 'APPROVED') {
+      throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    const existingDsc = (checkClaim.discharges || []).find((d) => d.dischargeNumber === dischargeNumber);
+    if (!existingDsc) {
+      throw new AppError('Discharge not found', 404, 'DISCHARGE_NOT_FOUND');
+    }
+    throw new AppError(`Discharge is in ${existingDsc.status} status and cannot be signed`, 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const signedEntry = updatedClaim.discharges.find((d) => d.dischargeNumber === dischargeNumber);
+  return {
+    dischargeNumber: signedEntry.dischargeNumber,
+    amount: fromMinor(signedEntry.amount, config.currency),
+    status: signedEntry.status,
+    snapshot: signedEntry.snapshot,
+    signedScan: signedEntry.signedScan,
+    createdBy: signedEntry.createdBy,
+    createdAt: signedEntry.createdAt,
+    signedAt: signedEntry.signedAt,
+  };
+};
+
+/**
+ * Lists discharges for a claim, newest first with amounts in major units (PB-15 R4).
+ */
+const getDischarges = async (claimId, authUser) => {
+  const { organizationId } = authUser;
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  const sorted = [...(claim.discharges || [])].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+
+  return sorted.map((d) => ({
+    dischargeNumber: d.dischargeNumber,
+    amount: fromMinor(d.amount, d.snapshot?.currency || config.currency),
+    status: d.status,
+    signedScan: d.signedScan ? { url: d.signedScan.url, uploadedAt: d.signedScan.uploadedAt } : null,
+    createdBy: d.createdBy,
+    createdAt: d.createdAt,
+    signedAt: d.signedAt,
+  }));
+};
+
+/**
+ * Retrieves the compiled PDF buffer for a discharge (PB-15 R4).
+ */
+const getDischargePdf = async (claimId, dischargeNumber, authUser) => {
+  const { organizationId } = authUser;
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  const discharge = (claim.discharges || []).find((d) => d.dischargeNumber === dischargeNumber);
+  if (!discharge) {
+    throw new AppError('Discharge not found', 404, 'DISCHARGE_NOT_FOUND');
+  }
+
+  const buffer = await generateDischargePdf(discharge.snapshot);
+  return { buffer, dischargeNumber };
+};
+
 module.exports = {
   assertPolicyCoverage,
   getEligibleClaimantParties,
@@ -2525,4 +2912,9 @@ module.exports = {
   adjustReserve,
   getClaimReserve,
   formatReserve,
+  createDischarge,
+  signDischarge,
+  getDischarges,
+  getDischargePdf,
+  isDischargeCovering,
 };
