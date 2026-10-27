@@ -95,6 +95,14 @@ const updateFcmTokenSchema = Joi.object({
   }),
 });
 
+
+const updatePaymentPermissionSchema = Joi.object({
+  canRecordPayments: Joi.boolean().required().messages({
+    'boolean.base': 'canRecordPayments must be a boolean',
+    'any.required': 'canRecordPayments is required',
+  }),
+});
+
 module.exports = {
   createUserSchema,
   updateUserSchema,
@@ -104,4 +112,5 @@ module.exports = {
   listUsersQuerySchema,
   updateFcmTokenSchema,
   updateSurveyorLicenseSchema,
+  updatePaymentPermissionSchema,
 };

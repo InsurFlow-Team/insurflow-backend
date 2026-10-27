@@ -91,6 +91,18 @@ describe('POST /api/v1/claims/:claimId/close', () => {
       incidentType: 'COLLISION',
       incidentLocation: 'Location A',
       decisionNotes: 'Approved by officer',
+      lossAssessment: {
+        estimatedPartsCost: 80000,
+        laborCost: 40000,
+        totalDamage: 120000,
+        policyDeductible: 20000,
+        deductibleApplied: 20000,
+        deductibleOverridden: false,
+        netApprovedPayout: 100000,
+        assessedBy: officer1._id,
+        assessedAt: new Date(),
+      },
+      paidTotals: { indemnity: 100000, expense: 0 },
     });
 
     // Invalid states for closure

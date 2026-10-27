@@ -27,6 +27,9 @@ const {
   repairOrderParamsSchema,
   adjustReserveSchema,
   dischargeParamsSchema,
+  recordPaymentSchema,
+  reversePaymentSchema,
+  paymentParamsSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -296,6 +299,33 @@ router.get(
   authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
   validate(dischargeParamsSchema, 'params'),
   claimController.getDischargePdf
+);
+
+// ── Payment Endpoints (PB-16) ────────────────────────────────────────────────
+// POST /api/v1/claims/:claimId/payments — Record a payment
+router.post(
+  '/:claimId/payments',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(recordPaymentSchema),
+  claimController.recordPayment
+);
+
+// POST /api/v1/claims/:claimId/payments/:paymentNumber/reverse — Reverse a payment
+router.post(
+  '/:claimId/payments/:paymentNumber/reverse',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validate(paymentParamsSchema, 'params'),
+  validate(reversePaymentSchema),
+  claimController.reversePayment
+);
+
+// GET /api/v1/claims/:claimId/payments — Read payments and payment status
+router.get(
+  '/:claimId/payments',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.getPayments
 );
 
 const letterRoutes = require('../letters/letter.routes');

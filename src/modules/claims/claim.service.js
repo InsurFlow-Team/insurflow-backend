@@ -1509,6 +1509,23 @@ const closeClaim = async (claimId, body, authUser) => {
     if (!existing) {
       throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
     }
+    if (existing.status !== 'APPROVED') {
+      throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    if (typeof existing.lossAssessment?.netApprovedPayout !== 'number') {
+      throw new AppError('Claim has no approved amount', 422, 'PAYMENT_INCOMPLETE');
+    }
+    const paidIndemnity = existing.paidTotals?.indemnity || 0;
+    const netPayout = existing.lossAssessment.netApprovedPayout;
+    if (paidIndemnity < netPayout) {
+      const remainingMinor = netPayout - paidIndemnity;
+      const remainingMajor = fromMinor(remainingMinor, config.currency);
+      throw new AppError(
+        `Claim cannot be closed before indemnity is paid in full. Remaining: ${remainingMajor.toFixed(2)} ${config.currency}`,
+        422,
+        'PAYMENT_INCOMPLETE'
+      );
+    }
     throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
   }
 
@@ -2872,6 +2889,363 @@ const getDischargePdf = async (claimId, dischargeNumber, authUser) => {
   return { buffer, dischargeNumber };
 };
 
+
+const getNextPaymentNumber = async (organizationId, orgCode, createdAt) => {
+  const issueDateStr = toHebronDate(createdAt);
+  const year = issueDateStr.split('-')[0];
+
+  const counter = await Counter.findOneAndUpdate(
+    { _id: `payment:${organizationId}:${year}` },
+    { $inc: { seq: 1 } },
+    { returnDocument: 'after', upsert: true }
+  );
+
+  const seqPadded = String(counter.seq).padStart(4, '0');
+  return `PAY-${orgCode}-${year}-${seqPadded}`;
+};
+
+const derivePaymentStatus = (paidTotals, netApprovedPayout) => {
+  const paidIndemnity = paidTotals?.indemnity || 0;
+  if (paidIndemnity === 0) {
+    return 'UNPAID';
+  }
+  if (netApprovedPayout != null && paidIndemnity >= netApprovedPayout) {
+    return 'PAID';
+  }
+  return 'PARTIALLY_PAID';
+};
+
+const formatPayment = (p) => {
+  return {
+    paymentNumber: p.paymentNumber,
+    type: p.type,
+    category: p.category,
+    payeeType: p.payeeType,
+    payeeName: p.payeeName,
+    garageId: p.garageId?._id ? p.garageId._id.toString() : p.garageId ? p.garageId.toString() : null,
+    amount: fromMinor(p.amount, p.currency || config.currency),
+    currency: p.currency,
+    method: p.method,
+    reference: p.reference || null,
+    paidAt: p.paidAt,
+    reversesPaymentNumber: p.reversesPaymentNumber || null,
+    reason: p.reason || null,
+    recordedBy: p.recordedBy?._id ? p.recordedBy._id.toString() : p.recordedBy ? p.recordedBy.toString() : null,
+    recordedAt: p.recordedAt,
+  };
+};
+
+const recordPayment = async (claimId, body, authUser) => {
+  const { organizationId, userId, role } = authUser;
+
+  // 1. Permission check (read live from DB on every request)
+  const liveUser = await userRepository.findByIdAndOrganization(userId, organizationId);
+  if (!liveUser || !liveUser.canRecordPayments) {
+    throw new AppError('Payment permission required', 403, 'PAYMENT_PERMISSION_REQUIRED');
+  }
+
+  // 2. Garage validation (if provided)
+  if (body.garageId) {
+    const garage = await garageRepository.findByIdAndOrganization(body.garageId, organizationId, { approved: true });
+    if (!garage) {
+      throw new AppError('Garage not found', 404, 'GARAGE_NOT_FOUND');
+    }
+  }
+
+  // 3. Optimistic read of claim
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+  if (claim.status !== 'APPROVED') {
+    throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const { category } = body;
+  const catKey = category.toLowerCase(); // 'indemnity' | 'expense'
+  const currentReserve = claim.reserve?.[catKey];
+  if (typeof currentReserve !== 'number' || currentReserve === null) {
+    throw new AppError('Reserve is not set for this category', 422, 'RESERVE_NOT_SET');
+  }
+
+  const amountMinor = toMinor(body.amount, config.currency);
+
+  if (category === 'INDEMNITY') {
+    const currentPaid = claim.paidTotals?.indemnity || 0;
+    const targetPaid = currentPaid + amountMinor;
+    const netPayout = claim.lossAssessment?.netApprovedPayout;
+    if (netPayout == null || targetPaid > netPayout) {
+      throw new AppError('Payment exceeds approved net payout', 422, 'PAYMENT_EXCEEDS_APPROVED');
+    }
+    if (!isDischargeCovering(claim, targetPaid)) {
+      throw new AppError('Signed discharge covering the total payment amount is required', 422, 'DISCHARGE_REQUIRED');
+    }
+    if (amountMinor > currentReserve) {
+      throw new AppError('Payment exceeds outstanding indemnity reserve', 422, 'PAYMENT_EXCEEDS_RESERVE');
+    }
+  } else {
+    // EXPENSE
+    if (amountMinor > currentReserve) {
+      throw new AppError('Payment exceeds outstanding expense reserve', 422, 'PAYMENT_EXCEEDS_RESERVE');
+    }
+  }
+
+  const org = await Organization.findById(organizationId).lean();
+  const orgCode = org?.code || 'ORG';
+  const now = new Date();
+  const paymentNumber = await getNextPaymentNumber(organizationId, orgCode, now);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  const paymentDoc = {
+    paymentNumber,
+    type: 'PAYMENT',
+    category,
+    payeeType: body.payeeType,
+    payeeName: body.payeeName,
+    garageId: body.garageId ? new mongoose.Types.ObjectId(body.garageId) : null,
+    amount: amountMinor,
+    currency: config.currency,
+    method: body.method,
+    reference: body.reference || null,
+    paidAt: body.paidAt,
+    reversesPaymentNumber: null,
+    reason: null,
+    recordedBy: userObjectId,
+    recordedAt: now,
+  };
+
+  const reserveHistoryDoc = {
+    category,
+    previousAmount: currentReserve,
+    newAmount: currentReserve - amountMinor,
+    source: 'PAYMENT',
+    reason: `Payment ${paymentNumber}`,
+    performedBy: userObjectId,
+    role,
+    at: now,
+  };
+
+  const timelineEvent = {
+    action: 'Payment Recorded',
+    previousStatus: 'APPROVED',
+    newStatus: 'APPROVED',
+    notes: `Recorded ${catKey} payment ${paymentNumber} of ${fromMinor(amountMinor, config.currency)} ${config.currency}`,
+    performedBy: userObjectId,
+    role,
+    timestamp: now,
+  };
+
+  const catPaid = claim.paidTotals?.[catKey] ?? 0;
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: 'APPROVED',
+    [`paidTotals.${catKey}`]: catPaid === 0 ? { $in: [0, null] } : catPaid,
+    [`reserve.${catKey}`]: currentReserve, // C2 lock
+  };
+  if (category === 'INDEMNITY') {
+    filter.discharges = {
+      $elemMatch: {
+        status: 'SIGNED',
+        amount: { $gte: catPaid + amountMinor },
+      },
+    };
+  }
+
+  const updateDoc = {
+    $push: {
+      payments: paymentDoc,
+      'reserve.history': reserveHistoryDoc,
+      timeline: timelineEvent,
+    },
+    $inc: {
+      [`paidTotals.${catKey}`]: amountMinor,
+      [`reserve.${catKey}`]: -amountMinor,
+    },
+  };
+
+  const updatedClaim = await claimRepository.atomicRecordPayment(filter, updateDoc);
+  if (!updatedClaim) {
+    const checkClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!checkClaim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (checkClaim.status !== 'APPROVED') {
+      throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    const checkReserve = checkClaim.reserve?.[catKey];
+    if (typeof checkReserve !== 'number' || checkReserve === null) {
+      throw new AppError('Reserve is not set for this category', 422, 'RESERVE_NOT_SET');
+    }
+    if (category === 'INDEMNITY') {
+      const checkPaid = checkClaim.paidTotals?.indemnity || 0;
+      if (checkClaim.lossAssessment?.netApprovedPayout == null || checkPaid + amountMinor > checkClaim.lossAssessment.netApprovedPayout) {
+        throw new AppError('Payment exceeds approved net payout', 422, 'PAYMENT_EXCEEDS_APPROVED');
+      }
+      if (!isDischargeCovering(checkClaim, checkPaid + amountMinor)) {
+        throw new AppError('Signed discharge covering the total payment amount is required', 422, 'DISCHARGE_REQUIRED');
+      }
+      if (amountMinor > checkReserve) {
+        throw new AppError('Payment exceeds outstanding indemnity reserve', 422, 'PAYMENT_EXCEEDS_RESERVE');
+      }
+    } else {
+      if (amountMinor > checkReserve) {
+        throw new AppError('Payment exceeds outstanding expense reserve', 422, 'PAYMENT_EXCEEDS_RESERVE');
+      }
+    }
+    // C2: reserve or paid total moved
+    throw new AppError('Payment conflict detected', 409, 'PAYMENT_CONFLICT');
+  }
+
+  return formatPayment(paymentDoc);
+};
+
+const reversePayment = async (claimId, paymentNumber, body, authUser) => {
+  const { organizationId, userId, role } = authUser;
+
+  // 1. Permission check (live from DB)
+  const liveUser = await userRepository.findByIdAndOrganization(userId, organizationId);
+  if (!liveUser || !liveUser.canRecordPayments) {
+    throw new AppError('Payment permission required', 403, 'PAYMENT_PERMISSION_REQUIRED');
+  }
+
+  // 2. Fetch claim
+  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+  if (claim.status !== 'APPROVED' && claim.status !== 'CLOSED') {
+    throw new AppError('Reversals are only allowed on APPROVED or CLOSED claims', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  const original = (claim.payments || []).find((p) => p.paymentNumber === paymentNumber);
+  if (!original || original.type !== 'PAYMENT') {
+    throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
+  }
+  if ((claim.reversedPaymentNumbers || []).includes(paymentNumber)) {
+    throw new AppError('Payment has already been reversed', 409, 'PAYMENT_ALREADY_REVERSED');
+  }
+
+  const org = await Organization.findById(organizationId).lean();
+  const orgCode = org?.code || 'ORG';
+  const now = new Date();
+  const reversalPaymentNumber = await getNextPaymentNumber(organizationId, orgCode, now);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const catKey = original.category.toLowerCase();
+  const currentReserve = claim.reserve?.[catKey] ?? 0;
+
+  const reversalDoc = {
+    paymentNumber: reversalPaymentNumber,
+    type: 'REVERSAL',
+    category: original.category,
+    payeeType: original.payeeType,
+    payeeName: original.payeeName,
+    garageId: original.garageId ? new mongoose.Types.ObjectId(original.garageId) : null,
+    amount: original.amount,
+    currency: original.currency,
+    method: original.method,
+    reference: original.reference || null,
+    paidAt: toHebronDate(now),
+    reversesPaymentNumber: paymentNumber,
+    reason: body.reason,
+    recordedBy: userObjectId,
+    recordedAt: now,
+  };
+
+  const reserveHistoryDoc = {
+    category: original.category,
+    previousAmount: currentReserve,
+    newAmount: currentReserve + original.amount,
+    source: 'REVERSAL',
+    reason: body.reason,
+    performedBy: userObjectId,
+    role,
+    at: now,
+  };
+
+  const timelineEvent = {
+    action: 'Payment Reversed',
+    previousStatus: claim.status,
+    newStatus: claim.status,
+    notes: `Reversed payment ${paymentNumber}: ${body.reason}`,
+    performedBy: userObjectId,
+    role,
+    timestamp: now,
+  };
+
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: claim.status,
+    [`reserve.${catKey}`]: currentReserve, // C2 lock
+    reversedPaymentNumbers: { $ne: paymentNumber },
+  };
+
+  const updateDoc = {
+    $push: {
+      payments: reversalDoc,
+      'reserve.history': reserveHistoryDoc,
+      timeline: timelineEvent,
+    },
+    $addToSet: {
+      reversedPaymentNumbers: paymentNumber,
+    },
+    $inc: {
+      [`paidTotals.${catKey}`]: -original.amount,
+      [`reserve.${catKey}`]: original.amount,
+    },
+    ...(claim.status === 'CLOSED' ? { $set: { paymentReversedAfterClose: true } } : {}),
+  };
+
+  const updatedClaim = await claimRepository.atomicReversePayment(filter, updateDoc);
+  if (!updatedClaim) {
+    const checkClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!checkClaim) {
+      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (checkClaim.status !== 'APPROVED' && checkClaim.status !== 'CLOSED') {
+      throw new AppError('Reversals are only allowed on APPROVED or CLOSED claims', 409, 'INVALID_STATUS_TRANSITION');
+    }
+    if ((checkClaim.reversedPaymentNumbers || []).includes(paymentNumber)) {
+      throw new AppError('Payment has already been reversed', 409, 'PAYMENT_ALREADY_REVERSED');
+    }
+    throw new AppError('Payment conflict detected', 409, 'PAYMENT_CONFLICT');
+  }
+
+  return formatPayment(reversalDoc);
+};
+
+const getPayments = async (claimId, authUser) => {
+  const claim = await claimRepository.findByIdAndOrganization(claimId, authUser.organizationId);
+  if (!claim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  const entries = [...(claim.payments || [])]
+    .sort((a, b) => new Date(b.recordedAt) - new Date(a.recordedAt))
+    .map(formatPayment);
+
+  const paidTotals = {
+    indemnity: fromMinor(claim.paidTotals?.indemnity || 0, config.currency) || 0,
+    expense: fromMinor(claim.paidTotals?.expense || 0, config.currency) || 0,
+  };
+
+  const netPayoutMinor = claim.lossAssessment?.netApprovedPayout;
+  const approved = netPayoutMinor != null ? fromMinor(netPayoutMinor, config.currency) : null;
+  const paidIndemnityMinor = claim.paidTotals?.indemnity || 0;
+  const remaining = approved != null ? Math.max(0, fromMinor(netPayoutMinor - paidIndemnityMinor, config.currency)) : null;
+
+  const paymentStatus = derivePaymentStatus(claim.paidTotals, netPayoutMinor);
+
+  return {
+    entries,
+    paidTotals,
+    approved,
+    remaining,
+    paymentStatus,
+  };
+};
+
 module.exports = {
   assertPolicyCoverage,
   getEligibleClaimantParties,
@@ -2917,4 +3291,10 @@ module.exports = {
   getDischarges,
   getDischargePdf,
   isDischargeCovering,
+  recordPayment,
+  reversePayment,
+  getPayments,
+  derivePaymentStatus,
+  formatPayment,
+  getNextPaymentNumber,
 };

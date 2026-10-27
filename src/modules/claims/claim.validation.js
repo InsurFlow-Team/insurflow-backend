@@ -2,6 +2,7 @@ const Joi = require('joi');
 const config = require('../../config/env');
 const { objectIdPattern } = require('../../middlewares/validate.middleware');
 const { getCurrencyScale } = require('../../utils/money');
+const { toHebronDate } = require('../../utils/hebronDate');
 
 /**
  * Validation schema for POST /claims
@@ -575,6 +576,101 @@ const dischargeParamsSchema = Joi.object({
     }),
 });
 
+
+const recordPaymentSchema = Joi.object({
+  category: Joi.string().valid('INDEMNITY', 'EXPENSE').required().messages({
+    'any.only': 'category must be one of: INDEMNITY, EXPENSE',
+    'any.required': 'category is required',
+  }),
+  payeeType: Joi.string()
+    .valid(
+      'INSURED',
+      'GARAGE',
+      'THIRD_PARTY',
+      'LAWYER',
+      'TOW_PROVIDER',
+      'SURVEYOR',
+      'HOSPITAL',
+      'LIENHOLDER_BANK',
+      'HEIR'
+    )
+    .required()
+    .messages({
+      'any.only': 'payeeType must be a valid payee type',
+      'any.required': 'payeeType is required',
+    }),
+  payeeName: Joi.string().trim().min(1).max(200).required().messages({
+    'string.empty': 'payeeName is required',
+    'any.required': 'payeeName is required',
+  }),
+  garageId: Joi.string().trim().pattern(objectIdPattern).optional().allow(null).messages({
+    'string.pattern.base': 'garageId must be a valid MongoDB ObjectId',
+  }),
+  amount: Joi.number()
+    .strict()
+    .greater(0)
+    .max(config.maxFinancialAmount)
+    .custom(twoDecimalValidator)
+    .required()
+    .messages({
+      'number.base': 'amount must be a valid number',
+      'number.greater': 'amount must be greater than 0',
+      'number.max': `amount cannot exceed ${config.maxFinancialAmount}`,
+      'any.required': 'amount is required',
+    }),
+  currency: Joi.string().valid(config.currency).required().messages({
+    'any.only': `currency must be ${config.currency}`,
+    'any.required': 'currency is required',
+  }),
+  method: Joi.string().valid('BANK_TRANSFER', 'CHEQUE', 'CASH').required().messages({
+    'any.only': 'method must be one of: BANK_TRANSFER, CHEQUE, CASH',
+    'any.required': 'method is required',
+  }),
+  reference: Joi.when('method', {
+    is: Joi.valid('BANK_TRANSFER', 'CHEQUE'),
+    then: Joi.string().trim().min(1).max(100).required().messages({
+      'any.required': 'reference is required for BANK_TRANSFER and CHEQUE',
+      'string.empty': 'reference is required for BANK_TRANSFER and CHEQUE',
+      'string.max': 'reference cannot exceed 100 characters',
+    }),
+    otherwise: Joi.string().trim().max(100).allow('', null).optional(),
+  }),
+  paidAt: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .custom((value, helpers) => {
+      const today = toHebronDate(new Date());
+      if (value > today) {
+        return helpers.message('paidAt cannot be in the future');
+      }
+      return value;
+    })
+    .required()
+    .messages({
+      'string.pattern.base': 'paidAt must be in YYYY-MM-DD format',
+      'any.required': 'paidAt is required',
+    }),
+});
+
+const reversePaymentSchema = Joi.object({
+  reason: Joi.string().trim().min(10).max(300).required().messages({
+    'string.empty': 'reason is required',
+    'string.min': 'reason must be at least 10 characters long',
+    'string.max': 'reason cannot exceed 300 characters',
+    'any.required': 'reason is required',
+  }),
+});
+
+const paymentParamsSchema = Joi.object({
+  claimId: Joi.string().trim().pattern(objectIdPattern).required().messages({
+    'string.pattern.base': 'Invalid ID format',
+    'any.required': 'claimId is required',
+  }),
+  paymentNumber: Joi.string().trim().required().messages({
+    'string.empty': 'paymentNumber cannot be empty',
+    'any.required': 'paymentNumber is required',
+  }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -597,6 +693,9 @@ module.exports = {
   repairOrderParamsSchema,
   adjustReserveSchema,
   dischargeParamsSchema,
+  recordPaymentSchema,
+  reversePaymentSchema,
+  paymentParamsSchema,
 };
 
 

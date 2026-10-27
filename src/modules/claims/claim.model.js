@@ -297,7 +297,7 @@ const reserveHistorySchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['INITIAL', 'MANUAL', 'DECISION', 'STATUS_ZERO'],
+      enum: ['INITIAL', 'MANUAL', 'DECISION', 'STATUS_ZERO', 'PAYMENT', 'REVERSAL'],
       required: true,
     },
     reason: {
@@ -474,6 +474,101 @@ const dischargeSchema = new mongoose.Schema(
     signedAt: {
       type: Date,
       default: null,
+    },
+  },
+  { _id: false }
+);
+
+
+// ─── Payment Sub-document Schemas (PB-16) ──────────────────────────────────
+const paymentSchema = new mongoose.Schema(
+  {
+    paymentNumber: {
+      type: String,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ['PAYMENT', 'REVERSAL'],
+      required: true,
+    },
+    category: {
+      type: String,
+      enum: ['INDEMNITY', 'EXPENSE'],
+      required: true,
+    },
+    payeeType: {
+      type: String,
+      enum: [
+        'INSURED',
+        'GARAGE',
+        'THIRD_PARTY',
+        'LAWYER',
+        'TOW_PROVIDER',
+        'SURVEYOR',
+        'HOSPITAL',
+        'LIENHOLDER_BANK',
+        'HEIR',
+      ],
+      required: true,
+    },
+    payeeName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    garageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Garage',
+      default: null,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 1,
+      validate: {
+        validator: Number.isInteger,
+        message: 'amount must be an integer (minor units)',
+      },
+    },
+    currency: {
+      type: String,
+      required: true,
+    },
+    method: {
+      type: String,
+      enum: ['BANK_TRANSFER', 'CHEQUE', 'CASH'],
+      required: true,
+    },
+    reference: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+    paidAt: {
+      type: String,
+      required: true,
+      match: /^\d{4}-\d{2}-\d{2}$/,
+    },
+    reversesPaymentNumber: {
+      type: String,
+      default: null,
+    },
+    reason: {
+      type: String,
+      minlength: 10,
+      maxlength: 300,
+      default: null,
+    },
+    recordedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    recordedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   { _id: false }
@@ -896,9 +991,41 @@ const claimSchema = new mongoose.Schema(
       type: [timelineEventSchema],
       default: [],
     },
-    discharges: {
+        discharges: {
       type: [dischargeSchema],
       default: [],
+    },
+    payments: {
+      type: [paymentSchema],
+      default: [],
+    },
+    paidTotals: {
+      indemnity: {
+        type: Number,
+        default: 0,
+        min: 0,
+        validate: {
+          validator: Number.isInteger,
+          message: 'paidTotals.indemnity must be an integer (minor units)',
+        },
+      },
+      expense: {
+        type: Number,
+        default: 0,
+        min: 0,
+        validate: {
+          validator: Number.isInteger,
+          message: 'paidTotals.expense must be an integer (minor units)',
+        },
+      },
+    },
+    reversedPaymentNumbers: {
+      type: [String],
+      default: [],
+    },
+    paymentReversedAfterClose: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
@@ -908,6 +1035,7 @@ const claimSchema = new mongoose.Schema(
 claimSchema.index({ organizationId: 1, claimNumber: 1 }, { unique: true });
 claimSchema.index({ organizationId: 1, 'repairOrders.orderNumber': 1 });
 claimSchema.index({ organizationId: 1, 'discharges.dischargeNumber': 1 });
+claimSchema.index({ organizationId: 1, 'payments.paymentNumber': 1 });
 claimSchema.index({ organizationId: 1, createdAt: -1, status: 1 });
 claimSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
 claimSchema.index({ organizationId: 1, policyId: 1 });
