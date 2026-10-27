@@ -268,6 +268,91 @@ const repairOrderSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ─── Reserve Sub-document Schemas (PB-13) ────────────────────────────────────
+const reserveHistorySchema = new mongoose.Schema(
+  {
+    category: {
+      type: String,
+      enum: ['INDEMNITY', 'EXPENSE'],
+      required: true,
+    },
+    previousAmount: {
+      type: Number,
+      default: null,
+      validate: {
+        validator: function (v) {
+          return v === null || v === undefined || Number.isInteger(v);
+        },
+        message: 'previousAmount must be an integer (minor units) or null',
+      },
+    },
+    newAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+      validate: {
+        validator: Number.isInteger,
+        message: 'newAmount must be an integer (minor units)',
+      },
+    },
+    source: {
+      type: String,
+      enum: ['INITIAL', 'MANUAL', 'DECISION', 'STATUS_ZERO'],
+      required: true,
+    },
+    reason: {
+      type: String,
+      default: null,
+    },
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    role: {
+      type: String,
+      required: true,
+    },
+    at: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+const reserveSchema = new mongoose.Schema(
+  {
+    indemnity: {
+      type: Number,
+      min: 0,
+      default: null,
+      validate: {
+        validator: function (v) {
+          return v === null || v === undefined || Number.isInteger(v);
+        },
+        message: 'indemnity must be an integer (minor units)',
+      },
+    },
+    expense: {
+      type: Number,
+      min: 0,
+      default: null,
+      validate: {
+        validator: function (v) {
+          return v === null || v === undefined || Number.isInteger(v);
+        },
+        message: 'expense must be an integer (minor units)',
+      },
+    },
+    history: {
+      type: [reserveHistorySchema],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
 // ─── Claim Schema ─────────────────────────────────────────────────────────────
 const claimSchema = new mongoose.Schema(
   {
@@ -668,6 +753,16 @@ const claimSchema = new mongoose.Schema(
     repairOrders: {
       type: [repairOrderSchema],
       default: [],
+    },
+
+    // ── Outstanding Reserve (PB-13) ───────────────────────────────────
+    reserve: {
+      type: reserveSchema,
+      default: () => ({
+        indemnity: null,
+        expense: null,
+        history: [],
+      }),
     },
 
     // ── Audit Timeline ───────────────────────────────────────────────

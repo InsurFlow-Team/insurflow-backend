@@ -25,6 +25,7 @@ const {
   createRepairOrderSchema,
   updateRepairOrderStatusSchema,
   repairOrderParamsSchema,
+  adjustReserveSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -216,6 +217,23 @@ router.get(
   authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
   validateObjectId('claimId'),
   claimController.getClaimReport
+);
+
+// POST /api/v1/claims/:claimId/reserve-adjustments — Manual adjustment of indemnity or expense reserve
+router.post(
+  '/:claimId/reserve-adjustments',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(adjustReserveSchema),
+  claimController.adjustReserve
+);
+
+// GET /api/v1/claims/:claimId/reserve — Get current reserve and adjustment history
+router.get(
+  '/:claimId/reserve',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  claimController.getClaimReserve
 );
 
 // ── Repair Orders Endpoints (PB-10) ──────────────────────────────────────────

@@ -35,6 +35,48 @@ const organizationSchema = new mongoose.Schema({
         default: null,
       },
     },
+    reserveDefaults: {
+      OWN_DAMAGE: {
+        indemnity: {
+          type: Number,
+          min: 0,
+          default: 500000,
+          validate: {
+            validator: Number.isInteger,
+            message: 'reserveDefaults.OWN_DAMAGE.indemnity must be an integer (minor units)',
+          },
+        },
+        expense: {
+          type: Number,
+          min: 0,
+          default: 50000,
+          validate: {
+            validator: Number.isInteger,
+            message: 'reserveDefaults.OWN_DAMAGE.expense must be an integer (minor units)',
+          },
+        },
+      },
+      THIRD_PARTY_PD: {
+        indemnity: {
+          type: Number,
+          min: 0,
+          default: 500000,
+          validate: {
+            validator: Number.isInteger,
+            message: 'reserveDefaults.THIRD_PARTY_PD.indemnity must be an integer (minor units)',
+          },
+        },
+        expense: {
+          type: Number,
+          min: 0,
+          default: 50000,
+          validate: {
+            validator: Number.isInteger,
+            message: 'reserveDefaults.THIRD_PARTY_PD.expense must be an integer (minor units)',
+          },
+        },
+      },
+    },
   },
 }, { timestamps: true });
 
