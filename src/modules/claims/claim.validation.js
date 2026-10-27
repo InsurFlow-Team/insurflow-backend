@@ -557,6 +557,24 @@ const adjustReserveSchema = Joi.object({
     }),
 });
 
+const dischargeParamsSchema = Joi.object({
+  claimId: Joi.string()
+    .trim()
+    .pattern(objectIdPattern)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid ID format',
+      'any.required': 'claimId is required',
+    }),
+  dischargeNumber: Joi.string()
+    .trim()
+    .required()
+    .messages({
+      'any.required': 'dischargeNumber is required',
+      'string.empty': 'dischargeNumber cannot be empty',
+    }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -578,6 +596,7 @@ module.exports = {
   updateRepairOrderStatusSchema,
   repairOrderParamsSchema,
   adjustReserveSchema,
+  dischargeParamsSchema,
 };
 
 

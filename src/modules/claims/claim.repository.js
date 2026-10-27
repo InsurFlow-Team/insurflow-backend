@@ -570,6 +570,35 @@ const atomicUpdateRepairOrderStatus = async (filter, updateDoc) => {
   ).lean();
 };
 
+const atomicCreateDischarge = async (filter, updatePipeline) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updatePipeline,
+    { returnDocument: 'after', updatePipeline: true }
+  ).lean();
+};
+
+const atomicSignDischarge = async (filter, updateDoc) => {
+  return await Claim.findOneAndUpdate(
+    filter,
+    updateDoc,
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const findDischargesByClaimId = async (claimId, organizationId) => {
+  return await Claim.findOne({ _id: claimId, organizationId })
+    .select('discharges')
+    .lean();
+};
+
+const findDischargeByNumber = async (claimId, organizationId, dischargeNumber) => {
+  return await Claim.findOne(
+    { _id: claimId, organizationId, 'discharges.dischargeNumber': dischargeNumber },
+    { 'discharges.$': 1, claimNumber: 1 }
+  ).lean();
+};
+
 module.exports = {
   create,
   findByOrganization,
@@ -601,4 +630,8 @@ module.exports = {
   adjustReserve,
   findReserveById,
   getOutstandingReserve,
+  atomicCreateDischarge,
+  atomicSignDischarge,
+  findDischargesByClaimId,
+  findDischargeByNumber,
 };
