@@ -5,36 +5,36 @@
 
 const DEMO_ASSET_URLS = Object.freeze({
   damageFront: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_damage_front.jpg',
-    publicId: 'sawn/demo/evidence/PLACEHOLDER_damage_front',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348868/sawn/demo/b7ztusxuqohladv7laun.jpg',
+    publicId: 'sawn/demo/b7ztusxuqohladv7laun',
   },
   damageRear: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_damage_rear.jpg',
-    publicId: 'sawn/demo/evidence/PLACEHOLDER_damage_rear',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348876/sawn/demo/edlqqzq4npqqzx16c3oq.jpg',
+    publicId: 'sawn/demo/edlqqzq4npqqzx16c3oq',
   },
   damageSide: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_damage_side.jpg',
-    publicId: 'sawn/demo/evidence/PLACEHOLDER_damage_side',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348885/sawn/demo/elpsvbmlfctwbednhdgu.jpg',
+    publicId: 'sawn/demo/elpsvbmlfctwbednhdgu',
   },
   damageCloseup1: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_damage_closeup1.jpg',
-    publicId: 'sawn/demo/evidence/PLACEHOLDER_damage_closeup1',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348895/sawn/demo/quxap6oroxhhcx3ltm9g.jpg',
+    publicId: 'sawn/demo/quxap6oroxhhcx3ltm9g',
   },
   damageCloseup2: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_damage_closeup2.jpg',
-    publicId: 'sawn/demo/evidence/PLACEHOLDER_damage_closeup2',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348898/sawn/demo/zjsvu0rj0a8m9l0b918k.jpg',
+    publicId: 'sawn/demo/zjsvu0rj0a8m9l0b918k',
   },
   damageCloseup3: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_damage_closeup3.jpg',
-    publicId: 'sawn/demo/evidence/PLACEHOLDER_damage_closeup3',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348903/sawn/demo/mqcjvhghgxgxm84zmhbj.jpg',
+    publicId: 'sawn/demo/mqcjvhghgxgxm84zmhbj',
   },
   signature: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_signature.png',
-    publicId: 'sawn/demo/signatures/PLACEHOLDER_signature',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348904/sawn/demo/v0ykfuxez78ddsal1ky4.png',
+    publicId: 'sawn/demo/v0ykfuxez78ddsal1ky4',
   },
   dischargeScan: {
-    url: 'https://res.cloudinary.com/insurflow/image/upload/PLACEHOLDER_discharge_scan.jpg',
-    publicId: 'sawn/demo/discharges/PLACEHOLDER_discharge_scan',
+    url: 'https://res.cloudinary.com/yr5hpegk/image/upload/v1793348909/sawn/demo/in3gcssbhhw2awmvxwtr.jpg',
+    publicId: 'sawn/demo/in3gcssbhhw2awmvxwtr',
   },
 });
 
