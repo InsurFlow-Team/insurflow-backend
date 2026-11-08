@@ -1,5 +1,31 @@
 const mongoose = require('mongoose');
 
+const actorSchema = new mongoose.Schema(
+  {
+    employeeCode: String,
+    name: String,
+  },
+  { _id: false }
+);
+
+const paramsSchema = new mongoose.Schema(
+  {
+    actor: {
+      type: actorSchema,
+      default: null,
+    },
+    reason: {
+      type: String,
+      default: null,
+    },
+    notes: {
+      type: String,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
 const notificationSchema = new mongoose.Schema({
   recipientId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -39,6 +65,10 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
+  },
+  params: {
+    type: paramsSchema,
+    default: () => ({}),
   },
   readAt: {
     type: Date,

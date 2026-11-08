@@ -564,4 +564,214 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
       sendToOrgSpy.mockRestore();
     });
   });
+
+  describe('NT-01: Structured notification params & contract shape', () => {
+    it('GET /notifications returns id and _id with the same value and never __v', async () => {
+      await Notification.create({
+        recipientId: officer1._id,
+        organizationId: org1._id,
+        type: 'NEW_CLAIM',
+        relatedClaimId: claim1._id,
+        title: 'New Claim Test',
+        body: 'Body test',
+      });
+
+      const res = await request(app)
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      for (const item of res.body.data) {
+        expect(item.id).toBeDefined();
+        expect(item._id).toBeDefined();
+        expect(item.id).toBe(item._id);
+        expect(item.__v).toBeUndefined();
+        expect(JSON.stringify(item)).not.toContain('"__v"');
+      }
+    });
+
+    it('GET /notifications relatedClaimId is { id, _id, claimNumber } with id equal to _id', async () => {
+      await Notification.create({
+        recipientId: officer1._id,
+        organizationId: org1._id,
+        type: 'NEW_CLAIM',
+        relatedClaimId: claim1._id,
+        title: 'New Claim With ClaimRef',
+        body: 'Body test',
+      });
+
+      const res = await request(app)
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(res.status).toBe(200);
+      const itemWithClaim = res.body.data.find(n => n.relatedClaimId && n.relatedClaimId.claimNumber === claim1.claimNumber);
+      expect(itemWithClaim).toBeDefined();
+      expect(itemWithClaim.relatedClaimId.id).toBeDefined();
+      expect(itemWithClaim.relatedClaimId._id).toBeDefined();
+      expect(itemWithClaim.relatedClaimId.id).toBe(itemWithClaim.relatedClaimId._id);
+      expect(itemWithClaim.relatedClaimId.claimNumber).toBe(claim1.claimNumber);
+      expect(itemWithClaim.relatedClaimId.__v).toBeUndefined();
+      expect(JSON.stringify(itemWithClaim.relatedClaimId)).not.toContain('"__v"');
+    });
+
+    it('GET /notifications relatedClaimId is null when the claim was deleted', async () => {
+      const tempClaim = await Claim.create({
+        organizationId: org1._id,
+        policyId: policy1._id,
+        createdBy: officer1._id,
+        status: 'NEW',
+        customer: { name: 'Temp', phone: '0599000000' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street',
+      });
+
+      const notif = await Notification.create({
+        recipientId: officer1._id,
+        organizationId: org1._id,
+        type: 'NEW_CLAIM',
+        relatedClaimId: tempClaim._id,
+        title: 'Orphan Notif',
+        body: 'Body orphan',
+      });
+
+      await Claim.findByIdAndDelete(tempClaim._id);
+
+      const res = await request(app)
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(res.status).toBe(200);
+      const found = res.body.data.find(n => n.id === notif._id.toString() || n._id === notif._id.toString());
+      expect(found).toBeDefined();
+      expect(found.relatedClaimId).toBeNull();
+    });
+
+    it('GET /notifications returns params with actor, reason and notes', async () => {
+      await Notification.create({
+        recipientId: officer1._id,
+        organizationId: org1._id,
+        type: 'ASSIGNMENT_DECLINED',
+        relatedClaimId: claim1._id,
+        title: 'Declined with params',
+        body: 'Body declined',
+        params: {
+          actor: { employeeCode: 'FA-001', name: 'Ahmad Saleh' },
+          reason: 'Vehicle is outside my area',
+          notes: null,
+        },
+      });
+
+      const res = await request(app)
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(res.status).toBe(200);
+      const found = res.body.data.find(n => n.title === 'Declined with params');
+      expect(found).toBeDefined();
+      expect(found.params).toBeDefined();
+      expect(found.params).toEqual({
+        actor: { employeeCode: 'FA-001', name: 'Ahmad Saleh' },
+        reason: 'Vehicle is outside my area',
+        notes: null,
+      });
+    });
+
+    it('PATCH /notifications/:id/read returns the same shape as the list', async () => {
+      const notif = await Notification.create({
+        recipientId: officer1._id,
+        organizationId: org1._id,
+        type: 'NEW_CLAIM',
+        relatedClaimId: claim1._id,
+        title: 'Read Patch Test',
+        body: 'Body test',
+        params: {
+          actor: { employeeCode: 'CO-001', name: 'Claims Officer 1' },
+          reason: null,
+          notes: null,
+        },
+      });
+
+      const res = await request(app)
+        .patch(`/api/v1/notifications/${notif._id}/read`)
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(res.status).toBe(200);
+      const item = res.body.data;
+      expect(item.id).toBeDefined();
+      expect(item._id).toBeDefined();
+      expect(item.id).toBe(item._id);
+      expect(item.id).toBe(notif._id.toString());
+      expect(item.__v).toBeUndefined();
+      expect(JSON.stringify(item)).not.toContain('"__v"');
+      expect(item.relatedClaimId).toBeDefined();
+      expect(item.relatedClaimId.id).toBe(item.relatedClaimId._id);
+      expect(item.relatedClaimId.claimNumber).toBe(claim1.claimNumber);
+      expect(item.params).toEqual({
+        actor: { employeeCode: 'CO-001', name: 'Claims Officer 1' },
+        reason: null,
+        notes: null,
+      });
+      expect(item.readAt).toBeDefined();
+    });
+
+    it('GET /notifications/unread-count response is unchanged', async () => {
+      const res = await request(app)
+        .get('/api/v1/notifications/unread-count')
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Unread count retrieved successfully');
+      expect(typeof res.body.data.count).toBe('number');
+    });
+
+    it('real decline-assignment flow produces ASSIGNMENT_DECLINED with actor and reason', async () => {
+      const declineClaim = await Claim.create({
+        organizationId: org1._id,
+        policyId: policy1._id,
+        createdBy: officer1._id,
+        assignedTo: adjuster1._id,
+        assignedBy: officer1._id,
+        assignedAt: new Date(),
+        status: 'PENDING_ACCEPTANCE',
+        customer: { name: 'Customer Decline', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street B',
+      });
+
+      const declineRes = await request(app)
+        .post(`/api/v1/claims/${declineClaim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjusterToken}`)
+        .send({ reason: 'Vehicle is outside my area' });
+
+      expect(declineRes.status).toBe(200);
+
+      const notifRes = await request(app)
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${officer1Token}`);
+
+      expect(notifRes.status).toBe(200);
+      const targetNotif = notifRes.body.data.find(
+        (n) => n.relatedClaimId && n.relatedClaimId.claimNumber === declineClaim.claimNumber && n.type === 'ASSIGNMENT_DECLINED'
+      );
+      expect(targetNotif).toBeDefined();
+      expect(targetNotif.id).toBeDefined();
+      expect(targetNotif._id).toBeDefined();
+      expect(targetNotif.id).toBe(targetNotif._id);
+      expect(targetNotif.__v).toBeUndefined();
+      expect(targetNotif.relatedClaimId.id).toBe(targetNotif.relatedClaimId._id);
+      expect(targetNotif.relatedClaimId.claimNumber).toBe(declineClaim.claimNumber);
+      expect(targetNotif.title).toBe('Assignment Declined');
+      expect(targetNotif.body).toContain('Vehicle is outside my area');
+      expect(targetNotif.params).toBeDefined();
+      expect(targetNotif.params.actor).toEqual({
+        employeeCode: adjuster1.employeeCode,
+        name: adjuster1.name,
+      });
+      expect(targetNotif.params.reason).toBe('Vehicle is outside my area');
+      expect(targetNotif.params.notes).toBeNull();
+    });
+  });
 });
