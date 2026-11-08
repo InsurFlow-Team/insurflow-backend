@@ -28,6 +28,19 @@ const cloudinary = require('../../config/cloudinary');
 const { resolveAddressee, resolveIncidentDate } = require('../letters/letter.service');
 const { generateDischargePdf } = require('../letters/letter.pdf');
 
+const getNotificationActor = async (userId, organizationId) => {
+  try {
+    const user = await userRepository.findByIdAndOrganization(userId, organizationId);
+    if (!user) return null;
+    return {
+      employeeCode: user.employeeCode,
+      name: user.name,
+    };
+  } catch (err) {
+    return null;
+  }
+};
+
 const buildTrackingUrl = (token) => {
   if (!token || !config.publicFrontendUrl) {
     return null;
@@ -249,6 +262,7 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
 
   try {
     if (typeof sendToOrganization === 'function') {
+      const actor = await getNotificationActor(authUser.userId, authUser.organizationId);
       await sendToOrganization({
         organizationId: authUser.organizationId,
         type: 'NEW_CLAIM',
@@ -256,6 +270,11 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
         title: 'New Claim Created',
         body: `New claim ${claim.claimNumber} has been created.`,
         excludeUserId: authUser.userId,
+        params: {
+          actor,
+          reason: null,
+          notes: null,
+        },
       });
     }
   } catch (err) {
@@ -793,6 +812,7 @@ const acceptAssignment = async (claimId, authUser) => {
 
   // Send notification to the officer who assigned it (optional, fire-and-forget)
   try {
+    const actor = adjusterUser ? { employeeCode: adjusterUser.employeeCode, name: adjusterUser.name } : null;
     await createAndSendNotification({
       recipientId: updatedClaim.assignedBy,
       organizationId: updatedClaim.organizationId,
@@ -800,6 +820,11 @@ const acceptAssignment = async (claimId, authUser) => {
       relatedClaimId: updatedClaim._id,
       title: 'Assignment Accepted',
       body: `${employeeCode} accepted claim ${updatedClaim.claimNumber}.`,
+      params: {
+        actor,
+        reason: null,
+        notes: null,
+      },
     });
   } catch (err) {
     console.error('Failed to send notification for assignment acceptance:', err);
@@ -861,12 +886,18 @@ const declineAssignment = async (claimId, reason, authUser) => {
 
   try {
     if (typeof sendToOrganization === 'function') {
+      const actor = adjusterUser ? { employeeCode: adjusterUser.employeeCode, name: adjusterUser.name } : null;
       await sendToOrganization({
         organizationId: authUser.organizationId,
         type: 'ASSIGNMENT_DECLINED',
         relatedClaimId: updatedClaim._id,
         title: 'Assignment Declined',
         body: `${employeeCode} declined claim ${updatedClaim.claimNumber}. Reason: ${reason}`,
+        params: {
+          actor,
+          reason,
+          notes: null,
+        },
       });
     }
   } catch (err) {
@@ -1167,12 +1198,18 @@ const submitInspection = async (claimId, authUser) => {
 
   try {
     if (typeof sendToOrganization === 'function') {
+      const actor = await getNotificationActor(authUser.userId, authUser.organizationId);
       await sendToOrganization({
         organizationId: authUser.organizationId,
         type: 'INSPECTION_COMPLETED',
         relatedClaimId: updatedClaim._id,
         title: 'Inspection Completed',
         body: `Inspection completed for claim ${updatedClaim.claimNumber}.`,
+        params: {
+          actor,
+          reason: null,
+          notes: null,
+        },
       });
     }
   } catch (err) {
@@ -1244,6 +1281,11 @@ const requestCorrection = async (claimId, body, authUser) => {
       relatedClaimId: updatedClaim._id,
       title: 'Correction Requested',
       body: `Claim ${updatedClaim.claimNumber} needs correction. Reason: ${notes}`,
+      params: {
+        actor: null,
+        reason: null,
+        notes,
+      },
     });
   } catch (err) {
     console.error('Failed to send notification for correction request:', err);

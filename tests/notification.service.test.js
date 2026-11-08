@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const mockSendPush = jest.fn();
 jest.mock('../src/services/push.service', () => ({
@@ -7,25 +8,45 @@ jest.mock('../src/services/push.service', () => ({
 
 const mockNotificationCreate = jest.fn();
 jest.mock('../src/modules/notifications/notification.model', () => {
+  const actual = jest.requireActual('../src/modules/notifications/notification.model');
   const MockModel = function () {};
   MockModel.create = mockNotificationCreate;
+  Object.defineProperty(MockModel, 'collection', {
+    get: () => actual.collection,
+  });
+  MockModel.actual = actual;
   return MockModel;
 });
 
 const mockUserFindById = jest.fn();
+const mockUserFind = jest.fn();
 jest.mock('../src/modules/users/user.model', () => ({
   findById: mockUserFindById,
+  find: mockUserFind,
 }));
 
-const { createAndSendNotification } = require('../src/modules/notifications/notification.service');
+const Notification = require('../src/modules/notifications/notification.model');
+const { createAndSendNotification, sendToOrganization } = require('../src/modules/notifications/notification.service');
 
 describe('Notification Service (notification.service.js)', () => {
+  let mongoServer;
   const recipientId = new mongoose.Types.ObjectId();
   const organizationId = new mongoose.Types.ObjectId();
   const relatedClaimId = new mongoose.Types.ObjectId();
 
+  beforeAll(async () => {
+    mongoServer = await MongoMemoryServer.create();
+    await mongoose.connect(mongoServer.getUri());
+  });
+
+  afterAll(async () => {
+    await mongoose.disconnect();
+    await mongoServer.stop();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
+    mockNotificationCreate.mockImplementation((...args) => Notification.actual.create(...args));
   });
 
   it('should create a notification document and send push when user has fcmToken', async () => {
@@ -201,5 +222,148 @@ describe('Notification Service (notification.service.js)', () => {
     await expect(createAndSendNotification(payload)).rejects.toThrow('Validation failed');
     expect(mockUserFindById).not.toHaveBeenCalled();
     expect(mockSendPush).not.toHaveBeenCalled();
+  });
+
+  it('createAndSendNotification stores params when provided', async () => {
+    const params = {
+      actor: { employeeCode: 'FA-001', name: 'Ahmad Saleh' },
+      reason: 'Vehicle is outside my area',
+      notes: null,
+    };
+    mockNotificationCreate.mockResolvedValueOnce({
+      _id: new mongoose.Types.ObjectId(),
+      params,
+    });
+    mockUserFindById.mockReturnValueOnce({
+      select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+    });
+
+    await createAndSendNotification({
+      recipientId,
+      organizationId,
+      type: 'ASSIGNMENT_DECLINED',
+      relatedClaimId,
+      title: 'Assignment Declined',
+      body: 'Declined',
+      params,
+    });
+
+    expect(mockNotificationCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ params })
+    );
+  });
+
+  it('createAndSendNotification persists an all-null params object when params is omitted', async () => {
+    mockUserFindById.mockReturnValueOnce({
+      select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+    });
+
+    const notif = await createAndSendNotification({
+      recipientId,
+      organizationId,
+      type: 'PENDING_ACCEPTANCE',
+      relatedClaimId,
+      title: 'New Assignment Pending',
+      body: 'Pending',
+    });
+
+    const raw = await Notification.collection.findOne({ _id: notif._id });
+    expect(raw).toBeDefined();
+    expect(raw.params).toBeDefined();
+    expect(raw.params).toEqual({
+      actor: null,
+      reason: null,
+      notes: null,
+    });
+  });
+
+  it('sendToOrganization stores the same params on every recipient document', async () => {
+    const user1Id = new mongoose.Types.ObjectId();
+    const user2Id = new mongoose.Types.ObjectId();
+    mockUserFind.mockReturnValueOnce({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValueOnce([
+          { _id: user1Id, fcmToken: null },
+          { _id: user2Id, fcmToken: null },
+        ]),
+      }),
+    });
+    mockNotificationCreate.mockResolvedValue({
+      _id: new mongoose.Types.ObjectId(),
+    });
+
+    const params = {
+      actor: { employeeCode: 'CO-001', name: 'Officer One' },
+      reason: null,
+      notes: null,
+    };
+
+    await sendToOrganization({
+      organizationId,
+      type: 'NEW_CLAIM',
+      relatedClaimId,
+      title: 'New Claim Created',
+      body: 'New claim',
+      params,
+    });
+
+    expect(mockNotificationCreate).toHaveBeenCalledTimes(2);
+    expect(mockNotificationCreate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ params })
+    );
+    expect(mockNotificationCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ params })
+    );
+  });
+
+  it('push payload data stays { claimId, type } and does not include params', async () => {
+    const selectMock = jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValueOnce({
+        _id: recipientId,
+        fcmToken: 'valid-fcm-token',
+      }),
+    });
+    mockUserFindById.mockReturnValueOnce({
+      select: selectMock,
+    });
+    mockSendPush.mockResolvedValueOnce('fcm-msg-id');
+    mockNotificationCreate.mockResolvedValueOnce({
+      _id: new mongoose.Types.ObjectId(),
+    });
+
+    const params = {
+      actor: { employeeCode: 'FA-001', name: 'Ahmad' },
+      reason: 'Reason',
+      notes: null,
+    };
+
+    await createAndSendNotification({
+      recipientId,
+      organizationId,
+      type: 'ASSIGNED',
+      relatedClaimId,
+      title: 'Title',
+      body: 'Body',
+      params,
+    });
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1);
+    expect(mockSendPush).toHaveBeenCalledWith(
+      'valid-fcm-token',
+      'Title',
+      'Body',
+      {
+        claimId: relatedClaimId,
+        type: 'ASSIGNED',
+      }
+    );
+    const pushData = mockSendPush.mock.calls[0][3];
+    expect(pushData).not.toHaveProperty('params');
+    expect(pushData).toEqual({
+      claimId: relatedClaimId,
+      type: 'ASSIGNED',
+    });
   });
 });

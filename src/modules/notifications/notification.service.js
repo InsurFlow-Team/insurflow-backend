@@ -4,6 +4,59 @@ const { sendPush } = require('../../services/push.service');
 const AppError = require('../../utils/appError');
 
 /**
+ * Serializes a plain notification document into a notification DTO.
+ *
+ * @param {Object} doc - Plain notification object (from .lean())
+ * @returns {Object|null} Serialized notification DTO
+ */
+const toNotificationDto = (doc) => {
+  if (!doc) {
+    return null;
+  }
+
+  let relatedClaimId = null;
+  if (
+    doc.relatedClaimId &&
+    typeof doc.relatedClaimId === 'object' &&
+    (doc.relatedClaimId._id || doc.relatedClaimId.id) &&
+    doc.relatedClaimId.claimNumber !== undefined &&
+    doc.relatedClaimId.claimNumber !== null
+  ) {
+    const claimId = String(doc.relatedClaimId._id || doc.relatedClaimId.id);
+    relatedClaimId = {
+      id: claimId,
+      _id: claimId, // NOTE: _id stays only until mobile developer confirms, removed in a later story
+      claimNumber: doc.relatedClaimId.claimNumber,
+    };
+  }
+
+  return {
+    id: String(doc._id),
+    _id: String(doc._id), // NOTE: _id stays only until the mobile developer confirms, then removed in a later story
+    recipientId: doc.recipientId,
+    organizationId: doc.organizationId,
+    type: doc.type,
+    relatedClaimId,
+    title: doc.title,
+    body: doc.body,
+    params: doc.params
+      ? {
+          actor: doc.params.actor
+            ? {
+                employeeCode: doc.params.actor.employeeCode,
+                name: doc.params.actor.name,
+              }
+            : null,
+          reason: doc.params.reason ?? null,
+          notes: doc.params.notes ?? null,
+        }
+      : { actor: null, reason: null, notes: null }, // NOTE: fallback exists only for the window between deploying this code and running the cleanup script
+    readAt: doc.readAt ?? null,
+    createdAt: doc.createdAt,
+  };
+};
+
+/**
  * Creates a notification record and sends a push notification if recipient has an FCM token.
  * Push delivery failure never affects the notification creation or throws to the caller.
  *
@@ -14,6 +67,7 @@ const AppError = require('../../utils/appError');
  * @param {import('mongoose').Types.ObjectId|string} params.relatedClaimId
  * @param {string} params.title
  * @param {string} params.body
+ * @param {Object} [params.params]
  * @returns {Promise<Object>} The created Notification document
  */
 const createAndSendNotification = async ({
@@ -23,6 +77,7 @@ const createAndSendNotification = async ({
   relatedClaimId,
   title,
   body,
+  params,
 }) => {
   // 1. Always create the Notification document first
   const notification = await Notification.create({
@@ -32,6 +87,7 @@ const createAndSendNotification = async ({
     relatedClaimId,
     title,
     body,
+    ...(params !== undefined && { params }),
   });
 
   // 2. Look up recipient User by recipientId (lean, select only fcmToken)
@@ -93,7 +149,7 @@ const listNotifications = async (authUser, queryOptions = {}) => {
   const totalPages = Math.ceil(totalCount / limit);
 
   return {
-    notifications,
+    notifications: notifications.map(toNotificationDto),
     pagination: {
       totalCount,
       page: Number(page),
@@ -148,10 +204,12 @@ const markAsRead = async (notificationId, authUser) => {
     {
       returnDocument: 'after',
     }
-  ).populate('relatedClaimId', 'claimNumber');
+  )
+    .populate('relatedClaimId', 'claimNumber')
+    .lean();
 
   if (updatedNotification) {
-    return updatedNotification;
+    return toNotificationDto(updatedNotification);
   }
 
   // 2. If not updated, check if it already exists and is owned by the user (already read)
@@ -159,13 +217,15 @@ const markAsRead = async (notificationId, authUser) => {
     _id: notificationId,
     recipientId: userId,
     organizationId,
-  }).populate('relatedClaimId', 'claimNumber');
+  })
+    .populate('relatedClaimId', 'claimNumber')
+    .lean();
 
   if (!existingNotification) {
     throw new AppError('Notification not found', 404, 'NOTIFICATION_NOT_FOUND');
   }
 
-  return existingNotification;
+  return toNotificationDto(existingNotification);
 };
 
 /**
@@ -180,6 +240,7 @@ const markAsRead = async (notificationId, authUser) => {
  * @param {string} params.title
  * @param {string} params.body
  * @param {import('mongoose').Types.ObjectId|string} [params.excludeUserId]
+ * @param {Object} [params.params]
  * @returns {Promise<Array>} Array of created Notification documents
  */
 const sendToOrganization = async ({
@@ -189,6 +250,7 @@ const sendToOrganization = async ({
   title,
   body,
   excludeUserId,
+  params,
 }) => {
   const userQuery = {
     organizationId,
@@ -216,6 +278,7 @@ const sendToOrganization = async ({
         relatedClaimId,
         title,
         body,
+        params,
       });
       createdNotifications.push(notification);
     } catch (err) {
@@ -232,4 +295,5 @@ module.exports = {
   getUnreadCount,
   markAsRead,
   sendToOrganization,
+  toNotificationDto,
 };

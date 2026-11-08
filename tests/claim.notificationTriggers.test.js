@@ -181,6 +181,11 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         relatedClaimId: claim._id,
         title: 'Correction Requested',
         body: `Claim ${claim.claimNumber} needs correction. Reason: Please re-upload clearer vehicle photos.`,
+        params: {
+          actor: null,
+          reason: null,
+          notes: 'Please re-upload clearer vehicle photos.',
+        },
       });
     });
 
@@ -507,6 +512,275 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('NT-01: Structured params payloads for notification triggers', () => {
+    it('NEW_CLAIM passes params.actor of the creating user', async () => {
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: global.__testPol._id.toString(),
+          plateNumber: vehicle.plateNumber,
+          incidentType: 'COLLISION',
+          incidentLocation: 'Rainbow Street',
+          incidentDate: '2026-06-15',
+        });
+
+      expect(res.status).toBe(201);
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'NEW_CLAIM',
+          params: {
+            actor: {
+              employeeCode: officer.employeeCode,
+              name: officer.name,
+            },
+            reason: null,
+            notes: null,
+          },
+        })
+      );
+    });
+
+    it('ASSIGNED passes params.actor of the accepting adjuster', async () => {
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        assignedBy: officer._id,
+        assignedAt: new Date(),
+        status: 'PENDING_ACCEPTANCE',
+        customer: { name: 'Customer Accept', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/accept-assignment`)
+        .set('Authorization', `Bearer ${adjusterToken}`);
+
+      expect(res.status).toBe(200);
+      expect(createAndSendNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'ASSIGNED',
+          params: {
+            actor: {
+              employeeCode: adjuster.employeeCode,
+              name: adjuster.name,
+            },
+            reason: null,
+            notes: null,
+          },
+        })
+      );
+    });
+
+    it('ASSIGNMENT_DECLINED passes params.actor and params.reason', async () => {
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        assignedBy: officer._id,
+        assignedAt: new Date(),
+        status: 'PENDING_ACCEPTANCE',
+        customer: { name: 'Customer Decline', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/decline-assignment`)
+        .set('Authorization', `Bearer ${adjusterToken}`)
+        .send({ reason: 'Vehicle is outside my area' });
+
+      expect(res.status).toBe(200);
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'ASSIGNMENT_DECLINED',
+          params: {
+            actor: {
+              employeeCode: adjuster.employeeCode,
+              name: adjuster.name,
+            },
+            reason: 'Vehicle is outside my area',
+            notes: null,
+          },
+        })
+      );
+    });
+
+    it('INSPECTION_COMPLETED passes params.actor of the submitting adjuster', async () => {
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        status: 'IN_PROGRESS',
+        customer: { name: 'Customer 1', phone: '0501112233' },
+        vehicle: { vehicleId: vehicle._id, plateNumber: vehicle.plateNumber },
+        accident: { accidentType: 'COLLISION' },
+        location: { latitude: 31.95, longitude: 35.91 },
+        evidence: [{ url: 'https://cloudinary.com/test.jpg', publicId: 'ev1', imageType: 'VEHICLE_FRONT', uploadedBy: adjuster._id }],
+        signature: { url: 'https://cloudinary.com/sig.png', publicId: 'sig1' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Street A',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/inspection/submit`)
+        .set('Authorization', `Bearer ${adjusterToken}`);
+
+      expect(res.status).toBe(200);
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INSPECTION_COMPLETED',
+          params: {
+            actor: {
+              employeeCode: adjuster.employeeCode,
+              name: adjuster.name,
+            },
+            reason: null,
+            notes: null,
+          },
+        })
+      );
+    });
+
+    it('CORRECTION_REQUIRED passes params.notes and no actor', async () => {
+      const claim = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        status: 'UNDER_REVIEW',
+        customer: { name: 'Customer Corr', phone: '0502223344' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Downtown',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/review/request-correction`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ notes: 'Please re-upload clearer photos' });
+
+      expect(res.status).toBe(200);
+      expect(createAndSendNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'CORRECTION_REQUIRED',
+          params: {
+            actor: null,
+            reason: null,
+            notes: 'Please re-upload clearer photos',
+          },
+        })
+      );
+    });
+
+    it('PENDING_ACCEPTANCE, APPROVED and REJECTED pass no params argument', async () => {
+      // 1. PENDING_ACCEPTANCE
+      const claim1 = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        status: 'NEW',
+        customer: { name: 'Cust 1', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Location 1',
+      });
+
+      await request(app)
+        .post(`/api/v1/claims/${claim1._id}/assign`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ adjusterId: adjuster._id.toString() });
+
+      const assignCall = createAndSendNotification.mock.calls.find(c => c[0].type === 'PENDING_ACCEPTANCE');
+      expect(assignCall).toBeDefined();
+      expect(assignCall[0].params).toBeUndefined();
+
+      // 2. APPROVED
+      const claim2 = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        status: 'UNDER_REVIEW',
+        customer: { name: 'Cust 2', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Location 2',
+      });
+
+      await request(app)
+        .post(`/api/v1/claims/${claim2._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          decision: 'APPROVED',
+          lossAssessment: {
+            estimatedPartsCost: 500,
+            laborCost: 300,
+            deductibleApplied: 500,
+          },
+        });
+
+      const approveCall = createAndSendNotification.mock.calls.find(c => c[0].type === 'APPROVED');
+      expect(approveCall).toBeDefined();
+      expect(approveCall[0].params).toBeUndefined();
+
+      // 3. REJECTED
+      const claim3 = await Claim.create({
+        organizationId: org._id,
+        policyId: global.__testPol._id,
+        createdBy: officer._id,
+        assignedTo: adjuster._id,
+        status: 'UNDER_REVIEW',
+        customer: { name: 'Cust 3', phone: '0501112233' },
+        incidentType: 'COLLISION',
+        incidentLocation: 'Location 3',
+      });
+
+      await request(app)
+        .post(`/api/v1/claims/${claim3._id}/decision`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({ decision: 'REJECTED', notes: 'Not covered' });
+
+      const rejectCall = createAndSendNotification.mock.calls.find(c => c[0].type === 'REJECTED');
+      expect(rejectCall).toBeDefined();
+      expect(rejectCall[0].params).toBeUndefined();
+    });
+
+    it('actor lookup failure still sends the notification with actor null and does not change the claim response', async () => {
+      const userRepository = require('../src/modules/users/user.repository');
+      const userSpy = jest.spyOn(userRepository, 'findByIdAndOrganization').mockRejectedValueOnce(new Error('User DB lookup failure'));
+
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: global.__testPol._id.toString(),
+          plateNumber: vehicle.plateNumber,
+          incidentType: 'COLLISION',
+          incidentLocation: 'Rainbow Street',
+          incidentDate: '2026-06-15',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+
+      expect(sendToOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'NEW_CLAIM',
+          params: {
+            actor: null,
+            reason: null,
+            notes: null,
+          },
+        })
+      );
+
+      userSpy.mockRestore();
     });
   });
 });
