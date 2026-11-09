@@ -27,6 +27,12 @@ const Counter = require('../../utils/counter.model');
 const cloudinary = require('../../config/cloudinary');
 const { resolveAddressee, resolveIncidentDate } = require('../letters/letter.service');
 const { generateDischargePdf } = require('../letters/letter.pdf');
+const {
+  resolveSlaHours,
+  computeStatusDueAt,
+  resolveStatusEnteredAt,
+  buildStatusHistory,
+} = require('../../utils/statusTiming');
 
 const getNotificationActor = async (userId, organizationId) => {
   try {
@@ -448,6 +454,9 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
   const { totalCount, claims } = result;
   const totalPages = Math.ceil(totalCount / limit);
 
+  const org = await Organization.findById(organizationId).select('settings.statusSlaHours').lean();
+  const statusSlaHours = org?.settings?.statusSlaHours;
+
   const formattedClaims = claims.map((claim) => {
     let assignedAdjuster = null;
     if (claim.assignedTo) {
@@ -457,6 +466,9 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
         name: claim.assignedTo.name || null,
       };
     }
+
+    const slaHours = resolveSlaHours(statusSlaHours, claim.status);
+    const statusDueAt = computeStatusDueAt(claim.statusEnteredAt, slaHours);
 
     return {
       id: claim._id,
@@ -468,6 +480,8 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
       assignedTo: assignedAdjuster,
       fieldAdjuster: assignedAdjuster,
       incidentCoordinates: claim.incidentCoordinates ?? null,
+      statusEnteredAt: claim.statusEnteredAt ?? null,
+      statusDueAt: statusDueAt ?? null,
     };
   });
 
@@ -487,7 +501,10 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
 const getClaimById = async (claimId, authUser) => {
   const { userId, role, organizationId } = authUser;
 
-  const claim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  const [claim, org] = await Promise.all([
+    claimRepository.findByIdAndOrganization(claimId, organizationId),
+    Organization.findById(organizationId).select('settings.statusSlaHours').lean(),
+  ]);
 
   if (!claim) {
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
@@ -533,6 +550,11 @@ const getClaimById = async (claimId, authUser) => {
     }
   }
 
+  const statusHistory = buildStatusHistory(claim.timeline, claim.createdAt);
+  const statusEnteredAt = resolveStatusEnteredAt(claim.status, claim.timeline, claim.createdAt);
+  const slaHours = resolveSlaHours(org?.settings?.statusSlaHours, claim.status);
+  const statusDueAt = computeStatusDueAt(statusEnteredAt, slaHours);
+
   return {
     // ── 1. Claim Information ─────────────────────────────────────
     id: claim._id,
@@ -544,6 +566,9 @@ const getClaimById = async (claimId, authUser) => {
     claimant,
     claimType: claim.claimType ?? 'OWN_DAMAGE',
     status: claim.status,
+    statusEnteredAt: statusEnteredAt ?? null,
+    statusDueAt: statusDueAt ?? null,
+    statusHistory,
     // Expose tracking tokens and URLs exclusively to claims officers and administrators
     ...((role === 'CLAIMS_OFFICER' || role === 'ADMIN') && {
       trackingToken: claim.trackingToken ?? null,

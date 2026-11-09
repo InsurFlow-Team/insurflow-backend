@@ -77,6 +77,8 @@ describe('Claim Read Endpoints', () => {
       role: 'FIELD_ADJUSTER',
       organizationId: org1._id,
       status: 'ACTIVE',
+      surveyorLicenseNumber: 'LIC-ADJ-1',
+      surveyorLicenseExpiry: '2099-12-31',
     });
     tokenAdjuster = generateToken(adjuster1);
 
@@ -498,5 +500,264 @@ describe('Claim Read Endpoints', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.data.incidentDate).toBeNull();
+  });
+
+  // ─── SLA-01: Stage Timing, Status History, and Due Time Tests ───
+  describe('SLA-01 Stage Timing and Status History', () => {
+    it('GET /api/v1/claims/:claimId returns statusEnteredAt, statusDueAt, and statusHistory via real transitions', async () => {
+      // 1. Create -> NEW
+      const createRes = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${tokenOfficer}`)
+        .send({
+          policyId: policy1._id.toString(),
+          plateNumber: 'ABC-123',
+          incidentType: 'COLLISION',
+          incidentLocation: 'Street A',
+          incidentDate: '2026-06-15',
+        });
+      expect(createRes.status).toBe(201);
+      const claimId = createRes.body.data.id;
+
+      // 2. Assign -> PENDING_ACCEPTANCE
+      const assignRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/assign`)
+        .set('Authorization', `Bearer ${tokenOfficer}`)
+        .send({ adjusterId: adjuster1._id.toString() });
+      expect(assignRes.status).toBe(200);
+
+      // 3. Accept -> ASSIGNED
+      const acceptRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/accept-assignment`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`)
+        .send({});
+      expect(acceptRes.status).toBe(200);
+
+      // 4. Start inspection -> IN_PROGRESS
+      const startRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/inspection/start`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`);
+      expect(startRes.status).toBe(200);
+
+      // Detail fetch
+      const getRes = await request(app)
+        .get(`/api/v1/claims/${claimId}`)
+        .set('Authorization', `Bearer ${tokenOfficer}`);
+      expect(getRes.status).toBe(200);
+      const data = getRes.body.data;
+
+      expect(data.status).toBe('IN_PROGRESS');
+      expect(data.statusEnteredAt).toBeDefined();
+      expect(data.statusDueAt).toBeDefined();
+      expect(Array.isArray(data.statusHistory)).toBe(true);
+      expect(data.statusHistory.length).toBe(4);
+
+      expect(data.statusHistory.map((h) => h.status)).toEqual([
+        'NEW',
+        'PENDING_ACCEPTANCE',
+        'ASSIGNED',
+        'IN_PROGRESS',
+      ]);
+      expect(data.statusHistory[0].action).toBe('Claim Created');
+      expect(data.statusHistory[3].action).toBe('Inspection Started');
+      expect(data.statusHistory[3].enteredAt).toBe(data.statusEnteredAt);
+      expect(data.statusHistory[3].exitedAt).toBeNull();
+
+      // IN_PROGRESS default threshold is 48 hours
+      const enteredTime = new Date(data.statusEnteredAt).getTime();
+      const expectedDue = new Date(enteredTime + 48 * 3600 * 1000).toISOString();
+      expect(new Date(data.statusDueAt).toISOString()).toBe(expectedDue);
+    });
+
+    it('GET /api/v1/claims list items return statusEnteredAt and statusDueAt matching detail values', async () => {
+      // Create a claim
+      const createRes = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${tokenOfficer}`)
+        .send({
+          policyId: policy1._id.toString(),
+          plateNumber: 'ABC-123',
+          incidentType: 'COLLISION',
+          incidentLocation: 'Street A',
+          incidentDate: '2026-06-15',
+        });
+      const claimId = createRes.body.data.id;
+
+      const [listRes, detailRes] = await Promise.all([
+        request(app).get('/api/v1/claims').set('Authorization', `Bearer ${tokenOfficer}`),
+        request(app).get(`/api/v1/claims/${claimId}`).set('Authorization', `Bearer ${tokenOfficer}`),
+      ]);
+
+      expect(listRes.status).toBe(200);
+      expect(detailRes.status).toBe(200);
+
+      const listItem = listRes.body.data.find((c) => c.id === claimId);
+      expect(listItem).toBeDefined();
+      expect(listItem.statusEnteredAt).toBe(detailRes.body.data.statusEnteredAt);
+      expect(listItem.statusDueAt).toBe(detailRes.body.data.statusDueAt);
+
+      // Verify list does NOT include timeline or statusHistory
+      expect(listItem.timeline).toBeUndefined();
+      expect(listItem.statusHistory).toBeUndefined();
+      expect('timeline' in listItem).toBe(false);
+      expect('statusHistory' in listItem).toBe(false);
+    });
+
+    it('correction loop driven through real endpoints asserts statusHistory order and second Review Started timestamp', async () => {
+      // 1. Create -> NEW
+      const createRes = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${tokenOfficer}`)
+        .send({
+          policyId: policy1._id.toString(),
+          plateNumber: 'ABC-123',
+          incidentType: 'COLLISION',
+          incidentLocation: 'Street A',
+          incidentDate: '2026-06-15',
+        });
+      expect(createRes.status).toBe(201);
+      const claimId = createRes.body.data.id;
+
+      // 2. Assign -> PENDING_ACCEPTANCE
+      const assignRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/assign`)
+        .set('Authorization', `Bearer ${tokenOfficer}`)
+        .send({ adjusterId: adjuster1._id.toString() });
+      expect(assignRes.status).toBe(200);
+
+      // 3. Accept -> ASSIGNED
+      const acceptRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/accept-assignment`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`)
+        .send({});
+      expect(acceptRes.status).toBe(200);
+
+      // 4. Start inspection -> IN_PROGRESS
+      const startRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/inspection/start`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`);
+      expect(startRes.status).toBe(200);
+
+      // 5. Fill vehicle, accident, location, evidence, signature for inspection completeness
+      const vehicleRes = await request(app)
+        .put(`/api/v1/claims/${claimId}/vehicle`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`)
+        .send({
+          vehicleId: vehicle1._id,
+          policyId: policy1._id,
+          customerId: customer1._id,
+          plateNumber: 'ABC-123',
+        });
+      expect(vehicleRes.status).toBe(200);
+
+      const accidentRes = await request(app)
+        .put(`/api/v1/claims/${claimId}/accident`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`)
+        .send({
+          accidentType: 'COLLISION',
+          accidentDate: '2026-06-15',
+          accidentTime: '10:00',
+          description: 'Accident description',
+          damageDescription: 'Damage description',
+        });
+      expect(accidentRes.status).toBe(200);
+
+      const locationRes = await request(app)
+        .put(`/api/v1/claims/${claimId}/location`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`)
+        .send({
+          latitude: 31.9,
+          longitude: 35.2,
+          address: 'Ramallah',
+          capturedAt: new Date().toISOString(),
+        });
+      expect(locationRes.status).toBe(200);
+
+      await Claim.findByIdAndUpdate(claimId, {
+        evidence: [
+          {
+            imageType: 'DAMAGE_CLOSEUP',
+            url: 'https://res.cloudinary.com/test/photo.jpg',
+            publicId: 'pid1',
+            uploadedBy: adjuster1._id,
+          },
+        ],
+        signature: {
+          url: 'https://res.cloudinary.com/test/sig.png',
+          publicId: 'sig1',
+          capturedBy: adjuster1._id,
+          capturedAt: new Date(),
+        },
+      });
+
+      // 6. Submit inspection -> SUBMITTED
+      const submitRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/inspection/submit`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`);
+      expect(submitRes.status).toBe(200);
+
+      // 7. Start review 1 -> UNDER_REVIEW
+      const review1Res = await request(app)
+        .post(`/api/v1/claims/${claimId}/review/start`)
+        .set('Authorization', `Bearer ${tokenOfficer}`);
+      expect(review1Res.status).toBe(200);
+
+      // 8. Request correction -> CORRECTION_REQUIRED
+      const correctionRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/review/request-correction`)
+        .set('Authorization', `Bearer ${tokenOfficer}`)
+        .send({ notes: 'Please inspect undercarriage' });
+      expect(correctionRes.status).toBe(200);
+
+      // 9. Resume inspection (start again) -> IN_PROGRESS
+      const resumeRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/inspection/start`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`);
+      expect(resumeRes.status).toBe(200);
+
+      // 10. Resubmit inspection -> SUBMITTED
+      const resubmitRes = await request(app)
+        .post(`/api/v1/claims/${claimId}/inspection/submit`)
+        .set('Authorization', `Bearer ${tokenAdjuster}`);
+      expect(resubmitRes.status).toBe(200);
+
+      // 11. Start review 2 -> UNDER_REVIEW
+      const review2Res = await request(app)
+        .post(`/api/v1/claims/${claimId}/review/start`)
+        .set('Authorization', `Bearer ${tokenOfficer}`);
+      expect(review2Res.status).toBe(200);
+
+      // Detail fetch
+      const getRes = await request(app)
+        .get(`/api/v1/claims/${claimId}`)
+        .set('Authorization', `Bearer ${tokenOfficer}`);
+
+      expect(getRes.status).toBe(200);
+      const data = getRes.body.data;
+      expect(data.status).toBe('UNDER_REVIEW');
+
+      // Assert statusHistory statuses in order (10 entries)
+      expect(data.statusHistory.map((h) => h.status)).toEqual([
+        'NEW',
+        'PENDING_ACCEPTANCE',
+        'ASSIGNED',
+        'IN_PROGRESS',
+        'SUBMITTED',
+        'UNDER_REVIEW',
+        'CORRECTION_REQUIRED',
+        'IN_PROGRESS',
+        'SUBMITTED',
+        'UNDER_REVIEW',
+      ]);
+
+      const secondReviewEntry = data.statusHistory[9];
+      expect(secondReviewEntry.action).toBe('Review Started');
+      expect(secondReviewEntry.exitedAt).toBeNull();
+      expect(data.statusEnteredAt).toBe(secondReviewEntry.enteredAt);
+
+      // UNDER_REVIEW threshold is 120 hours
+      const expectedDue = new Date(new Date(secondReviewEntry.enteredAt).getTime() + 120 * 3600 * 1000).toISOString();
+      expect(new Date(data.statusDueAt).toISOString()).toBe(expectedDue);
+    });
   });
 });

@@ -8,6 +8,68 @@ const create = async (data) => {
 };
 
 
+const CLAIM_LIST_PROJECTION = {
+  claimNumber: 1,
+  status: 1,
+  'customer.name': 1,
+  'vehicle.plateNumber': 1,
+  incidentType: 1,
+  createdAt: 1,
+  assignedTo: 1,
+  incidentCoordinates: 1,
+  statusEnteredAt: {
+    $let: {
+      vars: {
+        matchingTransitions: {
+          $filter: {
+            input: { $ifNull: ['$timeline', []] },
+            as: 'evt',
+            cond: {
+              $and: [
+                { $ne: ['$$evt.newStatus', null] },
+                { $ne: ['$$evt.newStatus', '$$evt.previousStatus'] },
+                { $eq: ['$$evt.newStatus', '$status'] },
+              ],
+            },
+          },
+        },
+      },
+      in: {
+        $cond: [
+          { $gt: [{ $size: '$$matchingTransitions' }, 0] },
+          { $arrayElemAt: ['$$matchingTransitions.timestamp', -1] },
+          {
+            $cond: [
+              { $eq: ['$status', 'NEW'] },
+              {
+                $let: {
+                  vars: {
+                    createdEvts: {
+                      $filter: {
+                        input: { $ifNull: ['$timeline', []] },
+                        as: 'evt',
+                        cond: { $eq: ['$$evt.action', 'Claim Created'] },
+                      },
+                    },
+                  },
+                  in: {
+                    $cond: [
+                      { $gt: [{ $size: '$$createdEvts' }, 0] },
+                      { $arrayElemAt: ['$$createdEvts.timestamp', 0] },
+                      '$createdAt',
+                    ],
+                  },
+                },
+              },
+              null,
+            ],
+          },
+        ],
+      },
+    },
+  },
+};
+
 const findByOrganization = async (organizationId, filter = {}, pagination = {}) => {
   const { page = 1, limit = 50 } = pagination;
   const skip = (page - 1) * limit;
@@ -25,7 +87,7 @@ const findByOrganization = async (organizationId, filter = {}, pagination = {}) 
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo incidentCoordinates')
+      .select(CLAIM_LIST_PROJECTION)
       .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -45,7 +107,7 @@ const findByAssignee = async (organizationId, userId, status, pagination = {}) =
   const [totalCount, claims] = await Promise.all([
     Claim.countDocuments(query),
     Claim.find(query)
-      .select('claimNumber status customer.name vehicle.plateNumber incidentType createdAt assignedTo incidentCoordinates')
+      .select(CLAIM_LIST_PROJECTION)
       .populate('assignedTo', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -643,6 +705,7 @@ const findPaymentsByClaimId = async (claimId, organizationId) => {
 };
 
 module.exports = {
+  CLAIM_LIST_PROJECTION,
   create,
   findByOrganization,
   findByAssignee,

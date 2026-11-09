@@ -247,6 +247,9 @@ describe('API Contract Keys — Sorted Key Sets', () => {
         'policy',
         'signature',
         'status',
+        'statusDueAt',
+        'statusEnteredAt',
+        'statusHistory',
         'subjectRef',
         'timeline',
         'trackingToken',
@@ -318,10 +321,39 @@ describe('API Contract Keys — Sorted Key Sets', () => {
         'policy',
         'signature',
         'status',
+        'statusDueAt',
+        'statusEnteredAt',
+        'statusHistory',
         'subjectRef',
         'timeline',
         'updatedAt',
         'vehicle',
+      ].sort()
+    );
+  });
+
+  // 5b. GET /claims list item data key set
+  it('5b. GET /claims list item data key set', async () => {
+    const res = await request(app)
+      .get('/api/v1/claims')
+      .set('Authorization', `Bearer ${officerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    const item = res.body.data[0];
+    expect(Object.keys(item).sort()).toEqual(
+      [
+        'assignedTo',
+        'claimNumber',
+        'createdAt',
+        'customerName',
+        'fieldAdjuster',
+        'id',
+        'incidentCoordinates',
+        'initialPlateNumber',
+        'status',
+        'statusDueAt',
+        'statusEnteredAt',
       ].sort()
     );
   });
