@@ -1522,6 +1522,53 @@ const decideClaim = async (claimId, body, authUser) => {
   };
 };
 
+const formatClosedClaimResponse = (claim) => ({
+  id: claim._id,
+  claimNumber: claim.claimNumber,
+  status: claim.status,
+  closedBy: claim.closedBy,
+  closedAt: claim.closedAt,
+  closingNotes: claim.closingNotes,
+});
+
+const diagnoseCloseFailure = async (claimId, organizationId) => {
+  const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!existing) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+  if (existing.status === 'CLOSED') {
+    return { replay: true, claim: existing };
+  }
+  if (existing.status !== 'APPROVED') {
+    throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+  }
+  if (typeof existing.lossAssessment?.netApprovedPayout !== 'number') {
+    throw new AppError('Claim has no approved amount', 422, 'PAYMENT_INCOMPLETE');
+  }
+  const paidIndemnity = existing.paidTotals?.indemnity || 0;
+  const netPayout = existing.lossAssessment.netApprovedPayout;
+  if (paidIndemnity < netPayout) {
+    const remainingMinor = netPayout - paidIndemnity;
+    const remainingMajor = fromMinor(remainingMinor, config.currency);
+    throw new AppError(
+      `Claim cannot be closed before indemnity is paid in full. Remaining: ${remainingMajor.toFixed(2)} ${config.currency}`,
+      422,
+      'PAYMENT_INCOMPLETE'
+    );
+  }
+  const activeOrder = (existing.repairOrders || []).find((ro) =>
+    Claim.ACTIVE_REPAIR_ORDER_STATUSES.includes(ro.status)
+  );
+  if (activeOrder) {
+    throw new AppError(
+      `Claim cannot be closed while repair order ${activeOrder.orderNumber} is ${activeOrder.status}`,
+      422,
+      'REPAIR_ORDER_ACTIVE'
+    );
+  }
+  return { replay: false, claim: existing };
+};
+
 const closeClaim = async (claimId, body, authUser) => {
   const { closingNotes } = body || {};
   const { userId, role, organizationId } = authUser;
@@ -1537,7 +1584,7 @@ const closeClaim = async (claimId, body, authUser) => {
     timestamp: new Date(),
   };
 
-  const updatedClaim = await claimRepository.closeClaim(
+  let updatedClaim = await claimRepository.closeClaim(
     claimId,
     organizationId,
     userId,
@@ -1545,40 +1592,38 @@ const closeClaim = async (claimId, body, authUser) => {
     timelineEvent
   );
 
-  if (!updatedClaim) {
-    // Atomic query failed: check if claim exists to give specific error
-    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
-    if (!existing) {
-      throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
-    }
-    if (existing.status !== 'APPROVED') {
-      throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
-    }
-    if (typeof existing.lossAssessment?.netApprovedPayout !== 'number') {
-      throw new AppError('Claim has no approved amount', 422, 'PAYMENT_INCOMPLETE');
-    }
-    const paidIndemnity = existing.paidTotals?.indemnity || 0;
-    const netPayout = existing.lossAssessment.netApprovedPayout;
-    if (paidIndemnity < netPayout) {
-      const remainingMinor = netPayout - paidIndemnity;
-      const remainingMajor = fromMinor(remainingMinor, config.currency);
-      throw new AppError(
-        `Claim cannot be closed before indemnity is paid in full. Remaining: ${remainingMajor.toFixed(2)} ${config.currency}`,
-        422,
-        'PAYMENT_INCOMPLETE'
-      );
-    }
-    throw new AppError('Claim is not in APPROVED status', 409, 'INVALID_STATUS_TRANSITION');
+  if (updatedClaim) {
+    return formatClosedClaimResponse(updatedClaim);
   }
 
-  return {
-    id: updatedClaim._id,
-    claimNumber: updatedClaim.claimNumber,
-    status: updatedClaim.status,
-    closedBy: updatedClaim.closedBy,
-    closedAt: updatedClaim.closedAt,
-    closingNotes: updatedClaim.closingNotes,
-  };
+  const diagnosis = await diagnoseCloseFailure(claimId, organizationId);
+  if (diagnosis.replay) {
+    return formatClosedClaimResponse(diagnosis.claim);
+  }
+
+  // Retry atomic close exactly once
+  updatedClaim = await claimRepository.closeClaim(
+    claimId,
+    organizationId,
+    userId,
+    closingNotes || null,
+    timelineEvent
+  );
+
+  if (updatedClaim) {
+    return formatClosedClaimResponse(updatedClaim);
+  }
+
+  const secondDiagnosis = await diagnoseCloseFailure(claimId, organizationId);
+  if (secondDiagnosis.replay) {
+    return formatClosedClaimResponse(secondDiagnosis.claim);
+  }
+
+  throw new AppError(
+    'Close conflict detected. Please reload and retry.',
+    409,
+    'CLOSE_CONFLICT'
+  );
 };
 
 /**

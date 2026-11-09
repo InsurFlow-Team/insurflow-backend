@@ -388,6 +388,13 @@ const closeClaim = async (claimId, organizationId, closedBy, closingNotes, timel
         '$lossAssessment.netApprovedPayout',
       ],
     },
+    repairOrders: {
+      $not: {
+        $elemMatch: {
+          status: { $in: Claim.ACTIVE_REPAIR_ORDER_STATUSES },
+        },
+      },
+    },
   };
 
   return await Claim.findOneAndUpdate(
