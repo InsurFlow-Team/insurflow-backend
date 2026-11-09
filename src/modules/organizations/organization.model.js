@@ -14,6 +14,80 @@ const organizationSchema = new mongoose.Schema({
     uppercase: true,
   },
   settings: {
+    statusSlaHours: {
+      NEW: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.NEW must be an integer',
+        },
+      },
+      PENDING_ACCEPTANCE: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.PENDING_ACCEPTANCE must be an integer',
+        },
+      },
+      ASSIGNED: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.ASSIGNED must be an integer',
+        },
+      },
+      IN_PROGRESS: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.IN_PROGRESS must be an integer',
+        },
+      },
+      SUBMITTED: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.SUBMITTED must be an integer',
+        },
+      },
+      UNDER_REVIEW: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.UNDER_REVIEW must be an integer',
+        },
+      },
+      CORRECTION_REQUIRED: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.CORRECTION_REQUIRED must be an integer',
+        },
+      },
+      APPROVED: {
+        type: Number,
+        min: 1,
+        default: null,
+        validate: {
+          validator: (v) => v === null || Number.isInteger(v),
+          message: 'statusSlaHours.APPROVED must be an integer',
+        },
+      },
+    },
     vatRatePercent: {
       type: Number,
       min: 0,
