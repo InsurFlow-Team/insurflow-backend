@@ -30,6 +30,7 @@ const {
   recordPaymentSchema,
   reversePaymentSchema,
   paymentParamsSchema,
+  rotateTrackingTokenSchema,
 } = require('./claim.validation');
 
 const router = express.Router();
@@ -68,6 +69,15 @@ router.get(
   authorizeRole(['CLAIMS_OFFICER', 'FIELD_ADJUSTER', 'ADMIN']),
   validateObjectId('claimId'),
   claimController.getClaimById
+);
+
+// POST /api/v1/claims/:claimId/tracking-token/rotate - Rotate public tracking link
+router.post(
+  '/:claimId/tracking-token/rotate',
+  authorizeRole(['CLAIMS_OFFICER', 'ADMIN']),
+  validateObjectId('claimId'),
+  validate(rotateTrackingTokenSchema),
+  claimController.rotateTrackingToken
 );
 
 // POST /api/v1/claims/:claimId/assign — Assign claim to adjuster

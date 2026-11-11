@@ -14,7 +14,7 @@ const AppError = require('../../utils/appError');
 const uploadToCloudinary = require('../../utils/uploadToCloudinary');
 const maskPlateNumber = require('../../utils/maskPlateNumber');
 const { maskIdNumber } = require('../../utils/maskPii');
-const { PUBLIC_STATUS_MAP, PUBLIC_STATUS_RANK, PUBLIC_TIMELINE_TEXT } = require('./claim.public.constants');
+const { PUBLIC_STATUS_MAP, PUBLIC_STATUS_RANK, PUBLIC_TIMELINE_TEXT, TRACKING_LINK_DAYS_AFTER_FINAL } = require('./claim.public.constants');
 const { generateClaimReportPdf } = require('./claim.report.builder');
 const { createAndSendNotification, sendToOrganization } = require('../notifications/notification.service');
 const config = require('../../config/env');
@@ -45,6 +45,10 @@ const getNotificationActor = async (userId, organizationId) => {
   } catch (err) {
     return null;
   }
+};
+
+const generateTrackingToken = () => {
+  return crypto.randomBytes(32).toString('hex');
 };
 
 const buildTrackingUrl = (token) => {
@@ -189,7 +193,7 @@ const insertClaim = async (claimFields, incident, claimType = 'OWN_DAMAGE', auth
     policyId: claimFields.policy._id,
     coverageSnapshot: claimFields.coverageSnapshot,
     status: 'NEW',
-    trackingToken: crypto.randomBytes(32).toString('hex'),
+    trackingToken: generateTrackingToken(),
 
     customer: {
       name: claimFields.customerName,
@@ -1844,6 +1848,41 @@ const getClaimReport = async (claimId, authUser) => {
 // ─── Public Claim Tracking ────────────────────────────────────────────────────
 
 /**
+ * Determines whether a tracking link has expired based on final decision time.
+ * Links expire 60 calendar days after reaching CLOSED or REJECTED.
+ *
+ * @param {Object} claim - Claim document
+ * @param {Date} [now=new Date()] - Reference timestamp
+ * @returns {boolean} True if expired, false otherwise
+ */
+const isTrackingLinkExpired = (claim, now = new Date()) => {
+  if (!claim || (claim.status !== 'CLOSED' && claim.status !== 'REJECTED')) {
+    return false;
+  }
+
+  const statusEnteredAt = resolveStatusEnteredAt(claim.status, claim.timeline, claim.createdAt);
+  const finalDecisionAt = statusEnteredAt || (claim.status === 'CLOSED' ? claim.closedAt : null);
+
+  if (!finalDecisionAt) {
+    return false;
+  }
+
+  const decisionTime = finalDecisionAt instanceof Date
+    ? finalDecisionAt.getTime()
+    : new Date(finalDecisionAt).getTime();
+
+  if (Number.isNaN(decisionTime)) {
+    return false;
+  }
+
+  const expiryMs = TRACKING_LINK_DAYS_AFTER_FINAL * 24 * 60 * 60 * 1000;
+  const expiresAt = decisionTime + expiryMs;
+
+  const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  return nowTime >= expiresAt;
+};
+
+/**
  * Retrieves the public-facing status and progress of a claim by its tracking token.
  * Returns a sanitized DTO containing only customer-facing status, masked vehicle, and timeline.
  *
@@ -1854,6 +1893,14 @@ const getPublicClaimStatus = async (trackingToken) => {
   const claim = await claimRepository.findByTrackingToken(trackingToken);
   if (!claim) {
     return null;
+  }
+
+  if (isTrackingLinkExpired(claim)) {
+    throw new AppError(
+      'انتهت صلاحية رابط التتبع. يرجى التواصل مع شركة التأمين.',
+      410,
+      'TRACKING_LINK_EXPIRED'
+    );
   }
 
   const publicStatus = PUBLIC_STATUS_MAP[claim.status] || {
@@ -1891,7 +1938,7 @@ const getPublicClaimStatus = async (trackingToken) => {
   let highestRank = PUBLIC_STATUS_RANK.RECEIVED;
 
   for (const event of events) {
-    if (!event.newStatus) {
+    if (!event.newStatus || event.newStatus === event.previousStatus) {
       continue;
     }
     const mapped = PUBLIC_STATUS_MAP[event.newStatus];
@@ -3358,10 +3405,67 @@ const getPayments = async (claimId, authUser) => {
   };
 };
 
+/**
+ * Rotates a claim's public tracking token and pushes a timeline audit event.
+ * Invalidates the old token immediately. Allowed in every status.
+ *
+ * @param {string} claimId
+ * @param {Object} body - Request body { reason }
+ * @param {Object} authUser - JWT user { userId, role, organizationId }
+ * @returns {Promise<Object>} { trackingToken, trackingUrl }
+ */
+const rotateTrackingToken = async (claimId, body, authUser) => {
+  const { reason } = body;
+  const { userId, role, organizationId } = authUser;
+
+  const trimmedReason = typeof reason === 'string' ? reason.trim() : reason;
+
+  let newToken = generateTrackingToken();
+  let updatedClaim = null;
+
+  try {
+    updatedClaim = await claimRepository.rotateTrackingToken(
+      claimId,
+      organizationId,
+      newToken,
+      trimmedReason,
+      userId,
+      role
+    );
+  } catch (err) {
+    if (err.code === 11000) {
+      // Retry once on unique index collision
+      newToken = generateTrackingToken();
+      updatedClaim = await claimRepository.rotateTrackingToken(
+        claimId,
+        organizationId,
+        newToken,
+        trimmedReason,
+        userId,
+        role
+      );
+    } else {
+      throw err;
+    }
+  }
+
+  if (!updatedClaim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  return {
+    trackingToken: updatedClaim.trackingToken,
+    trackingUrl: buildTrackingUrl(updatedClaim.trackingToken),
+  };
+};
+
 module.exports = {
   assertPolicyCoverage,
   getEligibleClaimantParties,
+  generateTrackingToken,
   buildTrackingUrl,
+  isTrackingLinkExpired,
+  rotateTrackingToken,
   resolveClaimData,
   insertClaim,
   createClaim,

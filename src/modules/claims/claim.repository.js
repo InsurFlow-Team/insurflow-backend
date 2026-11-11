@@ -593,12 +593,63 @@ const declineAssignment = async (claimId, organizationId, assignedTo, timelineEv
 };
 
 /**
+ * Atomically rotates a claim's tracking token and appends a timeline audit event.
+ * Allowed in every status.
+ *
+ * @param {string|ObjectId} claimId
+ * @param {string|ObjectId} organizationId
+ * @param {string} newToken
+ * @param {string} reason
+ * @param {string|ObjectId} userId
+ * @param {string} role
+ * @returns {Promise<Object|null>} Updated claim document (lean) or null
+ */
+const rotateTrackingToken = async (claimId, organizationId, newToken, reason, userId, role) => {
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const now = new Date();
+
+  const filter = {
+    _id: claimId,
+    organizationId,
+  };
+
+  const pipeline = [
+    {
+      $set: {
+        trackingToken: { $literal: newToken },
+        timeline: {
+          $concatArrays: [
+            { $ifNull: ['$timeline', []] },
+            [
+              {
+                action: { $literal: 'Tracking Link Rotated' },
+                previousStatus: '$status',
+                newStatus: '$status',
+                notes: { $literal: reason },
+                performedBy: { $literal: userObjectId },
+                role: { $literal: role },
+                timestamp: { $literal: now },
+              },
+            ],
+          ],
+        },
+      },
+    },
+  ];
+
+  return await Claim.findOneAndUpdate(filter, pipeline, {
+    returnDocument: 'after',
+    updatePipeline: true,
+  }).lean();
+};
+
+/**
  * Finds a claim by its public tracking token.
  * Populates vehicle details for public status display and selects only needed fields.
  */
 const findByTrackingToken = async (trackingToken) => {
   return await Claim.findOne({ trackingToken })
-    .select('claimNumber status vehicle timeline createdAt')
+    .select('claimNumber status vehicle timeline createdAt closedAt')
     .populate({
       path: 'vehicle.vehicleId',
       select: 'plateNumber make model year',
@@ -728,6 +779,7 @@ module.exports = {
   getClaimStats,
   findForReport,
   findByTrackingToken,
+  rotateTrackingToken,
   findByIncidentId,
   addEstimate,
   approveEstimate,
