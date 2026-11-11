@@ -275,6 +275,12 @@ const getPayments = async (req, res) => {
   return res.status(200).json(successResponse('Payments retrieved successfully', result));
 };
 
+const rotateTrackingToken = async (req, res) => {
+  const { claimId } = req.params;
+  const result = await claimService.rotateTrackingToken(claimId, req.body, req.user);
+  return res.status(200).json(successResponse('Tracking token rotated successfully', result));
+};
+
 module.exports = {
   createClaim: asyncWrapper(createClaim),
   assignClaim: asyncWrapper(assignClaim),
@@ -311,5 +317,6 @@ module.exports = {
   recordPayment: asyncWrapper(recordPayment),
   reversePayment: asyncWrapper(reversePayment),
   getPayments: asyncWrapper(getPayments),
+  rotateTrackingToken: asyncWrapper(rotateTrackingToken),
 };
 

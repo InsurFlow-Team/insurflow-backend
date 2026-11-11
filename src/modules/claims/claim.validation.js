@@ -671,6 +671,21 @@ const paymentParamsSchema = Joi.object({
   }),
 });
 
+const rotateTrackingTokenSchema = Joi.object({
+  reason: Joi.string()
+    .trim()
+    .min(10)
+    .max(300)
+    .required()
+    .messages({
+      'string.base': 'Reason must be a string',
+      'string.empty': 'Reason is required and cannot be empty',
+      'string.min': 'Reason must be at least 10 characters long',
+      'string.max': 'Reason cannot exceed 300 characters',
+      'any.required': 'Reason is required',
+    }),
+});
+
 module.exports = {
   createClaimSchema,
   assignClaimSchema,
@@ -696,6 +711,7 @@ module.exports = {
   recordPaymentSchema,
   reversePaymentSchema,
   paymentParamsSchema,
+  rotateTrackingTokenSchema,
 };
 
 
