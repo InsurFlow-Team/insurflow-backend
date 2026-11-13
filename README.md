@@ -24,7 +24,7 @@ Each module holds routes, controller, service, repository, model and validation 
 - Atomic state changes: one `findOneAndUpdate` checks tenant, expected status and owner in the same query.
 - Roles: Admin, Claims Officer and Field Adjuster.
 - Map-based dispatch with a workload cap of 3 active claims per adjuster.
-- 387 automated tests across 27 suites.
+- 1248 automated tests across 63 suites (full run, 11 Nov 2026).
 
 ## Run
 
