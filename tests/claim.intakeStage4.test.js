@@ -289,6 +289,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Gardens St',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -308,6 +310,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Amman Highway',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -333,6 +337,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Amman Highway',
           incidentDate: '2024-06-15', // before policy start 2025-01-01
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(422);
@@ -350,6 +356,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Amman Highway',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -367,6 +375,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Amman Highway',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(422);
@@ -384,6 +394,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Downtown',
           incidentDate: '2023-06-15', // inside expiredPolicy period 2022-2023
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -401,6 +413,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Airport Road',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(422);
@@ -420,6 +434,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Amman Highway',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -450,6 +466,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'COLLISION',
           incidentLocation: 'Amman Highway',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(422);
@@ -470,6 +488,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentType: 'COLLISION',
             incidentLocation: 'Mecca St',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
 
         expect(resWithUrl.status).toBe(201);
@@ -486,6 +506,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentType: 'COLLISION',
             incidentLocation: 'Medina St',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
 
         expect(resWithoutUrl.status).toBe(201);
@@ -581,6 +603,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentType: t,
             incidentLocation: 'Ramallah',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
         expect(res.status).toBe(201);
         expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');
@@ -595,6 +619,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'OTHER',
           incidentLocation: 'Ramallah',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(resOther.status).toBe(201);
       expect(resOther.body.data.eligibilityHint).toBeNull();
@@ -612,6 +638,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentType: t,
             incidentLocation: 'Ramallah',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
         expect(res.status).toBe(422);
         expect(res.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
@@ -626,6 +654,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'OTHER',
           incidentLocation: 'Ramallah',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(resOther.status).toBe(422);
       expect(resOther.body.errors[0].code).toBe('COVERAGE_NOT_APPLICABLE');
@@ -644,6 +674,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentType: t,
             incidentLocation: 'Ramallah',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
         expect(res.status).toBe(201);
         expect(res.body.data.eligibilityHint).toBe('NOT_COVERED_BY_POLICY_TYPE');
@@ -658,6 +690,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           incidentType: 'OTHER',
           incidentLocation: 'Ramallah',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(resOther.status).toBe(201);
       expect(resOther.body.data.eligibilityHint).toBeNull();
@@ -675,6 +709,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
             incidentType: peril,
             incidentLocation: 'Ramallah',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
         expect(res.status).toBe(201);
         expect(res.body.data.eligibilityHint).toBe('ELIGIBLE_FOR_REVIEW');

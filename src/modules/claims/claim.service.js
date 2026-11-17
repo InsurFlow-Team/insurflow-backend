@@ -885,14 +885,12 @@ const assignClaim = async (claimId, body, authUser) => {
       body: isOverride
         ? `You have a new claim assignment pending your acceptance (capacity override): ${updatedClaim.claimNumber}.`
         : `You have a new claim assignment pending your acceptance: ${updatedClaim.claimNumber}.`,
-    };
-    if (isOverride) {
-      notifPayload.params = {
+      params: {
         actor,
-        reason: cleanReason,
+        reason: isOverride ? cleanReason : null,
         notes: notes || null,
-      };
-    }
+      },
+    };
     await createAndSendNotification(notifPayload);
   } catch (err) {
     console.error('Failed to send notification for claim assignment:', err);

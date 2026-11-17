@@ -13,6 +13,7 @@ const { isAssignmentExpired, isLocationStale } = require('../src/utils/assignmen
 const { governorateCenters, demoCoordinatesFor } = require('../src/scripts/demo/governorateCenters');
 const { GOVERNORATES } = require('../src/utils/governorates');
 const Notification = require('../src/modules/notifications/notification.model');
+const claimRepository = require('../src/modules/claims/claim.repository');
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -988,6 +989,115 @@ describe('ASG-01: Assignment Hardening Integration & Unit Tests', () => {
       expect(target).toBeDefined();
       expect(target.activeTasksCount).toBe(3);
       expect(target.availability).toBe('UNAVAILABLE');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ASG-01-fix-01: Fixes F1, F3, F4
+  // ─────────────────────────────────────────────────────────────────────────────
+  describe('ASG-01-fix-01: Fixes F1, F3, F4', () => {
+    it('[FIX-F1] POST /claims without latitude gives 400 VALIDATION_ERROR; without longitude gives 400', async () => {
+      const basePayload = {
+        policyId: testPolicy1._id.toString(),
+        plateNumber: 'INT-1111',
+        incidentDate: '2025-06-15',
+        incidentType: 'COLLISION',
+        incidentLocation: 'Ramallah Main St',
+      };
+
+      const noLatRes = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officer1Token}`)
+        .send({
+          ...basePayload,
+          longitude: 35.2034,
+        });
+
+      expect(noLatRes.status).toBe(400);
+      expect(noLatRes.body.success).toBe(false);
+      expect(noLatRes.body.errors[0].code).toBe('VALIDATION_ERROR');
+
+      const noLngRes = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officer1Token}`)
+        .send({
+          ...basePayload,
+          latitude: 31.9038,
+        });
+
+      expect(noLngRes.status).toBe(400);
+      expect(noLngRes.body.success).toBe(false);
+      expect(noLngRes.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+
+    it('[FIX-F3] The reassign filter rejects a claim whose assignedTo changed between the read and the write', async () => {
+      const claim = await createTestClaim({
+        status: 'PENDING_ACCEPTANCE',
+        assignedTo: adjuster1._id,
+        acceptanceDueAt: new Date(Date.now() - 10000),
+      });
+
+      const wrongAssigneeId = new mongoose.Types.ObjectId();
+      const now = new Date();
+      const updateData = {
+        assignedTo: adjuster2._id,
+        assignedBy: officer1._id,
+        assignedAt: now,
+        acceptanceDueAt: new Date(now.getTime() + 5 * 60 * 1000),
+        status: 'PENDING_ACCEPTANCE',
+        priority: 'MEDIUM',
+        assignmentNotes: 'Reassigned notes',
+        capacityOverride: null,
+        timelineEvents: [{
+          action: 'Assignment Pending Acceptance',
+          previousStatus: 'PENDING_ACCEPTANCE',
+          newStatus: 'PENDING_ACCEPTANCE',
+          notes: 'Reassigned notes',
+          performedBy: officer1._id,
+          role: 'CLAIMS_OFFICER',
+          timestamp: now,
+        }],
+      };
+
+      const result = await claimRepository.reassignExpiredClaim(
+        claim._id,
+        org1._id,
+        wrongAssigneeId,
+        now,
+        updateData
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('[FIX-F4] A normal assign creates a notification with params.actor set, params.reason null, params.notes equal to the sent notes', async () => {
+      const claim = await createTestClaim();
+      const sentNotes = 'Normal assignment without override notes';
+
+      const res = await request(app)
+        .post(`/api/v1/claims/${claim._id}/assign`)
+        .set('Authorization', `Bearer ${officer1Token}`)
+        .send({
+          adjusterId: adjuster1._id.toString(),
+          notes: sentNotes,
+          overrideCapacity: false,
+        });
+
+      expect(res.status).toBe(200);
+
+      const notif = await Notification.findOne({
+        relatedClaimId: claim._id,
+        recipientId: adjuster1._id,
+        type: 'PENDING_ACCEPTANCE',
+      });
+
+      expect(notif).toBeDefined();
+      expect(notif.params).toBeDefined();
+      expect(notif.params.actor).toBeDefined();
+      expect(notif.params.actor.employeeCode).toBe(officer1.employeeCode);
+      expect(notif.params.actor.name).toBe(officer1.name);
+      expect(notif.params.reason).toBeNull();
+      expect(notif.params.notes).toBe(sentNotes);
     });
   });
 });

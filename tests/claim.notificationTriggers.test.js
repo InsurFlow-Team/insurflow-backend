@@ -125,6 +125,14 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         relatedClaimId: claim._id,
         title: 'New Assignment Pending',
         body: `You have a new claim assignment pending your acceptance: ${claim.claimNumber}.`,
+        params: {
+          actor: {
+            employeeCode: 'CO-001',
+            name: 'Claims Officer',
+          },
+          reason: null,
+          notes: null,
+        },
       });
     });
 
@@ -692,7 +700,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
       );
     });
 
-    it('PENDING_ACCEPTANCE, APPROVED and REJECTED pass no params argument', async () => {
+    it('PENDING_ACCEPTANCE passes params with actor (ASG-01 A11); APPROVED and REJECTED pass no params argument', async () => {
       // 1. PENDING_ACCEPTANCE
       const claim1 = await Claim.create({
         organizationId: org._id,
@@ -712,7 +720,11 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
 
       const assignCall = createAndSendNotification.mock.calls.find(c => c[0].type === 'PENDING_ACCEPTANCE');
       expect(assignCall).toBeDefined();
-      expect(assignCall[0].params).toBeUndefined();
+      expect(assignCall[0].params).toEqual({
+        actor: { employeeCode: 'CO-001', name: 'Claims Officer' },
+        reason: null,
+        notes: null,
+      });
 
       // 2. APPROVED
       const claim2 = await Claim.create({

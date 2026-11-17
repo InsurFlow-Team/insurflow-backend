@@ -5,6 +5,7 @@ const app = require('../src/app');
 const Organization = require('../src/modules/organizations/organization.model');
 const User = require('../src/modules/users/user.model');
 const Claim = require('../src/modules/claims/claim.model');
+const Incident = require('../src/modules/incidents/incident.model');
 const jwt = require('jsonwebtoken');
 const config = require('../src/config/env');
 
@@ -243,7 +244,10 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
       expect(claimInDb.location.address).toBeNull();
     });
 
-    it('preserves incidentLocation original text and leaves incidentCoordinates as null when latitude/longitude are omitted', async () => {
+    it('rejects legacy POST /claims with 400 VALIDATION_ERROR when latitude/longitude are omitted (ASG-01 F1)', async () => {
+      const claimCountBefore = await Claim.countDocuments({ organizationId: org1._id });
+      const incidentCountBefore = await Incident.countDocuments({ organizationId: org1._id });
+
       const res = await request(app)
         .post('/api/v1/claims')
         .set('Authorization', `Bearer ${officerToken}`)
@@ -255,14 +259,14 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
           incidentDate: '2026-06-15',
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors.some((e) => e.code === 'VALIDATION_ERROR')).toBe(true);
 
-      const claimInDb = await Claim.findById(res.body.data.id);
-      expect(claimInDb.incidentLocation).toBe('Unknown Street 123');
-      expect(claimInDb.incidentCoordinates).toBeNull();
-      expect(claimInDb.location.latitude).toBeNull();
-      expect(claimInDb.location.longitude).toBeNull();
+      const claimCountAfter = await Claim.countDocuments({ organizationId: org1._id });
+      const incidentCountAfter = await Incident.countDocuments({ organizationId: org1._id });
+      expect(claimCountAfter).toBe(claimCountBefore);
+      expect(incidentCountAfter).toBe(incidentCountBefore);
     });
   });
 

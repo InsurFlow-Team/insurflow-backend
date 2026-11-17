@@ -159,14 +159,11 @@ const findForReport = async (claimId, organizationId) => {
 
 
 const countActiveClaimsByAssignee = async (userId, organizationId) => {
-  const query = {
+  return await Claim.countDocuments({
     assignedTo: userId,
+    organizationId,
     status: { $in: Claim.ACTIVE_ADJUSTER_STATUSES || ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'] },
-  };
-  if (organizationId) {
-    query.organizationId = organizationId;
-  }
-  return await Claim.countDocuments(query);
+  });
 };
 
 const assignClaim = async (claimId, organizationId, updateData) => {
@@ -207,14 +204,12 @@ const reassignExpiredClaim = async (claimId, organizationId, expectedAssignee, n
     _id: claimId,
     organizationId,
     status: 'PENDING_ACCEPTANCE',
+    assignedTo: expectedAssignee,
     $or: [
       { acceptanceDueAt: null },
       { acceptanceDueAt: { $lte: now } },
     ],
   };
-  if (expectedAssignee) {
-    filter.assignedTo = expectedAssignee;
-  }
 
   return await Claim.findOneAndUpdate(
     filter,
