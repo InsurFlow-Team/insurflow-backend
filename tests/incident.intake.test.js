@@ -194,6 +194,8 @@ describe('PB-01a Incident Intake', () => {
         incidentType: 'COLLISION',
         incidentLocation: 'Second Road',
         incidentDate: '2026-06-15',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(res2.status).toBe(201);

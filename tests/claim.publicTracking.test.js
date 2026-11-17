@@ -656,6 +656,8 @@ describe('Public Claim Tracking (Feature 23)', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Test Location',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -1299,6 +1301,8 @@ describe('Public Claim Tracking (Feature 23)', () => {
             incidentType: 'COLLISION',
             incidentLocation: 'Amman Highway',
             incidentDate: '2026-06-15',
+            latitude: 31.9038,
+            longitude: 35.2034,
           });
         expect(createRes.status).toBe(201);
         const claimId = createRes.body.data.id;

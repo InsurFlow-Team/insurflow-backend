@@ -75,8 +75,19 @@ const assignClaimSchema = Joi.object({
       'any.required': 'Adjuster ID is required',
     }),
   priority: Joi.string().valid('LOW', 'MEDIUM', 'HIGH').optional().default('MEDIUM'),
-  notes: Joi.string().trim().optional().allow('', null),
+  notes: Joi.string().trim().max(500).optional().allow('', null).messages({
+    'string.max': 'notes cannot exceed 500 characters',
+  }),
   overrideCapacity: Joi.boolean().optional().default(false),
+  overrideReason: Joi.string().trim().min(10).max(300).optional().allow('', null).messages({
+    'string.min': 'overrideReason must be at least 10 characters',
+    'string.max': 'overrideReason cannot exceed 300 characters',
+  }),
+}).custom((value, helpers) => {
+  if (value.overrideReason && !value.overrideCapacity) {
+    return helpers.message('overrideReason is allowed only when overrideCapacity is true');
+  }
+  return value;
 });
 
 const updateVehicleSchema = Joi.object({

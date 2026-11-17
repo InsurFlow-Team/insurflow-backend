@@ -96,6 +96,8 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
     reportSource: 'NONE',
     injuriesReported: false,
     description: 'Two vehicle collision',
+    latitude: 31.9038,
+    longitude: 35.2034,
     vehicles: [
       {
         vehicleRole: 'INSURED',

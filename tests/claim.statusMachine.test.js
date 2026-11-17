@@ -168,6 +168,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           incidentType: 'COLLISION',
           incidentLocation: 'Downtown',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(createRes.status).toBe(201);
       const claimId = createRes.body.data.id;
@@ -720,6 +722,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           incidentType: 'COLLISION',
           incidentLocation: 'King Fahd Road',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -745,6 +749,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           incidentType: 'COLLISION',
           incidentLocation: 'Olaya Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(403);
@@ -769,6 +775,8 @@ describe('Claim Status Machine Expansion (IN_PROGRESS + Correction Loop)', () =>
           incidentType: 'COLLISION',
           incidentLocation: 'King Fahd Road',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(422);

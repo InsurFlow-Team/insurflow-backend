@@ -1,8 +1,10 @@
 const userRepository = require('./user.repository');
+const User = require('./user.model');
 const claimRepository = require('../claims/claim.repository');
 const { calculateHaversineDistance } = require('../../utils/geo.utils');
 const AppError = require('../../utils/appError');
 const { getLicenseState, LICENSE_STATE } = require('../../utils/surveyorLicense');
+const { isLocationStale } = require('../../utils/assignmentTiming');
 
 const getAdjusters = async (organizationId, options = {}) => {
   const query = typeof options === 'string' ? { status: options } : options;
@@ -33,9 +35,14 @@ const getAdjusters = async (organizationId, options = {}) => {
     }
   }
 
+  const now = new Date();
+  const staleMinutes = User.ADJUSTER_LOCATION_STALE_MINUTES ?? 15;
+
   const adjustersWithDistance = adjusters.map((adj) => {
+    const locationStale = isLocationStale(adj.location, now, staleMinutes);
     let distanceKm = null;
     if (
+      !locationStale &&
       refLat !== null &&
       refLon !== null &&
       adj.location &&
@@ -53,6 +60,8 @@ const getAdjusters = async (organizationId, options = {}) => {
       ...adj,
       latitude: adj.location && typeof adj.location.latitude === 'number' ? adj.location.latitude : null,
       longitude: adj.location && typeof adj.location.longitude === 'number' ? adj.location.longitude : null,
+      locationUpdatedAt: adj.location?.updatedAt ? new Date(adj.location.updatedAt).toISOString() : null,
+      locationStale,
       distanceKm,
       surveyorLicenseExpiry: adj.surveyorLicenseExpiry || null,
       licenseExpiringSoon: getLicenseState(adj) === LICENSE_STATE.EXPIRING_SOON,

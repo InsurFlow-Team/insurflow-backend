@@ -255,7 +255,7 @@ describe('GET /api/v1/users/adjusters', () => {
 
     let a1 = response.body.data.find((a) => a.employeeCode === 'FA-01');
     expect(a1.activeTasksCount).toBe(3);
-    expect(a1.availability).toBe('AVAILABLE'); // 3 or less is available
+    expect(a1.availability).toBe('UNAVAILABLE'); // 3 active tasks is full/unavailable without override
 
     // 2. Add a 4th active claim (> 3)
     await Claim.create({

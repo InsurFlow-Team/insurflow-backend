@@ -599,6 +599,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     const res = await request(app)
@@ -631,6 +632,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     const res = await request(app)
@@ -663,6 +665,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     const res = await request(app)
@@ -684,6 +687,8 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     // 1. Inactive adjuster gives 404 (ADJUSTER_NOT_FOUND) even if license missing
@@ -725,6 +730,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
         customer: { name: `C${i}`, phone: '0599000000' },
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
       });
     }
     const res422 = await request(app)
@@ -755,6 +761,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
         customer: { name: `C${i}`, phone: '0599000000' },
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
       });
     }
     const res409 = await request(app)
@@ -783,10 +790,14 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       policyId: testPolicy._id,
       createdBy: officer1._id,
       assignedTo: expiredAdj._id,
+      assignedBy: officer1._id,
+      assignedAt: new Date(),
+      acceptanceDueAt: new Date(Date.now() + 5 * 60 * 1000),
       status: 'PENDING_ACCEPTANCE',
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     const res = await request(app)
@@ -820,10 +831,14 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       policyId: testPolicy._id,
       createdBy: officer1._id,
       assignedTo: missingAdj._id,
+      assignedBy: officer1._id,
+      assignedAt: new Date(),
+      acceptanceDueAt: new Date(Date.now() + 5 * 60 * 1000),
       status: 'PENDING_ACCEPTANCE',
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     const res = await request(app)
@@ -886,6 +901,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
 
     // Start inspection
@@ -988,6 +1004,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer 1', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
     const assignTodayRes = await request(app)
       .post(`/api/v1/claims/${claim1._id}/assign`)
@@ -1005,6 +1022,7 @@ describe('Surveyor License Integration Tests (INT-01 to INT-29)', () => {
       customer: { name: 'Customer 2', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
     });
     const assignYestRes = await request(app)
       .post(`/api/v1/claims/${claim2._id}/assign`)

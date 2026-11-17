@@ -199,6 +199,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           plateNumber: 'INT-1111',
           incidentType: 'COLLISION',
           incidentLocation: 'Amman - 7th Circle',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(400);
@@ -215,6 +217,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           plateNumber: 'INT-1111',
           incidentType: 'COLLISION',
           incidentLocation: 'Amman - 7th Circle',
+          latitude: 31.9038,
+          longitude: 35.2034,
           incidentDate: '2026-06-15',
           eligibilityHint: 'ELIGIBLE_FOR_REVIEW',
         });
@@ -233,6 +237,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           plateNumber: 'INT-1111',
           incidentType: 'COLLISION',
           incidentLocation: 'Amman - 7th Circle',
+          latitude: 31.9038,
+          longitude: 35.2034,
           incidentDate: '2026-06-15',
           description: 'Front bumper hit another vehicle during traffic jam',
         });
@@ -257,6 +263,8 @@ describe('Stage 4A — Claim Intake, money, and validation (POST /api/v1/claims)
           plateNumber: 'INT-1111',
           incidentType: 'COLLISION',
           incidentLocation: 'Amman - 7th Circle',
+          latitude: 31.9038,
+          longitude: 35.2034,
           incidentDate: '2026-06-15',
         });
 

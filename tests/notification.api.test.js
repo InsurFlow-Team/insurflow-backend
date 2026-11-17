@@ -461,6 +461,8 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Rainbow Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -555,6 +557,8 @@ describe('Feature 21: Dashboard Notification Center API & Triggers', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Rainbow Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       // Claim creation must still succeed with 201

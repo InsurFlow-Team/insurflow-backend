@@ -389,6 +389,11 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
         customer: { name: 'Target Claim', phone: '123' },
         incidentType: 'COLLISION',
         incidentLocation: 'Target Incident Location',
+        incidentCoordinates: {
+          latitude: 31.9038,
+          longitude: 35.2034,
+          capturedAt: new Date(),
+        },
       });
     });
 
@@ -420,6 +425,7 @@ describe('Feature 18: Map-Based Adjuster Dispatch & Location Tracking', () => {
           priority: 'HIGH',
           notes: 'Urgent nearest adjuster needed',
           overrideCapacity: true,
+          overrideReason: 'Urgent nearest adjuster needed',
         });
 
       expect(res.status).toBe(200);

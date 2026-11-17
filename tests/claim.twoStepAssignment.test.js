@@ -94,6 +94,7 @@ describe('Two-Step Assignment Flow', () => {
       customer: { name: 'Customer Test', phone: '0599000000' },
       incidentType: 'COLLISION',
       incidentLocation: 'Ramallah City Center',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
       ...customFields,
     });
   };
@@ -358,7 +359,11 @@ describe('Two-Step Assignment Flow', () => {
     const resOverride = await request(app)
       .post(`/api/v1/claims/${fifthClaim._id}/assign`)
       .set('Authorization', `Bearer ${officerToken}`)
-      .send({ adjusterId: adjusterA._id.toString(), overrideCapacity: true });
+      .send({
+        adjusterId: adjusterA._id.toString(),
+        overrideCapacity: true,
+        overrideReason: 'Surge in claims due to emergency weather',
+      });
 
     expect(resOverride.status).toBe(200);
     expect(resOverride.body.data.status).toBe('PENDING_ACCEPTANCE');

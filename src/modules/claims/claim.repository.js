@@ -17,6 +17,7 @@ const CLAIM_LIST_PROJECTION = {
   createdAt: 1,
   assignedTo: 1,
   incidentCoordinates: 1,
+  acceptanceDueAt: 1,
   statusEnteredAt: {
     $let: {
       vars: {
@@ -131,6 +132,7 @@ const findByIdAndOrganization = async (claimId, organizationId) => {
     .populate('evidence.uploadedBy', 'name employeeCode')
     .populate('timeline.performedBy', 'name employeeCode role')
     .populate('lossAssessment.assessedBy', 'name employeeCode role')
+    .populate('capacityOverride.overriddenBy', 'name employeeCode role')
     .lean();
 };
 
@@ -151,24 +153,85 @@ const findForReport = async (claimId, organizationId) => {
     .populate('evidence.uploadedBy', 'name employeeCode role')
     .populate('timeline.performedBy', 'name employeeCode role')
     .populate('lossAssessment.assessedBy', 'name employeeCode role')
+    .populate('capacityOverride.overriddenBy', 'name employeeCode role')
     .lean();
 };
 
 
-const countActiveClaimsByAssignee = async (userId) => {
-  return await Claim.countDocuments({
+const countActiveClaimsByAssignee = async (userId, organizationId) => {
+  const query = {
     assignedTo: userId,
     status: { $in: Claim.ACTIVE_ADJUSTER_STATUSES || ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'] },
-  });
+  };
+  if (organizationId) {
+    query.organizationId = organizationId;
+  }
+  return await Claim.countDocuments(query);
 };
 
 const assignClaim = async (claimId, organizationId, updateData) => {
-  const { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes, timelineEvent } = updateData;
+  const { assignedTo, assignedBy, assignedAt, acceptanceDueAt, status, priority, assignmentNotes, capacityOverride, timelineEvent } = updateData;
   return await Claim.findOneAndUpdate(
     { _id: claimId, organizationId, status: 'NEW' },
     {
-      $set: { assignedTo, assignedBy, assignedAt, status, priority, assignmentNotes },
+      $set: {
+        assignedTo,
+        assignedBy,
+        assignedAt,
+        acceptanceDueAt,
+        status,
+        priority,
+        assignmentNotes,
+        capacityOverride: capacityOverride || null,
+      },
       $push: { timeline: timelineEvent },
+    },
+    { returnDocument: 'after' }
+  ).lean();
+};
+
+const reassignExpiredClaim = async (claimId, organizationId, expectedAssignee, now, updateData) => {
+  const {
+    assignedTo,
+    assignedBy,
+    assignedAt,
+    acceptanceDueAt,
+    status,
+    priority,
+    assignmentNotes,
+    capacityOverride,
+    timelineEvents,
+  } = updateData;
+
+  const filter = {
+    _id: claimId,
+    organizationId,
+    status: 'PENDING_ACCEPTANCE',
+    $or: [
+      { acceptanceDueAt: null },
+      { acceptanceDueAt: { $lte: now } },
+    ],
+  };
+  if (expectedAssignee) {
+    filter.assignedTo = expectedAssignee;
+  }
+
+  return await Claim.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        assignedTo,
+        assignedBy,
+        assignedAt,
+        acceptanceDueAt,
+        status,
+        priority,
+        assignmentNotes,
+        capacityOverride: capacityOverride || null,
+      },
+      $push: {
+        timeline: { $each: timelineEvents },
+      },
     },
     { returnDocument: 'after' }
   ).lean();
@@ -554,13 +617,14 @@ const getClaimStats = async ({ organizationId, assignedTo, fromDate, toDate }) =
   return await Claim.aggregate(pipeline);
 };
 
-const acceptAssignment = async (claimId, organizationId, assignedTo, timelineEvent) => {
+const acceptAssignment = async (claimId, organizationId, assignedTo, timelineEvent, now = new Date()) => {
   return await Claim.findOneAndUpdate(
     {
       _id: claimId,
       organizationId,
       status: 'PENDING_ACCEPTANCE',
       assignedTo,
+      acceptanceDueAt: { $gt: now },
     },
     {
       $set: { status: 'ASSIGNED' },
@@ -584,7 +648,9 @@ const declineAssignment = async (claimId, organizationId, assignedTo, timelineEv
         assignedTo: null,
         assignedBy: null,
         assignedAt: null,
+        acceptanceDueAt: null,
         assignmentNotes: null,
+        capacityOverride: null,
       },
       $push: { timeline: timelineEvent },
     },
@@ -763,6 +829,7 @@ module.exports = {
   findByIdAndOrganization,
   countActiveClaimsByAssignee,
   assignClaim,
+  reassignExpiredClaim,
   acceptAssignment,
   declineAssignment,
   startInspection,

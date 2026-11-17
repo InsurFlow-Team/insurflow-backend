@@ -116,6 +116,8 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
         incidentType: 'COLLISION',
         incidentLocation: 'Amman - 7th Circle',
         incidentDate: '2026-06-15',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(res.status).toBe(201);
@@ -163,6 +165,8 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
         incidentType: 'COLLISION',
         incidentLocation: 'Zarqa Highway',
         incidentDate: '2026-07-01',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(res.status).toBe(422);
@@ -181,6 +185,8 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
         incidentType: 'COLLISION',
         incidentLocation: 'Queen Rania St',
         incidentDate: '2026-08-01',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(createRes.status).toBe(201);
@@ -256,6 +262,8 @@ describe('Claim Coverage Snapshot — Intake Persistence & Immutability', () => 
         incidentType: 'COLLISION',
         incidentLocation: 'Rainbow Street',
         incidentDate: '2026-05-10',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(res.status).toBe(422);

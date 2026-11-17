@@ -105,6 +105,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         customer: { name: 'John Doe', phone: '0501112233' },
         incidentType: 'COLLISION',
         incidentLocation: 'Main Street',
+        incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
       });
 
       const res = await request(app)
@@ -138,6 +139,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         customer: { name: 'John Doe', phone: '0501112233' },
         incidentType: 'COLLISION',
         incidentLocation: 'Main Street',
+        incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
       });
 
       const res = await request(app)
@@ -356,6 +358,8 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'King Abdullah Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -384,6 +388,8 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'King Abdullah Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -400,6 +406,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         assignedTo: adjuster._id,
         assignedBy: officer._id,
         assignedAt: new Date(),
+        acceptanceDueAt: new Date(Date.now() + 5 * 60 * 1000),
         status: 'PENDING_ACCEPTANCE',
         customer: { name: 'Customer 1', phone: '0501112233' },
         incidentType: 'COLLISION',
@@ -435,6 +442,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         assignedTo: adjuster._id,
         assignedBy: officer._id,
         assignedAt: new Date(),
+        acceptanceDueAt: new Date(Date.now() + 5 * 60 * 1000),
         status: 'PENDING_ACCEPTANCE',
         customer: { name: 'Customer 1', phone: '0501112233' },
         incidentType: 'COLLISION',
@@ -526,6 +534,8 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Rainbow Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);
@@ -552,6 +562,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         assignedTo: adjuster._id,
         assignedBy: officer._id,
         assignedAt: new Date(),
+        acceptanceDueAt: new Date(Date.now() + 5 * 60 * 1000),
         status: 'PENDING_ACCEPTANCE',
         customer: { name: 'Customer Accept', phone: '0501112233' },
         incidentType: 'COLLISION',
@@ -586,6 +597,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         assignedTo: adjuster._id,
         assignedBy: officer._id,
         assignedAt: new Date(),
+        acceptanceDueAt: new Date(Date.now() + 5 * 60 * 1000),
         status: 'PENDING_ACCEPTANCE',
         customer: { name: 'Customer Decline', phone: '0501112233' },
         incidentType: 'COLLISION',
@@ -690,6 +702,7 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
         customer: { name: 'Cust 1', phone: '0501112233' },
         incidentType: 'COLLISION',
         incidentLocation: 'Location 1',
+        incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
       });
 
       await request(app)
@@ -764,6 +777,8 @@ describe('Claim Notification Triggers & Isolation (Increment 3)', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Rainbow Street',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
 
       expect(res.status).toBe(201);

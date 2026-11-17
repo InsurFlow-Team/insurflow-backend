@@ -826,6 +826,8 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
         plateNumber: 'TST-100',
         incidentType: 'COLLISION',
         incidentLocation: 'Old Main Rd',
+        latitude: 31.9038,
+        longitude: 35.2034,
         incidentDate: '2026-06-15',
         description: 'Legacy claim incident',
       });
