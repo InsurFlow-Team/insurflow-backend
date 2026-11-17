@@ -428,6 +428,8 @@ describe('PB-02b Claimant & Subject Vehicle on Sub-Claims & PII Masking', () => 
         incidentDate: '2026-06-15',
         incidentType: 'COLLISION',
         incidentLocation: 'Main St, Ramallah',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(res.status).toBe(201);
@@ -557,6 +559,8 @@ describe('PB-02b Claimant & Subject Vehicle on Sub-Claims & PII Masking', () => 
         incidentDate: '2026-06-15',
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
     const claimId = createRes.body.data.id;
 

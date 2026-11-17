@@ -235,6 +235,8 @@ describe('PB-13: Outstanding Reserve per Claim, Indemnity and Expense', () => {
         incidentDate: '2026-05-10',
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah Main St',
+        latitude: 31.9038,
+        longitude: 35.2034,
         description: 'Bumper collision',
       });
 
@@ -357,6 +359,8 @@ describe('PB-13: Outstanding Reserve per Claim, Indemnity and Expense', () => {
         incidentDate: '2026-05-10',
         incidentType: 'COLLISION',
         incidentLocation: 'Nablus Main St',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(res.status).toBe(201);

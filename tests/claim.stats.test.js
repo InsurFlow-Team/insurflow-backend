@@ -271,12 +271,12 @@ describe('GET /api/v1/claims/stats — Dashboard KPI Aggregation', () => {
       // adjustersWorkload:
       // Active field adjusters: adjuster1, adjuster2, adjuster3 (totalActive = 3, inactive excluded)
       // adjuster1: 2 active claims -> nearCapacity = 1, available = 1
-      // adjuster2: 3 active claims -> atCapacity = 1, available = 1 (<= 3 is AVAILABLE per domain convention)
+      // adjuster2: 3 active claims -> atCapacity = 1, available = 0 (< 3 is AVAILABLE per D1 / ASG-01)
       // adjuster3: 0 active claims -> available = 1
-      // Total available = 3, nearCapacity = 1, atCapacity = 1
+      // Total available = 2, nearCapacity = 1, atCapacity = 1
       expect(data.adjustersWorkload).toEqual({
         totalActive: 3,
-        available: 3,
+        available: 2,
         nearCapacity: 1,
         atCapacity: 1,
       });

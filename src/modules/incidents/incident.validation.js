@@ -311,8 +311,14 @@ const createIncidentSchema = Joi.object({
       'any.only': 'accidentArea must be one of: PALESTINIAN_AREA, ISRAEL, UNKNOWN',
     }),
   description: Joi.string().trim().max(1000).allow('', null).optional(),
-  latitude: Joi.number().min(-90).max(90).optional(),
-  longitude: Joi.number().min(-180).max(180).optional(),
+  latitude: Joi.number().min(-90).max(90).required().messages({
+    'number.base': 'latitude must be a valid number between -90 and 90',
+    'any.required': 'latitude is required',
+  }),
+  longitude: Joi.number().min(-180).max(180).required().messages({
+    'number.base': 'longitude must be a valid number between -180 and 180',
+    'any.required': 'longitude is required',
+  }),
   vehicles: Joi.array().items(vehicleItemSchema).min(1).max(10).required().messages({
     'array.min': 'At least one vehicle is required',
     'array.max': 'Vehicles count cannot exceed 10',

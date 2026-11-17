@@ -356,7 +356,11 @@ describe('Claim Read Endpoints', () => {
         plateNumber: 'ABC-123',
         incidentType: 'COLLISION',
         incidentLocation: 'King Abdullah St, Amman',
+        latitude: 31.9038,
+        longitude: 35.2034,
         incidentDate: '2026-06-15',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(createRes.statusCode).toBe(201);
@@ -457,7 +461,11 @@ describe('Claim Read Endpoints', () => {
         plateNumber: 'ABC-123',
         incidentType: 'COLLISION',
         incidentLocation: 'King Abdullah St, Amman',
+        latitude: 31.9038,
+        longitude: 35.2034,
         incidentDate: '2026-06-15',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(createRes.statusCode).toBe(201);
@@ -485,6 +493,8 @@ describe('Claim Read Endpoints', () => {
         plateNumber: 'ABC-123',
         incidentType: 'COLLISION',
         incidentLocation: 'King Abdullah St, Amman',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(createRes.statusCode).toBe(400);
@@ -515,6 +525,8 @@ describe('Claim Read Endpoints', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Street A',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(createRes.status).toBe(201);
       const claimId = createRes.body.data.id;
@@ -580,6 +592,8 @@ describe('Claim Read Endpoints', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Street A',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       const claimId = createRes.body.data.id;
 
@@ -614,6 +628,8 @@ describe('Claim Read Endpoints', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'Street A',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(createRes.status).toBe(201);
       const claimId = createRes.body.data.id;

@@ -795,6 +795,23 @@ const claimSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    acceptanceDueAt: {
+      type: Date,
+      default: null,
+    },
+    capacityOverride: {
+      type: new mongoose.Schema(
+        {
+          reason: { type: String, minlength: 10, maxlength: 300, required: true },
+          activeTasksAtAssign: { type: Number, required: true },
+          capacityLimit: { type: Number, required: true },
+          overriddenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+          overriddenAt: { type: Date, required: true },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
 
     // ── Accident Details (populated during inspection) ───────────────
     accident: {
@@ -1079,6 +1096,7 @@ claimSchema.pre('save', async function () {
 const Claim = mongoose.model('Claim', claimSchema);
 Claim.ACTIVE_ADJUSTER_STATUSES = ['ASSIGNED', 'IN_PROGRESS', 'CORRECTION_REQUIRED'];
 Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER = 3;
+Claim.ASSIGNMENT_ACCEPTANCE_MINUTES = 5;
 Claim.ACTIVE_REPAIR_ORDER_STATUSES = ['AUTHORIZED', 'IN_REPAIR', 'SUPPLEMENT_REQUESTED', 'READY'];
 
 module.exports = Claim;

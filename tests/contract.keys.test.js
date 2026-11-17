@@ -269,7 +269,9 @@ describe('API Contract Keys — Sorted Key Sets', () => {
     expect(Object.keys(data.policy).sort()).toEqual(['expiryDate', 'id', 'policyNumber', 'startDate', 'status'].sort());
 
     // assignment sub-keys
-    expect(Object.keys(data.assignment).sort()).toEqual(['assignedAt', 'assignedBy', 'assignedTo', 'assignmentNotes', 'priority'].sort());
+    expect(Object.keys(data.assignment).sort()).toEqual(
+      ['acceptanceDueAt', 'acceptanceExpired', 'assignedAt', 'assignedBy', 'assignedTo', 'assignmentNotes', 'capacityOverride', 'priority'].sort()
+    );
 
     // coverageSnapshot sub-keys
     expect(Object.keys(data.coverageSnapshot).sort()).toEqual(['capturedAt', 'coveredPerils', 'deductibleAmount', 'policyKind', 'policyType', 'sumInsured'].sort());
@@ -343,6 +345,8 @@ describe('API Contract Keys — Sorted Key Sets', () => {
     const item = res.body.data[0];
     expect(Object.keys(item).sort()).toEqual(
       [
+        'acceptanceDueAt',
+        'acceptanceExpired',
         'assignedTo',
         'claimNumber',
         'createdAt',

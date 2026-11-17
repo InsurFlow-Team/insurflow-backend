@@ -33,6 +33,7 @@ const {
   resolveStatusEnteredAt,
   buildStatusHistory,
 } = require('../../utils/statusTiming');
+const { isAssignmentExpired } = require('../../utils/assignmentTiming');
 
 const getNotificationActor = async (userId, organizationId) => {
   try {
@@ -473,6 +474,9 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
 
     const slaHours = resolveSlaHours(statusSlaHours, claim.status);
     const statusDueAt = computeStatusDueAt(claim.statusEnteredAt, slaHours);
+    const acceptanceExpired = claim.status === 'PENDING_ACCEPTANCE'
+      ? isAssignmentExpired(claim, new Date(), Claim.ASSIGNMENT_ACCEPTANCE_MINUTES)
+      : false;
 
     return {
       id: claim._id,
@@ -486,6 +490,8 @@ const getClaims = async (authUser, filter = {}, pagination = {}) => {
       incidentCoordinates: claim.incidentCoordinates ?? null,
       statusEnteredAt: claim.statusEnteredAt ?? null,
       statusDueAt: statusDueAt ?? null,
+      acceptanceDueAt: claim.acceptanceDueAt ?? null,
+      acceptanceExpired,
     };
   });
 
@@ -620,6 +626,19 @@ const getClaimById = async (claimId, authUser) => {
       assignedAt: claim.assignedAt ?? null,
       priority: claim.priority ?? null,
       assignmentNotes: claim.assignmentNotes ?? null,
+      acceptanceDueAt: claim.acceptanceDueAt ?? null,
+      acceptanceExpired: claim.status === 'PENDING_ACCEPTANCE'
+        ? isAssignmentExpired(claim, new Date(), Claim.ASSIGNMENT_ACCEPTANCE_MINUTES)
+        : false,
+      capacityOverride: claim.capacityOverride
+        ? {
+            reason: claim.capacityOverride.reason,
+            activeTasksAtAssign: claim.capacityOverride.activeTasksAtAssign,
+            capacityLimit: claim.capacityOverride.capacityLimit,
+            overriddenBy: formatUser(claim.capacityOverride.overriddenBy),
+            overriddenAt: claim.capacityOverride.overriddenAt ?? null,
+          }
+        : null,
     },
 
     // ── 6. Accident Details (from mobile inspection) ─────────────
@@ -700,10 +719,39 @@ const getClaimById = async (claimId, authUser) => {
 
 
 const assignClaim = async (claimId, body, authUser) => {
-  const { adjusterId, priority, notes, overrideCapacity } = body;
+  const { adjusterId, priority, notes, overrideCapacity, overrideReason } = body;
   const { userId, role, organizationId } = authUser;
+  const now = new Date();
 
-  // 1. Find the adjuster and verify existence, role, and status
+  // 1. Check claim existence first (fixes 409-before-404 ordering bug)
+  const existingClaim = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+  if (!existingClaim) {
+    throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+  }
+
+  // 2. Validate claim status (NEW or expired PENDING_ACCEPTANCE)
+  const acceptanceMinutes = Claim.ASSIGNMENT_ACCEPTANCE_MINUTES ?? 5;
+  const isPending = existingClaim.status === 'PENDING_ACCEPTANCE';
+  const isExpired = isPending && isAssignmentExpired(existingClaim, now, acceptanceMinutes);
+
+  if (isPending && !isExpired) {
+    throw new AppError('Claim is currently pending acceptance', 409, 'INVALID_STATUS_TRANSITION', 'ACCEPTANCE_PENDING');
+  }
+
+  if (existingClaim.status !== 'NEW' && !isExpired) {
+    throw new AppError('Claim is not in NEW state', 409, 'INVALID_STATUS_TRANSITION');
+  }
+
+  // 3. Incident coordinates gate
+  if (
+    !existingClaim.incidentCoordinates ||
+    typeof existingClaim.incidentCoordinates.latitude !== 'number' ||
+    typeof existingClaim.incidentCoordinates.longitude !== 'number'
+  ) {
+    throw new AppError('Claim incident coordinates are missing or invalid', 422, 'INCIDENT_LOCATION_MISSING');
+  }
+
+  // 4. Find the adjuster and verify existence, role, and status
   const adjuster = await userRepository.findByIdAndOrganization(adjusterId, organizationId);
   if (!adjuster || adjuster.role !== 'FIELD_ADJUSTER' || adjuster.status !== 'ACTIVE') {
     throw new AppError('Adjuster not found', 404, 'ADJUSTER_NOT_FOUND');
@@ -717,61 +765,133 @@ const assignClaim = async (claimId, body, authUser) => {
     throw new AppError('Surveyor license is expired', 422, 'SURVEYOR_LICENSE_EXPIRED', 'LICENSE_EXPIRED');
   }
 
-  // 2. Verify adjuster availability (active claims <= 3 is AVAILABLE, > 3 is UNAVAILABLE unless overrideCapacity is true)
-  const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId);
+  // 5. Verify adjuster availability (>= 3 active claims requires override)
+  const activeTasksCount = await claimRepository.countActiveClaimsByAssignee(adjusterId, organizationId);
   const maxActiveClaims = Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3;
-  if (activeTasksCount > maxActiveClaims && !overrideCapacity) {
-    throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
+  const isFull = activeTasksCount >= maxActiveClaims;
+  const cleanReason = (typeof overrideReason === 'string' && overrideReason.trim()) || null;
+
+  if (isFull) {
+    if (!overrideCapacity) {
+      throw new AppError('Adjuster is currently unavailable', 409, 'ADJUSTER_UNAVAILABLE');
+    }
+    if (!cleanReason) {
+      throw new AppError('Override reason is required when assigning beyond capacity limit', 422, 'OVERRIDE_REASON_REQUIRED');
+    }
   }
 
-  let assignmentNotes = notes || null;
-  if (activeTasksCount > maxActiveClaims && overrideCapacity) {
-    const overridePrefix = `[CAPACITY OVERRIDE] Assigned while adjuster had ${activeTasksCount} active tasks (max: ${maxActiveClaims})`;
-    assignmentNotes = notes ? `${overridePrefix} | ${notes}` : overridePrefix;
+  const isOverride = isFull && Boolean(overrideCapacity);
+  const acceptanceDueAt = new Date(now.getTime() + acceptanceMinutes * 60 * 1000);
+  const assignmentNotes = notes || null;
+
+  let capacityOverride = null;
+  if (isOverride) {
+    capacityOverride = {
+      reason: cleanReason,
+      activeTasksAtAssign: activeTasksCount,
+      capacityLimit: maxActiveClaims,
+      overriddenBy: userId,
+      overriddenAt: now,
+    };
   }
 
-  // 3. Atomically assign the claim (query checks org + status:'NEW')
-  const timelineEvent = {
-    action: 'Assignment Pending Acceptance',
-    previousStatus: 'NEW',
-    newStatus: 'PENDING_ACCEPTANCE',
-    notes: assignmentNotes,
-    performedBy: userId,
-    role,
-    timestamp: new Date(),
-  };
+  const timelineNotes = isOverride
+    ? `[CAPACITY OVERRIDE] Assigned while adjuster had ${activeTasksCount} active tasks (max: ${maxActiveClaims}). Reason: ${cleanReason}`
+    : (notes || null);
 
-  const updateData = {
-    assignedTo: adjusterId,
-    assignedBy: userId,
-    assignedAt: new Date(),
-    status: 'PENDING_ACCEPTANCE',
-    priority,
-    assignmentNotes,
-    timelineEvent,
-  };
+  let updatedClaim;
+  if (existingClaim.status === 'NEW') {
+    const timelineEvent = {
+      action: 'Assignment Pending Acceptance',
+      previousStatus: 'NEW',
+      newStatus: 'PENDING_ACCEPTANCE',
+      notes: timelineNotes,
+      performedBy: userId,
+      role,
+      timestamp: now,
+    };
 
-  const updatedClaim = await claimRepository.assignClaim(claimId, organizationId, updateData);
+    updatedClaim = await claimRepository.assignClaim(claimId, organizationId, {
+      assignedTo: adjusterId,
+      assignedBy: userId,
+      assignedAt: now,
+      acceptanceDueAt,
+      status: 'PENDING_ACCEPTANCE',
+      priority,
+      assignmentNotes,
+      capacityOverride,
+      timelineEvent,
+    });
+  } else {
+    // Reassigning from expired PENDING_ACCEPTANCE
+    const expiredEvent = {
+      action: 'Assignment Expired',
+      previousStatus: 'PENDING_ACCEPTANCE',
+      newStatus: 'NEW',
+      notes: '[ASSIGNMENT EXPIRED] not accepted within 5 minutes',
+      performedBy: userId,
+      role,
+      timestamp: existingClaim.acceptanceDueAt || now,
+    };
+
+    const pendingEvent = {
+      action: 'Assignment Pending Acceptance',
+      previousStatus: 'NEW',
+      newStatus: 'PENDING_ACCEPTANCE',
+      notes: timelineNotes,
+      performedBy: userId,
+      role,
+      timestamp: now,
+    };
+
+    updatedClaim = await claimRepository.reassignExpiredClaim(
+      claimId,
+      organizationId,
+      existingClaim.assignedTo?._id || existingClaim.assignedTo,
+      now,
+      {
+        assignedTo: adjusterId,
+        assignedBy: userId,
+        assignedAt: now,
+        acceptanceDueAt,
+        status: 'PENDING_ACCEPTANCE',
+        priority,
+        assignmentNotes,
+        capacityOverride,
+        timelineEvents: [expiredEvent, pendingEvent],
+      }
+    );
+  }
 
   if (!updatedClaim) {
-    // Atomic query failed: claim not found, wrong org, or status was not 'NEW' (race lost)
-    // Check if claim exists to give a more specific error
-    const existing = await claimRepository.findByIdAndOrganization(claimId, organizationId);
-    if (!existing) {
+    const reRead = await claimRepository.findByIdAndOrganization(claimId, organizationId);
+    if (!reRead) {
       throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');
+    }
+    if (reRead.status === 'PENDING_ACCEPTANCE' && !isAssignmentExpired(reRead, now, acceptanceMinutes)) {
+      throw new AppError('Claim is currently pending acceptance', 409, 'INVALID_STATUS_TRANSITION', 'ACCEPTANCE_PENDING');
     }
     throw new AppError('Claim is not in NEW state', 409, 'INVALID_STATUS_TRANSITION');
   }
 
   try {
-    await createAndSendNotification({
+    const actor = await getNotificationActor(userId, organizationId);
+    const notifPayload = {
       recipientId: updatedClaim.assignedTo,
       organizationId: updatedClaim.organizationId,
       type: 'PENDING_ACCEPTANCE',
       relatedClaimId: updatedClaim._id,
-      title: 'New Assignment Pending',
-      body: `You have a new claim assignment pending your acceptance: ${updatedClaim.claimNumber}.`,
-    });
+      title: isOverride ? 'New Assignment Pending (Capacity Override)' : 'New Assignment Pending',
+      body: isOverride
+        ? `You have a new claim assignment pending your acceptance (capacity override): ${updatedClaim.claimNumber}.`
+        : `You have a new claim assignment pending your acceptance: ${updatedClaim.claimNumber}.`,
+      params: {
+        actor,
+        reason: isOverride ? cleanReason : null,
+        notes: notes || null,
+      },
+    };
+    await createAndSendNotification(notifPayload);
   } catch (err) {
     console.error('Failed to send notification for claim assignment:', err);
   }
@@ -784,11 +904,13 @@ const assignClaim = async (claimId, body, authUser) => {
     assignedTo: updatedClaim.assignedTo,
     assignedBy: updatedClaim.assignedBy,
     assignedAt: updatedClaim.assignedAt,
+    acceptanceDueAt: updatedClaim.acceptanceDueAt,
   };
 };
 
 const acceptAssignment = async (claimId, authUser) => {
   const { userId, role, organizationId } = authUser;
+  const now = new Date();
 
   // Retrieve adjuster's employeeCode for timeline
   const adjusterUser = await userRepository.findByIdAndOrganization(userId, organizationId);
@@ -810,14 +932,15 @@ const acceptAssignment = async (claimId, authUser) => {
     notes: `[ASSIGNMENT ACCEPTED] by ${employeeCode}`,
     performedBy: userId,
     role,
-    timestamp: new Date(),
+    timestamp: now,
   };
 
   const updatedClaim = await claimRepository.acceptAssignment(
     claimId,
     organizationId,
     userId,
-    timelineEvent
+    timelineEvent,
+    now
   );
 
   if (!updatedClaim) {
@@ -834,6 +957,10 @@ const acceptAssignment = async (claimId, authUser) => {
 
     if (existing.status !== 'PENDING_ACCEPTANCE') {
       throw new AppError('Claim is not in PENDING_ACCEPTANCE status', 409, 'INVALID_STATUS_TRANSITION');
+    }
+
+    if (isAssignmentExpired(existing, now, Claim.ASSIGNMENT_ACCEPTANCE_MINUTES)) {
+      throw new AppError('Assignment acceptance window of 5 minutes has expired', 409, 'ASSIGNMENT_EXPIRED');
     }
 
     throw new AppError('Claim not found', 404, 'CLAIM_NOT_FOUND');

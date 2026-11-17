@@ -88,4 +88,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+User.ADJUSTER_LOCATION_STALE_MINUTES = 15;
+
+module.exports = User;

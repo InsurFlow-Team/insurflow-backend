@@ -177,7 +177,7 @@ const findAdjustersWithWorkload = async (organizationId, statusFilter, options =
             if: {
               $and: [
                 { $eq: ['$status', 'ACTIVE'] },
-                { $lte: ['$activeTasksCount', Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3] },
+                { $lt: ['$activeTasksCount', Claim.MAX_ACTIVE_CLAIMS_PER_ADJUSTER ?? 3] },
               ],
             },
             then: 'AVAILABLE',

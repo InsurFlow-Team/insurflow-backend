@@ -21,6 +21,7 @@ const { issueLetterSchema } = require('../../modules/letters/letter.validation')
 const { validateBody, validateParams } = require('./validateBody');
 const { generateFakePalestinianId, generateFakePhone } = require('./fakeIdentity');
 const { DEMO_ASSET_URLS } = require('./demoAssets');
+const { demoCoordinatesFor } = require('./governorateCenters');
 const { toHebronDate } = require('../../utils/hebronDate');
 const { fromMinor } = require('../../utils/money');
 const Customer = require('../../modules/customers/customer.model');
@@ -276,11 +277,15 @@ const buildScenario = async ({ refData = {}, assets = DEMO_ASSET_URLS, rndHelper
     const vehicle = await resolveVehicle(vehIndex, refData, org._id);
     const customer = await resolveCustomer(vehicle, refData, org._id);
 
+    const coords = demoCoordinatesFor('RAMALLAH_AL_BIREH', vehIndex);
+
     const rawIncidentBody = {
       incidentType: 'COLLISION',
       incidentLocation: 'شارع الإرسال، رام الله',
       incidentAt,
       governorate: 'RAMALLAH_AL_BIREH',
+      latitude: coords.latitude,
+      longitude: coords.longitude,
       reportSource: 'AGREED_STATEMENT',
       injuriesReported: false,
       accidentArea: 'PALESTINIAN_AREA',

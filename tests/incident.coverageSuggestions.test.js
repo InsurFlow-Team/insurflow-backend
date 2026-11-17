@@ -96,6 +96,8 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
     reportSource: 'NONE',
     injuriesReported: false,
     description: 'Two vehicle collision',
+    latitude: 31.9038,
+    longitude: 35.2034,
     vehicles: [
       {
         vehicleRole: 'INSURED',
@@ -1192,6 +1194,8 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
         incidentType: 'COLLISION',
         incidentLocation: 'Old Road',
         incidentDate: '2026-06-15',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     const incidentId = claimRes.body.data.incidentId;

@@ -49,15 +49,13 @@ const createClaimSchema = Joi.object({
     .messages({
       'string.max': 'description cannot exceed 1000 characters',
     }),
-  latitude: Joi.number().min(-90).max(90).optional().messages({
-    'number.base': 'Latitude must be a valid number between -90 and 90',
-    'number.min': 'Latitude must be at least -90',
-    'number.max': 'Latitude cannot exceed 90',
+  latitude: Joi.number().min(-90).max(90).required().messages({
+    'number.base': 'latitude must be a valid number between -90 and 90',
+    'any.required': 'latitude is required',
   }),
-  longitude: Joi.number().min(-180).max(180).optional().messages({
-    'number.base': 'Longitude must be a valid number between -180 and 180',
-    'number.min': 'Longitude must be at least -180',
-    'number.max': 'Longitude cannot exceed 180',
+  longitude: Joi.number().min(-180).max(180).required().messages({
+    'number.base': 'longitude must be a valid number between -180 and 180',
+    'any.required': 'longitude is required',
   }),
 });
 
@@ -75,8 +73,19 @@ const assignClaimSchema = Joi.object({
       'any.required': 'Adjuster ID is required',
     }),
   priority: Joi.string().valid('LOW', 'MEDIUM', 'HIGH').optional().default('MEDIUM'),
-  notes: Joi.string().trim().optional().allow('', null),
+  notes: Joi.string().trim().max(500).optional().allow('', null).messages({
+    'string.max': 'notes cannot exceed 500 characters',
+  }),
   overrideCapacity: Joi.boolean().optional().default(false),
+  overrideReason: Joi.string().trim().min(10).max(300).optional().allow('', null).messages({
+    'string.min': 'overrideReason must be at least 10 characters',
+    'string.max': 'overrideReason cannot exceed 300 characters',
+  }),
+}).custom((value, helpers) => {
+  if (value.overrideReason && !value.overrideCapacity) {
+    return helpers.message('overrideReason is allowed only when overrideCapacity is true');
+  }
+  return value;
 });
 
 const updateVehicleSchema = Joi.object({

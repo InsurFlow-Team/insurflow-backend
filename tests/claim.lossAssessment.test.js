@@ -534,6 +534,8 @@ describe('Claim Loss Assessment Financial Adjudication (POST /claims/:claimId/de
         incidentType: 'COLLISION',
         incidentLocation: 'Irbid Center',
         incidentDate: '2026-06-15',
+        latitude: 31.9038,
+        longitude: 35.2034,
       });
 
     expect(createRes.status).toBe(201);

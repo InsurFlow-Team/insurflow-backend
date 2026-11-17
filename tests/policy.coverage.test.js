@@ -526,6 +526,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
         plateNumber: 'T10-PLATE',
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah',
+        latitude: 31.9038,
+        longitude: 35.2034,
         incidentDate: '2026-06-15',
       });
 
@@ -564,6 +566,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
         plateNumber: 'T11-PLATE',
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah',
+        latitude: 31.9038,
+        longitude: 35.2034,
         incidentDate: '2026-05-31',
       });
 
@@ -602,6 +606,8 @@ describe('Policy Coverage & Intake Gate (PB-04a)', () => {
         plateNumber: 'T12-PLATE',
         incidentType: 'COLLISION',
         incidentLocation: 'Ramallah',
+        latitude: 31.9038,
+        longitude: 35.2034,
         incidentDate: '2026-06-01',
       });
 

@@ -335,6 +335,8 @@ describe('Claim Lifecycle (Sprint 1 End-to-End)', () => {
           incidentType: 'COLLISION',
           incidentLocation: 'L',
           incidentDate: '2026-06-15',
+          latitude: 31.9038,
+          longitude: 35.2034,
         });
       expect(createRes.status).toBe(201);
       const claimId = createRes.body.data.id;
