@@ -34,6 +34,11 @@ describe('Vehicle Lookup API', () => {
   let officerToken;
   let expiredPolicy;
   let expiredVehicle;
+  let adminUser;
+  let adminToken;
+  let dualCompulsory;
+  let dualComplementary;
+  let dualVehicle;
 
   beforeAll(async () => {
     // Set up test database
@@ -66,6 +71,17 @@ describe('Vehicle Lookup API', () => {
       status: 'ACTIVE',
     });
     officerToken = generateToken(claimsOfficer);
+
+    // Create Admin in Org 1
+    adminUser = await User.create({
+      name: 'Test Admin',
+      employeeCode: 'AD-100',
+      password: 'password123',
+      role: 'ADMIN',
+      organizationId: org1._id,
+      status: 'ACTIVE',
+    });
+    adminToken = generateToken(adminUser);
 
     // Create Mock Data in Org 1
     customer1 = await Customer.create({
@@ -119,6 +135,40 @@ describe('Vehicle Lookup API', () => {
       color: 'Red',
       organizationId: org2._id,
     });
+
+    dualCompulsory = await buildPolicy({
+      policyNumber: 'POL-DUAL-COMPUL',
+      policyKind: 'UNIFIED_COMPULSORY',
+      status: 'ACTIVE',
+      startDate: new Date('2026-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
+      organizationId: org1._id,
+      propertyDamageLimit: 10000000,
+      deductibleAmount: 0,
+    });
+
+    dualComplementary = await buildPolicy({
+      policyNumber: 'POL-DUAL-COMPLE',
+      policyKind: 'COMPLEMENTARY',
+      status: 'ACTIVE',
+      startDate: new Date('2026-01-01T00:00:00Z'),
+      expiryDate: new Date('2026-12-31T00:00:00Z'),
+      organizationId: org1._id,
+      sumInsured: 5000000,
+      deductibleAmount: 50000,
+    });
+
+    dualVehicle = await Vehicle.create({
+      plateNumber: 'DUAL-1234',
+      make: 'Toyota',
+      model: 'Camry',
+      year: 2022,
+      color: 'White',
+      customerId: customer1._id,
+      compulsoryPolicyId: dualCompulsory._id,
+      complementaryPolicyId: dualComplementary._id,
+      organizationId: org1._id,
+    });
   });
 
   afterAll(async () => {
@@ -137,11 +187,118 @@ describe('Vehicle Lookup API', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('should return 403 if user is a CLAIMS_OFFICER', async () => {
+  it('CLAIMS_OFFICER gets 200 with both policies (VL-01)', async () => {
     const res = await request(app)
-      .get('/api/v1/vehicles/lookup?plateNumber=TST-1234')
+      .get(`/api/v1/vehicles/lookup?plateNumber=${dualVehicle.plateNumber}`)
       .set('Authorization', `Bearer ${officerToken}`);
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.policies.compulsory).toMatchObject({
+      policyNumber: dualCompulsory.policyNumber,
+      policyKind: 'UNIFIED_COMPULSORY',
+      status: 'ACTIVE',
+    });
+    expect(res.body.data.policies.complementary).toMatchObject({
+      policyNumber: dualComplementary.policyNumber,
+      policyKind: 'COMPLEMENTARY',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('[VL-01-1] ADMIN gets 200 with both policies', async () => {
+    const res = await request(app)
+      .get(`/api/v1/vehicles/lookup?plateNumber=${dualVehicle.plateNumber}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.policies.compulsory).toMatchObject({
+      policyNumber: dualCompulsory.policyNumber,
+      policyKind: 'UNIFIED_COMPULSORY',
+      status: 'ACTIVE',
+    });
+    expect(res.body.data.policies.complementary).toMatchObject({
+      policyNumber: dualComplementary.policyNumber,
+      policyKind: 'COMPLEMENTARY',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('[VL-01-2] CLAIMS_OFFICER sees the customer phone in full; FIELD_ADJUSTER sees it masked (same vehicle)', async () => {
+    const officerRes = await request(app)
+      .get(`/api/v1/vehicles/lookup?plateNumber=${dualVehicle.plateNumber}`)
+      .set('Authorization', `Bearer ${officerToken}`);
+    expect(officerRes.statusCode).toBe(200);
+    expect(officerRes.body.data.customer.phone).toBe('+111111111');
+
+    const adjusterRes = await request(app)
+      .get(`/api/v1/vehicles/lookup?plateNumber=${dualVehicle.plateNumber}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(adjusterRes.statusCode).toBe(200);
+    expect(adjusterRes.body.data.customer.phone).toBe('+******111');
+  });
+
+  it('[VL-01-3] CLAIMS_OFFICER gets 404 VEHICLE_NOT_FOUND for a plate of another organization', async () => {
+    const res = await request(app)
+      .get('/api/v1/vehicles/lookup?plateNumber=ORG2-999')
+      .set('Authorization', `Bearer ${officerToken}`);
+    expect(res.statusCode).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errors[0].code).toBe('VEHICLE_NOT_FOUND');
+  });
+
+  it('[VL-01-4] A CLAIMS_OFFICER request with X-Latitude and X-Longitude headers does not change that user\'s location', async () => {
+    const userBefore = await User.findById(claimsOfficer._id);
+    expect(userBefore.location?.latitude).toBeNull();
+
+    const res = await request(app)
+      .get(`/api/v1/vehicles/lookup?plateNumber=${dualVehicle.plateNumber}`)
+      .set('Authorization', `Bearer ${officerToken}`)
+      .set('X-Latitude', '24.7136')
+      .set('X-Longitude', '46.6753');
+
+    expect(res.statusCode).toBe(200);
+
+    const userAfter = await User.findById(claimsOfficer._id);
+    expect(userAfter.location?.latitude).toBeNull();
+    expect(userAfter.location?.longitude).toBeNull();
+  });
+
+  it('[VL-01-5] Dashboard flow on a vehicle with both policies: POST /policies/verify with plateNumber alone gives 422 AMBIGUOUS_POLICY_SELECTION; GET lookup as CLAIMS_OFFICER returns both policies; POST /policies/verify with the complementary policyNumber, the plateNumber and an incidentDate inside the policy period gives 200 with data.policy.policyKind \'COMPLEMENTARY\'; the same with the compulsory policyNumber gives \'UNIFIED_COMPULSORY\'', async () => {
+    const verifyAmbiguousRes = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({ plateNumber: dualVehicle.plateNumber });
+    expect(verifyAmbiguousRes.statusCode).toBe(422);
+    expect(verifyAmbiguousRes.body.errors[0].code).toBe('AMBIGUOUS_POLICY_SELECTION');
+
+    const lookupRes = await request(app)
+      .get(`/api/v1/vehicles/lookup?plateNumber=${dualVehicle.plateNumber}`)
+      .set('Authorization', `Bearer ${officerToken}`);
+    expect(lookupRes.statusCode).toBe(200);
+    expect(lookupRes.body.data.policies.compulsory.policyNumber).toBe(dualCompulsory.policyNumber);
+    expect(lookupRes.body.data.policies.complementary.policyNumber).toBe(dualComplementary.policyNumber);
+
+    const verifyComplementaryRes = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({
+        policyNumber: dualComplementary.policyNumber,
+        plateNumber: dualVehicle.plateNumber,
+        incidentDate: '2026-06-15',
+      });
+    expect(verifyComplementaryRes.statusCode).toBe(200);
+    expect(verifyComplementaryRes.body.data.policy.policyKind).toBe('COMPLEMENTARY');
+
+    const verifyCompulsoryRes = await request(app)
+      .post('/api/v1/policies/verify')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({
+        policyNumber: dualCompulsory.policyNumber,
+        plateNumber: dualVehicle.plateNumber,
+        incidentDate: '2026-06-15',
+      });
+    expect(verifyCompulsoryRes.statusCode).toBe(200);
+    expect(verifyCompulsoryRes.body.data.policy.policyKind).toBe('UNIFIED_COMPULSORY');
   });
 
   it('should return 400 if plateNumber is missing', async () => {
