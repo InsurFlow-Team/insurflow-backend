@@ -9,6 +9,6 @@ const { lookupVehicleSchema } = require('./vehicle.validation');
 const router = express.Router();
 
 // GET /api/v1/vehicles/lookup
-router.get('/lookup', authenticate, adjusterLocationMiddleware, authorizeRole(['FIELD_ADJUSTER']), validate(lookupVehicleSchema, 'query'), vehicleController.lookupVehicle);
+router.get('/lookup', authenticate, adjusterLocationMiddleware, authorizeRole(['FIELD_ADJUSTER', 'CLAIMS_OFFICER', 'ADMIN']), validate(lookupVehicleSchema, 'query'), vehicleController.lookupVehicle);
 
 module.exports = router;
