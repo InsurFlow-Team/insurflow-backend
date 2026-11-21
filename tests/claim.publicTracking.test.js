@@ -504,13 +504,20 @@ describe('Public Claim Tracking (Feature 23)', () => {
     });
 
     it('approved, rejected, and closed claims show the full sequence', async () => {
+      const base = Date.now() - 10 * 86400000;
+      const tCreated = new Date(base);
+      const tStarted = new Date(base + 23 * 3600000);
+      const tSubmitted = new Date(base + 28 * 3600000);
+      const tDecision = new Date(base + 48 * 3600000);
+      const tClosed = new Date(base + 72 * 3600000);
+
       const claimApproved = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         status: 'APPROVED',
         timeline: [
-          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
-          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
-          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T14:00:00Z') },
-          { action: 'Claim Approved', newStatus: 'APPROVED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tCreated },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tStarted },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tSubmitted },
+          { action: 'Claim Approved', newStatus: 'APPROVED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tDecision },
         ],
       });
 
@@ -523,10 +530,10 @@ describe('Public Claim Tracking (Feature 23)', () => {
       const claimRejected = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         status: 'REJECTED',
         timeline: [
-          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
-          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
-          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T14:00:00Z') },
-          { action: 'Claim Rejected', newStatus: 'REJECTED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tCreated },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tStarted },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tSubmitted },
+          { action: 'Claim Rejected', newStatus: 'REJECTED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tDecision },
         ],
       });
 
@@ -539,11 +546,11 @@ describe('Public Claim Tracking (Feature 23)', () => {
       const claimClosed = await createClaimWithToken(org1._id, testPolicy._id, officer1._id, {
         status: 'CLOSED',
         timeline: [
-          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-20T10:00:00Z') },
-          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T09:00:00Z') },
-          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: new Date('2026-09-21T14:00:00Z') },
-          { action: 'Claim Approved', newStatus: 'APPROVED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-22T10:00:00Z') },
-          { action: 'Claim Closed', newStatus: 'CLOSED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: new Date('2026-09-23T10:00:00Z') },
+          { action: 'Claim Created', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tCreated },
+          { action: 'Inspection Started', newStatus: 'IN_PROGRESS', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tStarted },
+          { action: 'Inspection Submitted', newStatus: 'SUBMITTED', performedBy: officer1._id, role: 'FIELD_ADJUSTER', timestamp: tSubmitted },
+          { action: 'Claim Approved', newStatus: 'APPROVED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tDecision },
+          { action: 'Claim Closed', newStatus: 'CLOSED', performedBy: officer1._id, role: 'CLAIMS_OFFICER', timestamp: tClosed },
         ],
       });
 
