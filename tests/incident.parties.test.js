@@ -109,17 +109,36 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
     });
   };
 
-  const validPayload = (overrides = {}) => ({
-    incidentType: 'COLLISION',
-    incidentLocation: 'Al-Irsal St, Ramallah',
-    incidentAt: '2026-06-15T10:00:00+03:00',
-    governorate: 'RAMALLAH_AL_BIREH',
-    reportSource: 'NONE',
-    injuriesReported: false,
-    description: 'Collision with barrier',
-    latitude: 31.905,
-    longitude: 35.204,
-    vehicles: [
+  const reporterFor = (parties = [], vehicles = []) => {
+    for (let i = 0; i < parties.length; i++) {
+      const p = parties[i];
+      if (!p) continue;
+      if (['POLICYHOLDER', 'AUTHORIZED_REPRESENTATIVE'].includes(p.role)) {
+        return { partyIndex: i, capacity: 'POLICYHOLDER' };
+      }
+      if (p.role === 'INSURED_DRIVER') {
+        return { partyIndex: i, capacity: 'DRIVER_AT_TIME' };
+      }
+      if (['THIRD_PARTY_DRIVER', 'PASSENGER', 'PEDESTRIAN'].includes(p.role)) {
+        return { partyIndex: i, capacity: 'OTHER_PARTY' };
+      }
+      if (p.role === 'WITNESS') {
+        return { partyIndex: i, capacity: 'EYEWITNESS' };
+      }
+      if (p.role === 'OWNER') {
+        const v = (p.vehicleIndex !== undefined && p.vehicleIndex !== null)
+          ? vehicles[p.vehicleIndex]
+          : vehicles[0];
+        if (!v || v.vehicleRole !== 'INSURED') {
+          return { partyIndex: i, capacity: 'OTHER_PARTY' };
+        }
+      }
+    }
+    return { partyIndex: 0, capacity: 'POLICYHOLDER' };
+  };
+
+  const validPayload = (overrides = {}) => {
+    const vehicles = overrides.vehicles || [
       {
         vehicleRole: 'THIRD_PARTY',
         plateRegion: 'PALESTINIAN',
@@ -128,8 +147,8 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
         model: 'Elantra',
         year: 2022,
       },
-    ],
-    parties: [
+    ];
+    const parties = overrides.parties || [
       {
         role: 'THIRD_PARTY_DRIVER',
         partyType: 'PERSON',
@@ -141,10 +160,28 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
         licenseExpiry: '2028-01-01',
         vehicleIndex: 0,
       },
-    ],
-    damagedItems: [],
-    ...overrides,
-  });
+    ];
+    const reporter = overrides.reporter !== undefined
+      ? overrides.reporter
+      : reporterFor(parties, vehicles);
+
+    return {
+      incidentType: 'COLLISION',
+      incidentLocation: 'Al-Irsal St, Ramallah',
+      incidentAt: '2026-06-15T10:00:00+03:00',
+      governorate: 'RAMALLAH_AL_BIREH',
+      reportSource: 'NONE',
+      injuriesReported: false,
+      description: 'Collision with barrier',
+      latitude: 31.905,
+      longitude: 35.204,
+      damagedItems: [],
+      ...overrides,
+      vehicles,
+      parties,
+      reporter,
+    };
+  };
 
   // 1. creates an incident with one vehicle and one party and returns both with ids
   it('1. creates an incident with one vehicle and one party and returns both with ids', async () => {
@@ -1182,5 +1219,459 @@ describe('PB-02a Incident Parties, Vehicles, Report Source and Damaged Items', (
       expect(resAppend.status).toBe(400);
       expect(resAppend.body.errors[0].code).toBe('VALIDATION_ERROR');
     }
+  });
+
+  describe('IR-01 incident reporter', () => {
+    it('[IR-01-01] POLICYHOLDER capacity with POLICYHOLDER party returns 201 and detail has matching partyRef', async () => {
+      await setupBaseFixture();
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'POLICYHOLDER',
+            partyType: 'PERSON',
+            fullName: 'Ahmad Policyholder',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
+      });
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      const createdPartyId = res.body.data.parties[0].id;
+      expect(res.body.data.reporter).toEqual({
+        partyRef: createdPartyId,
+        capacity: 'POLICYHOLDER',
+      });
+
+      const getRes = await request(app)
+        .get(`/api/v1/incidents/${res.body.data.id}`)
+        .set('Authorization', `Bearer ${officerToken}`);
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.data.reporter).toEqual({
+        partyRef: createdPartyId,
+        capacity: 'POLICYHOLDER',
+      });
+    });
+
+    it('[IR-01-02] POLICYHOLDER capacity with AUTHORIZED_REPRESENTATIVE party returns 201', async () => {
+      await setupBaseFixture();
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'AUTHORIZED_REPRESENTATIVE',
+            partyType: 'PERSON',
+            fullName: 'Rep Name',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
+      });
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.reporter).toEqual({
+        partyRef: res.body.data.parties[0].id,
+        capacity: 'POLICYHOLDER',
+      });
+    });
+
+    it('[IR-01-03] DRIVER_AT_TIME capacity with INSURED_DRIVER party returns 201', async () => {
+      await setupBaseFixture();
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'INSURED_DRIVER',
+            partyType: 'PERSON',
+            fullName: 'Driver Name',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 0, capacity: 'DRIVER_AT_TIME' },
+      });
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.reporter).toEqual({
+        partyRef: res.body.data.parties[0].id,
+        capacity: 'DRIVER_AT_TIME',
+      });
+    });
+
+    it('[IR-01-04] OTHER_PARTY capacity with THIRD_PARTY_DRIVER, PASSENGER, PEDESTRIAN returns 201', async () => {
+      await setupBaseFixture();
+      const cases = [
+        { role: 'THIRD_PARTY_DRIVER', vehicleIndex: 0 },
+        { role: 'PASSENGER', vehicleIndex: 0 },
+        { role: 'PEDESTRIAN' },
+      ];
+
+      for (const item of cases) {
+        const party = {
+          role: item.role,
+          partyType: 'PERSON',
+          fullName: `Party ${item.role}`,
+        };
+        if (item.vehicleIndex !== undefined) {
+          party.vehicleIndex = item.vehicleIndex;
+        }
+
+        const payload = validPayload({
+          parties: [party],
+          reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
+        });
+
+        const res = await request(app)
+          .post('/api/v1/incidents')
+          .set('Authorization', `Bearer ${officerToken}`)
+          .send(payload);
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.reporter).toEqual({
+          partyRef: res.body.data.parties[0].id,
+          capacity: 'OTHER_PARTY',
+        });
+      }
+    });
+
+    it('[IR-01-05] OTHER_PARTY capacity with OWNER of THIRD_PARTY or OTHER vehicle returns 201', async () => {
+      await setupBaseFixture();
+      const payloadTwoVehicles = validPayload({
+        vehicles: [
+          {
+            vehicleRole: 'THIRD_PARTY',
+            plateRegion: 'PALESTINIAN',
+            plateNumber: 'TP-1111',
+          },
+          {
+            vehicleRole: 'OTHER',
+            plateRegion: 'PALESTINIAN',
+            plateNumber: 'OTH-2222',
+          },
+        ],
+      });
+
+      // OWNER with THIRD_PARTY vehicle
+      const res1 = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          ...payloadTwoVehicles,
+          parties: [
+            {
+              role: 'OWNER',
+              partyType: 'PERSON',
+              fullName: 'Owner TP',
+              vehicleIndex: 0,
+            },
+          ],
+          reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
+        });
+      expect(res1.status).toBe(201);
+      expect(res1.body.data.reporter).toEqual({
+        partyRef: res1.body.data.parties[0].id,
+        capacity: 'OTHER_PARTY',
+      });
+
+      // OWNER with OTHER vehicle
+      const res2 = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          ...payloadTwoVehicles,
+          parties: [
+            {
+              role: 'OWNER',
+              partyType: 'PERSON',
+              fullName: 'Owner Other',
+              vehicleIndex: 1,
+            },
+          ],
+          reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
+        });
+      expect(res2.status).toBe(201);
+      expect(res2.body.data.reporter).toEqual({
+        partyRef: res2.body.data.parties[0].id,
+        capacity: 'OTHER_PARTY',
+      });
+    });
+
+    it('[IR-01-06] OTHER_PARTY capacity with OWNER of INSURED vehicle or no vehicle returns 422 REPORTER_CAPACITY_MISMATCH', async () => {
+      await setupBaseFixture();
+      const payloadInsuredOwner = validPayload({
+        vehicles: [
+          {
+            vehicleRole: 'INSURED',
+            plateRegion: 'PALESTINIAN',
+            plateNumber: 'TST-100',
+            vehicleId: insuredVehicle._id.toString(),
+          },
+        ],
+        parties: [
+          {
+            role: 'OWNER',
+            partyType: 'PERSON',
+            fullName: 'Owner Insured',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
+      });
+
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payloadInsuredOwner);
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('REPORTER_CAPACITY_MISMATCH');
+    });
+
+    it('[IR-01-07] DRIVER_AT_TIME capacity on a WITNESS party returns 422 REPORTER_CAPACITY_MISMATCH', async () => {
+      await setupBaseFixture();
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'WITNESS',
+            partyType: 'PERSON',
+            fullName: 'Witness Person',
+          },
+        ],
+        reporter: { partyIndex: 0, capacity: 'DRIVER_AT_TIME' },
+      });
+
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('REPORTER_CAPACITY_MISMATCH');
+    });
+
+    it('[IR-01-08] EYEWITNESS capacity on an INSURED_DRIVER party returns 422 REPORTER_CAPACITY_MISMATCH', async () => {
+      await setupBaseFixture();
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'INSURED_DRIVER',
+            partyType: 'PERSON',
+            fullName: 'Insured Driver',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 0, capacity: 'EYEWITNESS' },
+      });
+
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('REPORTER_CAPACITY_MISMATCH');
+    });
+
+    it('[IR-01-09] missing reporter object returns 400 VALIDATION_ERROR', async () => {
+      await setupBaseFixture();
+      const payload = validPayload();
+      delete payload.reporter;
+
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+
+    it('[IR-01-10] missing partyIndex, missing capacity, negative partyIndex, or unknown capacity returns 400 VALIDATION_ERROR', async () => {
+      await setupBaseFixture();
+      const badReporters = [
+        { capacity: 'POLICYHOLDER' },
+        { partyIndex: 0 },
+        { partyIndex: -1, capacity: 'POLICYHOLDER' },
+        { partyIndex: 1.5, capacity: 'POLICYHOLDER' },
+        { partyIndex: 0, capacity: 'UNKNOWN_CAPACITY' },
+      ];
+
+      for (const reporter of badReporters) {
+        const res = await request(app)
+          .post('/api/v1/incidents')
+          .set('Authorization', `Bearer ${officerToken}`)
+          .send(validPayload({ reporter }));
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors[0].code).toBe('VALIDATION_ERROR');
+      }
+    });
+
+    it('[IR-01-11] partyIndex equal to parties.length returns 422 INVALID_REPORTER_REF', async () => {
+      await setupBaseFixture();
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            partyType: 'PERSON',
+            fullName: 'TP Driver',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 1, capacity: 'OTHER_PARTY' },
+      });
+
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('INVALID_REPORTER_REF');
+    });
+
+    it('[IR-01-12] atomicity: refused request writes nothing to DB', async () => {
+      await setupBaseFixture();
+      const countBefore = await Incident.countDocuments();
+
+      const payload = validPayload({
+        parties: [
+          {
+            role: 'THIRD_PARTY_DRIVER',
+            partyType: 'PERSON',
+            fullName: 'TP Driver',
+            vehicleIndex: 0,
+          },
+        ],
+        reporter: { partyIndex: 99, capacity: 'OTHER_PARTY' },
+      });
+
+      const res = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors[0].code).toBe('INVALID_REPORTER_REF');
+
+      const countAfter = await Incident.countDocuments();
+      expect(countAfter).toBe(countBefore);
+    });
+
+    it('[IR-01-13] old incident without reporter returns reporter: null in GET /incidents/:id', async () => {
+      await setupBaseFixture();
+      const oldIncident = await Incident.create({
+        organizationId: org._id,
+        incidentDate: '2026-06-15',
+        incidentType: 'COLLISION',
+        incidentLocation: 'Direct DB Loc',
+        createdBy: officer._id,
+        reporter: null,
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/incidents/${oldIncident._id}`)
+        .set('Authorization', `Bearer ${officerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.reporter).toBeNull();
+    });
+
+    it('[IR-01-14] PATCH /incidents/:id/report with reporter key returns 400 VALIDATION_ERROR', async () => {
+      await setupBaseFixture();
+      const createRes = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(validPayload({
+          parties: [
+            {
+              role: 'POLICYHOLDER',
+              partyType: 'PERSON',
+              fullName: 'Ahmad Policyholder',
+              vehicleIndex: 0,
+            },
+          ],
+          reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
+        }));
+
+      expect(createRes.status).toBe(201);
+      const incidentId = createRes.body.data.id;
+
+      const patchRes = await request(app)
+        .patch(`/api/v1/incidents/${incidentId}/report`)
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
+        });
+
+      expect(patchRes.status).toBe(400);
+      expect(patchRes.body.errors[0].code).toBe('VALIDATION_ERROR');
+    });
+
+    it('[IR-01-15] the legacy POST /api/v1/claims still returns 201, and GET /api/v1/incidents/:id of its incident returns reporter: null', async () => {
+      await setupBaseFixture();
+      const res = await request(app)
+        .post('/api/v1/claims')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send({
+          policyId: policy._id.toString(),
+          plateNumber: 'TST-100',
+          incidentType: 'COLLISION',
+          incidentLocation: 'Old Main Rd',
+          latitude: 31.9038,
+          longitude: 35.2034,
+          incidentDate: '2026-06-15',
+          description: 'Legacy claim incident',
+        });
+
+      expect(res.status).toBe(201);
+      const incidentId = res.body.data.incidentId;
+      expect(incidentId).toBeDefined();
+
+      const getRes = await request(app)
+        .get(`/api/v1/incidents/${incidentId}`)
+        .set('Authorization', `Bearer ${officerToken}`);
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.data.reporter).toBeNull();
+    });
+
+    it('[IR-01-16] an incident created with a reporter in organization 1 returns 404 INCIDENT_NOT_FOUND to an officer of organization 2', async () => {
+      await setupBaseFixture();
+      const createRes = await request(app)
+        .post('/api/v1/incidents')
+        .set('Authorization', `Bearer ${officerToken}`)
+        .send(validPayload({
+          parties: [
+            {
+              role: 'POLICYHOLDER',
+              partyType: 'PERSON',
+              fullName: 'Ahmad Policyholder',
+              vehicleIndex: 0,
+            },
+          ],
+          reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
+        }));
+
+      expect(createRes.status).toBe(201);
+      const incidentId = createRes.body.data.id;
+
+      const crossRes = await request(app)
+        .get(`/api/v1/incidents/${incidentId}`)
+        .set('Authorization', `Bearer ${otherOfficerToken}`);
+
+      expect(crossRes.status).toBe(404);
+      expect(crossRes.body.errors[0].code).toBe('INCIDENT_NOT_FOUND');
+    });
   });
 });

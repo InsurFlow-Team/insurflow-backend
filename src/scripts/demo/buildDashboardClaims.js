@@ -343,6 +343,7 @@ const buildDashboardClaims = async ({ refData = {}, assets = DEMO_ASSET_URLS, rn
           vehicleIndex: 0,
         },
       ],
+      reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
     };
 
     const validatedIncident = validateBody(createIncidentSchema, rawIncidentBody);

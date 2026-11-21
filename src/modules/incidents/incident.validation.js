@@ -236,6 +236,23 @@ const damagedItemItemSchema = Joi.object({
   }),
 });
 
+const reporterItemSchema = Joi.object({
+  partyIndex: Joi.number().integer().min(0).required().messages({
+    'number.base': 'partyIndex must be an integer',
+    'number.integer': 'partyIndex must be an integer',
+    'number.min': 'partyIndex cannot be negative',
+    'any.required': 'partyIndex is required',
+  }),
+  capacity: Joi.string()
+    .valid('POLICYHOLDER', 'DRIVER_AT_TIME', 'OTHER_PARTY', 'EYEWITNESS')
+    .required()
+    .messages({
+      'any.only':
+        'capacity must be one of: POLICYHOLDER, DRIVER_AT_TIME, OTHER_PARTY, EYEWITNESS',
+      'any.required': 'capacity is required',
+    }),
+});
+
 const createIncidentSchema = Joi.object({
   incidentType: Joi.string()
     .valid(
@@ -331,6 +348,9 @@ const createIncidentSchema = Joi.object({
   }),
   damagedItems: Joi.array().items(damagedItemItemSchema).max(20).default([]).messages({
     'array.max': 'Damaged items count cannot exceed 20',
+  }),
+  reporter: reporterItemSchema.required().messages({
+    'any.required': 'reporter is required',
   }),
 }).custom((value, helpers) => {
   if (value.eKrokaReference && value.reportSource !== 'PALESTINIAN_POLICE_EKROKA') {
@@ -451,4 +471,5 @@ module.exports = {
   appendPartyItemSchema,
   damagedItemItemSchema,
   patchIncidentReportSchema,
+  reporterItemSchema,
 };

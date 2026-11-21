@@ -552,8 +552,9 @@ describe('ASG-01: Assignment Hardening Integration & Unit Tests', () => {
           { vehicleRole: 'INSURED', plateRegion: 'PALESTINIAN', plateNumber: '1234-A' },
         ],
         parties: [
-          { partyType: 'PERSON', role: 'POLICYHOLDER', fullName: 'Ahmad User' },
+          { partyType: 'PERSON', role: 'POLICYHOLDER', fullName: 'Ahmad User', vehicleIndex: 0 },
         ],
+        reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
       };
 
       // Missing latitude
