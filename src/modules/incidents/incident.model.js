@@ -243,6 +243,20 @@ const incidentSchema = new mongoose.Schema(
       type: [damagedItemSchema],
       default: [],
     },
+    reporter: {
+      type: new mongoose.Schema(
+        {
+          partyRef: { type: mongoose.Schema.Types.ObjectId, required: true },
+          capacity: {
+            type: String,
+            enum: ['POLICYHOLDER', 'DRIVER_AT_TIME', 'OTHER_PARTY', 'EYEWITNESS'],
+            required: true,
+          },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

@@ -112,6 +112,7 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
         vehicleIndex: 0,
       },
     ],
+    reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
     ...overrides,
   });
 
@@ -574,6 +575,7 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
               vehicleIndex: 0,
             },
           ],
+          reporter: { partyIndex: 0, capacity: 'DRIVER_AT_TIME' },
         })
       );
     const incidentId = incRes.body.data.id;
@@ -979,6 +981,7 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
               vehicleIndex: 0,
             },
           ],
+          reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
         })
       );
     const incidentId = incRes.body.data.id;
@@ -1079,6 +1082,7 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
               vehicleIndex: 0,
             },
           ],
+          reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
         })
       );
 
@@ -1115,6 +1119,7 @@ describe('PB-04b Incident Coverage Suggestions & accidentArea', () => {
               vehicleIndex: 0,
             },
           ],
+          reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
         })
       );
 

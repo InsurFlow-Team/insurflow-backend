@@ -158,6 +158,10 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
       createdBy: officer._id,
       vehicles: defaultVehicles,
       parties: defaultParties,
+      reporter: {
+        partyRef: pId,
+        capacity: 'POLICYHOLDER',
+      },
       ...overrides,
     });
   };
@@ -193,6 +197,7 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
             vehicleIndex: 0,
           },
         ],
+        reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
       });
 
     expect(res.status).toBe(201);
@@ -241,6 +246,7 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
             vehicleIndex: 0,
           },
         ],
+        reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
       });
 
     expect(res.status).toBe(400);
@@ -625,6 +631,7 @@ describe('PB-01b Incident Endpoints & Sub-claims', () => {
             vehicleIndex: 0,
           },
         ],
+        reporter: { partyIndex: 0, capacity: 'OTHER_PARTY' },
       });
     expect(postIncidentRes.status).toBe(403);
 

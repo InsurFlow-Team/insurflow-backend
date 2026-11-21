@@ -314,6 +314,7 @@ const buildScenario = async ({ refData = {}, assets = DEMO_ASSET_URLS, rndHelper
           vehicleIndex: 0,
         },
       ],
+      reporter: { partyIndex: 0, capacity: 'POLICYHOLDER' },
     };
 
     const validatedIncident = validateBody(createIncidentSchema, rawIncidentBody);

@@ -42,6 +42,50 @@ const formatDamagedItem = (d) => ({
   description: d.description,
 });
 
+const formatReporter = (r) => {
+  if (!r || !r.partyRef || !r.capacity) return null;
+  return {
+    partyRef: r.partyRef,
+    capacity: r.capacity,
+  };
+};
+
+const assertReporterCapacityMatch = (capacity, party, vehicles) => {
+  const role = party.role;
+  let matches = false;
+
+  switch (capacity) {
+    case 'POLICYHOLDER':
+      matches = role === 'POLICYHOLDER' || role === 'AUTHORIZED_REPRESENTATIVE';
+      break;
+    case 'DRIVER_AT_TIME':
+      matches = role === 'INSURED_DRIVER';
+      break;
+    case 'OTHER_PARTY':
+      if (['THIRD_PARTY_DRIVER', 'PASSENGER', 'PEDESTRIAN'].includes(role)) {
+        matches = true;
+      } else if (role === 'OWNER') {
+        const vehicle =
+          party.vehicleIndex !== undefined && party.vehicleIndex !== null
+            ? vehicles[party.vehicleIndex]
+            : null;
+        if (vehicle && ['THIRD_PARTY', 'OTHER'].includes(vehicle.vehicleRole)) {
+          matches = true;
+        }
+      }
+      break;
+    case 'EYEWITNESS':
+      matches = role === 'WITNESS';
+      break;
+    default:
+      matches = false;
+  }
+
+  if (!matches) {
+    throw new AppError('Reporter capacity does not match party role', 422, 'REPORTER_CAPACITY_MISMATCH');
+  }
+};
+
 const createIncident = async (body, authUser) => {
   const {
     incidentType,
@@ -59,6 +103,7 @@ const createIncident = async (body, authUser) => {
     vehicles,
     parties,
     damagedItems = [],
+    reporter,
   } = body;
 
   const incidentAtDate = new Date(incidentAt);
@@ -76,6 +121,18 @@ const createIncident = async (body, authUser) => {
       }
     }
   }
+
+  if (
+    !reporter ||
+    typeof reporter.partyIndex !== 'number' ||
+    reporter.partyIndex < 0 ||
+    reporter.partyIndex >= parties.length
+  ) {
+    throw new AppError('Invalid reporter reference', 422, 'INVALID_REPORTER_REF');
+  }
+
+  const reporterParty = parties[reporter.partyIndex];
+  assertReporterCapacityMatch(reporter.capacity, reporterParty, vehicles);
 
   for (const v of vehicles) {
     if (v.vehicleId) {
@@ -122,6 +179,11 @@ const createIncident = async (body, authUser) => {
     };
   });
 
+  const preparedReporter = {
+    partyRef: preparedParties[reporter.partyIndex]._id,
+    capacity: reporter.capacity,
+  };
+
   const preparedDamagedItems = (damagedItems || []).map((d) => ({
     _id: new mongoose.Types.ObjectId(),
     itemType: d.itemType,
@@ -155,6 +217,7 @@ const createIncident = async (body, authUser) => {
     vehicles: preparedVehicles,
     parties: preparedParties,
     damagedItems: preparedDamagedItems,
+    reporter: preparedReporter,
     createdBy: authUser.userId,
   });
 
@@ -177,6 +240,7 @@ const createIncident = async (body, authUser) => {
     vehicles: incident.vehicles.map(formatVehicle),
     parties: incident.parties.map(formatParty),
     damagedItems: incident.damagedItems.map(formatDamagedItem),
+    reporter: formatReporter(incident.reporter),
     createdAt: incident.createdAt,
   };
 };
@@ -252,6 +316,7 @@ const getIncidentById = async (incidentId, authUser) => {
     vehicles: (incident.vehicles ?? []).map(formatVehicle),
     parties: (incident.parties ?? []).map(formatParty),
     damagedItems: (incident.damagedItems ?? []).map(formatDamagedItem),
+    reporter: formatReporter(incident.reporter),
     createdAt: incident.createdAt,
     claims: formattedClaims,
   };
