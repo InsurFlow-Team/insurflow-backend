@@ -134,6 +134,30 @@ const fillReportFields = async (incidentId, organizationId, fields) => {
   ).lean();
 };
 
+const findDuplicateCandidates = async (
+  organizationId,
+  { normalizedPlates, startWindow, endWindow, dateSet, excludeIncidentId, limit = 500 }
+) => {
+  const filter = {
+    organizationId,
+    'vehicles.plateNumber': { $in: normalizedPlates },
+    $or: [
+      { incidentAt: { $gte: startWindow, $lte: endWindow } },
+      { incidentAt: null, incidentDate: { $in: dateSet } },
+    ],
+  };
+
+  if (excludeIncidentId) {
+    filter._id = { $ne: excludeIncidentId };
+  }
+
+  return await Incident.find(filter)
+    .collation({ locale: 'en', strength: 2 })
+    .select('_id incidentNumber incidentAt incidentDate governorate incidentCoordinates vehicles')
+    .limit(limit)
+    .lean();
+};
+
 module.exports = {
   create,
   deleteByIdAndOrganization,
@@ -144,4 +168,5 @@ module.exports = {
   pushParty,
   pushDamagedItem,
   fillReportFields,
+  findDuplicateCandidates,
 };

@@ -6,8 +6,25 @@ const policyRepository = require('../policies/policy.repository');
 const { assertPolicyCoverage, getEligibleClaimantParties } = require('../claims/claim.service');
 const { getPolicyPeriodViolation } = require('../../utils/policyPeriod');
 const AppError = require('../../utils/appError');
+const { toHebronDate, deriveIncidentDate } = require('../../utils/hebronDate');
+const { calculateHaversineDistance } = require('../../utils/geo.utils');
 
-const { deriveIncidentDate } = require('../../utils/hebronDate');
+const DUPLICATE_CHECK_MAX_RESULTS = 20;
+const DUPLICATE_CHECK_MAX_CANDIDATES = 500;
+
+const getHebronMidnight = (dateStr) => {
+  let low = new Date(`${dateStr}T00:00:00Z`).getTime() - 4 * 3600000;
+  let high = new Date(`${dateStr}T00:00:00Z`).getTime();
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (toHebronDate(new Date(mid)) < dateStr) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
+};
 
 const formatVehicle = (v) => ({
   id: v._id,
@@ -777,6 +794,164 @@ const getCoverageSuggestions = async (incidentId, authUser) => {
   };
 };
 
+const checkDuplicates = async (body, authUser) => {
+  const {
+    incidentAt,
+    plateNumbers,
+    latitude,
+    longitude,
+    excludeIncidentId,
+  } = body;
+
+  const reqDate = new Date(incidentAt);
+  const reqMs = reqDate.getTime();
+
+  const startWindow = new Date(reqMs - 24 * 60 * 60 * 1000);
+  const endWindow = new Date(reqMs + 24 * 60 * 60 * 1000);
+
+  const startDateStr = toHebronDate(startWindow);
+  const midDateStr = toHebronDate(reqDate);
+  const endDateStr = toHebronDate(endWindow);
+  const dateSet = Array.from(new Set([startDateStr, midDateStr, endDateStr])).sort();
+
+  const normalizedPlates = Array.from(
+    new Set(plateNumbers.map((p) => p.trim().toUpperCase()))
+  );
+  const normalizedSet = new Set(normalizedPlates);
+
+  const candidates = await incidentRepository.findDuplicateCandidates(
+    authUser.organizationId,
+    {
+      normalizedPlates,
+      startWindow,
+      endWindow,
+      dateSet,
+      excludeIncidentId,
+      limit: DUPLICATE_CHECK_MAX_CANDIDATES,
+    }
+  );
+
+  const truncated = candidates.length > DUPLICATE_CHECK_MAX_RESULTS;
+
+  if (candidates.length === 0) {
+    return {
+      windowHours: 24,
+      checkedAt: new Date().toISOString(),
+      matches: [],
+      truncated: false,
+    };
+  }
+
+  const candidateIds = candidates.map((c) => c._id);
+  const claimCounts = await claimRepository.countClaimsByIncidentIds(
+    authUser.organizationId,
+    candidateIds
+  );
+
+  const claimCountMap = new Map();
+  for (const item of claimCounts) {
+    claimCountMap.set(item._id.toString(), item.count);
+  }
+
+  const processed = candidates.map((c) => {
+    const isExact = c.incidentAt !== null && c.incidentAt !== undefined;
+    const timeBasis = isExact ? 'EXACT' : 'DATE_ONLY';
+
+    let timeDistanceMs;
+    if (isExact) {
+      timeDistanceMs = Math.abs(new Date(c.incidentAt).getTime() - reqMs);
+    } else {
+      if (c.incidentDate === midDateStr) {
+        timeDistanceMs = 0;
+      } else if (c.incidentDate < midDateStr) {
+        timeDistanceMs = reqMs - getHebronMidnight(midDateStr);
+      } else {
+        timeDistanceMs = getHebronMidnight(c.incidentDate) - reqMs;
+      }
+    }
+
+    const matchedPlates = [];
+    if (Array.isArray(c.vehicles)) {
+      for (const v of c.vehicles) {
+        if (v.plateNumber) {
+          const upperPlate = v.plateNumber.trim().toUpperCase();
+          if (normalizedSet.has(upperPlate)) {
+            matchedPlates.push({
+              plateNumber: v.plateNumber,
+              vehicleRole: v.vehicleRole,
+            });
+          }
+        }
+      }
+    }
+
+    let distanceKm = null;
+    if (
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      c.incidentCoordinates &&
+      typeof c.incidentCoordinates.latitude === 'number' &&
+      typeof c.incidentCoordinates.longitude === 'number'
+    ) {
+      distanceKm = calculateHaversineDistance(
+        latitude,
+        longitude,
+        c.incidentCoordinates.latitude,
+        c.incidentCoordinates.longitude
+      );
+    }
+
+    const claimsCount = claimCountMap.get(c._id.toString()) || 0;
+
+    return {
+      incidentId: c._id.toString(),
+      incidentNumber: c.incidentNumber,
+      incidentAt: c.incidentAt ? new Date(c.incidentAt).toISOString() : null,
+      incidentDate: c.incidentDate,
+      timeBasis,
+      governorate: c.governorate ?? null,
+      matchedPlates,
+      distanceKm,
+      claimsCount,
+      timeDistanceMs,
+      timeBasisPriority: isExact ? 0 : 1,
+      rawIncidentAtMs: isExact ? new Date(c.incidentAt).getTime() : 0,
+    };
+  });
+
+  processed.sort((a, b) => {
+    if (a.timeDistanceMs !== b.timeDistanceMs) {
+      return a.timeDistanceMs - b.timeDistanceMs;
+    }
+    if (a.timeBasisPriority !== b.timeBasisPriority) {
+      return a.timeBasisPriority - b.timeBasisPriority;
+    }
+    if (a.timeBasis === 'EXACT' && a.rawIncidentAtMs !== b.rawIncidentAtMs) {
+      return a.rawIncidentAtMs - b.rawIncidentAtMs;
+    }
+    return (a.incidentNumber || '').localeCompare(b.incidentNumber || '');
+  });
+
+  const matches = processed.slice(0, DUPLICATE_CHECK_MAX_RESULTS).map((m) => ({
+    incidentId: m.incidentId,
+    incidentNumber: m.incidentNumber,
+    incidentAt: m.incidentAt,
+    incidentDate: m.incidentDate,
+    timeBasis: m.timeBasis,
+    governorate: m.governorate,
+    matchedPlates: m.matchedPlates,
+    distanceKm: m.distanceKm,
+    claimsCount: m.claimsCount,
+  }));
+
+  return {
+    windowHours: 24,
+    checkedAt: new Date().toISOString(),
+    matches,
+    truncated,
+  };
+};
+
 module.exports = {
   deriveIncidentDate,
   formatVehicle,
@@ -790,4 +965,5 @@ module.exports = {
   addDamagedItem,
   patchReport,
   getCoverageSuggestions,
+  checkDuplicates,
 };

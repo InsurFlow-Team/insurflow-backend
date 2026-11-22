@@ -11,6 +11,7 @@ const {
   appendPartyItemSchema,
   damagedItemItemSchema,
   patchIncidentReportSchema,
+  duplicateCheckSchema,
 } = require('./incident.validation');
 
 const router = express.Router();
@@ -18,6 +19,7 @@ const router = express.Router();
 router.use(authenticate);
 router.use(authorizeRole(['CLAIMS_OFFICER', 'ADMIN']));
 
+router.post('/duplicate-check', validate(duplicateCheckSchema), incidentController.duplicateCheck);
 router.post('/', validate(createIncidentSchema), incidentController.createIncident);
 router.get('/', validate(listIncidentsQuerySchema, 'query'), incidentController.getIncidents);
 router.get('/:incidentId', validateObjectId('incidentId'), incidentController.getIncidentById);
