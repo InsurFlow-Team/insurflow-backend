@@ -269,6 +269,10 @@ const incidentSchema = new mongoose.Schema(
 // Indexes
 incidentSchema.index({ organizationId: 1, incidentNumber: 1 }, { unique: true });
 incidentSchema.index({ organizationId: 1, createdAt: -1 });
+incidentSchema.index(
+  { organizationId: 1, 'vehicles.plateNumber': 1, incidentAt: 1 },
+  { name: 'dup_check_plate_time', collation: { locale: 'en', strength: 2 } }
+);
 
 // Atomic tenant-scoped incidentNumber generation: INC-<ORG_CODE>-0001
 incidentSchema.pre('save', async function () {

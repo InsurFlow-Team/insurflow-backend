@@ -8,6 +8,7 @@ const User = require('../src/modules/users/user.model');
 const Customer = require('../src/modules/customers/customer.model');
 const Vehicle = require('../src/modules/vehicles/vehicle.model');
 const Claim = require('../src/modules/claims/claim.model');
+const Incident = require('../src/modules/incidents/incident.model');
 const { buildPolicy } = require('./helpers/policyFactory');
 const config = require('../src/config/env');
 
@@ -488,5 +489,65 @@ describe('API Contract Keys — Sorted Key Sets', () => {
     expect(data.customer).toBeUndefined();
     expect(data.phone).toBeUndefined();
     expect(data.userId).toBeUndefined();
+  });
+
+  // 9. POST /incidents/duplicate-check response keys
+  it('9. POST /incidents/duplicate-check response keys', async () => {
+    await Incident.create({
+      organizationId: org._id,
+      incidentDate: '2026-06-01',
+      incidentAt: new Date('2026-06-01T10:00:00+03:00'),
+      incidentType: 'COLLISION',
+      incidentLocation: 'Ramallah Main St',
+      incidentCoordinates: { latitude: 31.9038, longitude: 35.2034, capturedAt: new Date() },
+      governorate: 'RAMALLAH_AL_BIREH',
+      createdBy: officer._id,
+      vehicles: [
+        {
+          vehicleRole: 'INSURED',
+          plateRegion: 'PALESTINIAN',
+          plateNumber: '1234-A',
+        },
+      ],
+    });
+
+    const res = await request(app)
+      .post('/api/v1/incidents/duplicate-check')
+      .set('Authorization', `Bearer ${officerToken}`)
+      .send({
+        incidentAt: '2026-06-01T10:00:00+03:00',
+        plateNumbers: ['1234-A'],
+        latitude: 31.9038,
+        longitude: 35.2034,
+      });
+
+    expect(res.status).toBe(200);
+    const data = res.body.data;
+
+    // Top level
+    expect(Object.keys(data).sort()).toEqual(
+      ['checkedAt', 'matches', 'truncated', 'windowHours'].sort()
+    );
+
+    // Matches item
+    expect(data.matches.length).toBeGreaterThan(0);
+    expect(Object.keys(data.matches[0]).sort()).toEqual(
+      [
+        'claimsCount',
+        'distanceKm',
+        'governorate',
+        'incidentAt',
+        'incidentDate',
+        'incidentId',
+        'incidentNumber',
+        'matchedPlates',
+        'timeBasis',
+      ].sort()
+    );
+
+    // Matched plate item
+    expect(Object.keys(data.matches[0].matchedPlates[0]).sort()).toEqual(
+      ['plateNumber', 'vehicleRole'].sort()
+    );
   });
 });

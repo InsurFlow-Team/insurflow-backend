@@ -2,6 +2,20 @@ const Joi = require('joi');
 const { objectIdPattern } = require('../../middlewares/validate.middleware');
 const { GOVERNORATES } = require('../../utils/governorates');
 
+const incidentAtSchema = Joi.string()
+  .pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/)
+  .custom((value, helpers) => {
+    if (Number.isNaN(Date.parse(value))) {
+      return helpers.message('incidentAt must be a valid date');
+    }
+    return value;
+  })
+  .required()
+  .messages({
+    'string.pattern.base': 'incidentAt must be a valid ISO 8601 string with a timezone offset',
+    'any.required': 'incidentAt is required',
+  });
+
 const vehicleItemSchema = Joi.object({
   vehicleRole: Joi.string()
     .valid('INSURED', 'THIRD_PARTY', 'OTHER')
@@ -281,19 +295,7 @@ const createIncidentSchema = Joi.object({
   reportedAt: Joi.forbidden().messages({
     'any.unknown': 'reportedAt is set by the server and cannot be provided',
   }),
-  incidentAt: Joi.string()
-    .pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/)
-    .custom((value, helpers) => {
-      if (Number.isNaN(Date.parse(value))) {
-        return helpers.message('incidentAt must be a valid date');
-      }
-      return value;
-    })
-    .required()
-    .messages({
-      'string.pattern.base': 'incidentAt must be a valid ISO 8601 string with a timezone offset',
-      'any.required': 'incidentAt is required',
-    }),
+  incidentAt: incidentAtSchema,
   governorate: Joi.string()
     .valid(...GOVERNORATES)
     .required()
@@ -463,6 +465,42 @@ const createSubClaimSchema = Joi.object({
     }),
 });
 
+const duplicateCheckSchema = Joi.object({
+  incidentAt: incidentAtSchema,
+  plateNumbers: Joi.array()
+    .items(
+      Joi.string()
+        .trim()
+        .max(20)
+        .required()
+        .messages({
+          'string.empty': 'plateNumber cannot be empty',
+          'string.max': 'plateNumber cannot exceed 20 characters',
+        })
+    )
+    .min(1)
+    .max(10)
+    .required()
+    .messages({
+      'array.base': 'plateNumbers must be an array',
+      'array.min': 'plateNumbers must contain at least 1 plate number',
+      'array.max': 'plateNumbers cannot contain more than 10 plate numbers',
+      'any.required': 'plateNumbers is required',
+    }),
+  latitude: Joi.number().min(-90).max(90).optional(),
+  longitude: Joi.number().min(-180).max(180).optional(),
+  excludeIncidentId: Joi.string()
+    .pattern(objectIdPattern)
+    .optional()
+    .messages({
+      'string.pattern.base': 'excludeIncidentId must be a valid MongoDB ObjectId',
+    }),
+})
+  .and('latitude', 'longitude')
+  .messages({
+    'and.missing': 'latitude and longitude must be provided together',
+  });
+
 module.exports = {
   createIncidentSchema,
   listIncidentsQuerySchema,
@@ -472,4 +510,5 @@ module.exports = {
   damagedItemItemSchema,
   patchIncidentReportSchema,
   reporterItemSchema,
+  duplicateCheckSchema,
 };

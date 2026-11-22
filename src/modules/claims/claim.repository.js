@@ -143,6 +143,35 @@ const findByIncidentId = async (organizationId, incidentId) => {
     .lean();
 };
 
+const countClaimsByIncidentIds = async (organizationId, incidentIds) => {
+  if (!incidentIds || incidentIds.length === 0) {
+    return [];
+  }
+  const orgObjectId =
+    organizationId instanceof mongoose.Types.ObjectId
+      ? organizationId
+      : new mongoose.Types.ObjectId(organizationId);
+
+  const incidentObjectIds = incidentIds.map((id) =>
+    id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+  );
+
+  return await Claim.aggregate([
+    {
+      $match: {
+        organizationId: orgObjectId,
+        incidentId: { $in: incidentObjectIds },
+      },
+    },
+    {
+      $group: {
+        _id: '$incidentId',
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+};
+
 const findForReport = async (claimId, organizationId) => {
   return await Claim.findOne({ _id: claimId, organizationId })
     .populate('createdBy', 'name employeeCode role')
@@ -843,6 +872,7 @@ module.exports = {
   findByTrackingToken,
   rotateTrackingToken,
   findByIncidentId,
+  countClaimsByIncidentIds,
   addEstimate,
   approveEstimate,
   atomicCreateRepairOrder,

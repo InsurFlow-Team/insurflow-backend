@@ -65,6 +65,11 @@ const getCoverageSuggestions = async (req, res) => {
   return res.status(200).json(successResponse('Coverage suggestions retrieved successfully', result));
 };
 
+const duplicateCheck = async (req, res) => {
+  const result = await incidentService.checkDuplicates(req.body, req.user);
+  return res.status(200).json(successResponse('Incident duplicate check completed', result));
+};
+
 module.exports = {
   createIncident,
   getIncidents,
@@ -75,4 +80,5 @@ module.exports = {
   addDamagedItem,
   patchReport,
   getCoverageSuggestions,
+  duplicateCheck,
 };
